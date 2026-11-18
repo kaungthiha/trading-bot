@@ -95,3 +95,15 @@ def test_no_exchange_order_routes_and_only_paper_post(client: TestClient) -> Non
     writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
     # The only state-changing route SIMULATES orders locally (milestone 06).
     assert writes == {("/api/paper/orders", "post")}
+
+
+def test_glossary_endpoint_serves_exported_registry(client: TestClient) -> None:
+    body = client.get("/api/glossary").json()
+    assert body["count"] >= 42 and body["source"].endswith("terms.ts")
+    ids = [t["id"] for t in body["terms"]]
+    assert len(ids) == len(set(ids))
+    for required in ("edge", "slippage", "brier-score", "bid", "abstention"):
+        assert required in ids
+    assert all(t["shortDefinition"] and t["deepExplanation"] for t in body["terms"])
+    hits = client.get("/api/glossary", params={"q": "EV"}).json()["terms"]
+    assert "expected-value" in [t["id"] for t in hits]

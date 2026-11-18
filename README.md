@@ -5,7 +5,7 @@ place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
 **Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data), 03 (evidence
-pipeline), 04 (probability models), 05 (signals) and 06 (paper trading) are done.
+pipeline), 04 (probability models), 05 (signals), 06 (paper trading) and 07 (educational UX) are done.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
@@ -205,6 +205,28 @@ contacted.
   `X-KRT-Request: paper` header and a JSON body, plus the existing Origin allow-list, so other
   websites can't forge it.
 
+## Learning mode (milestone 07)
+- **One glossary, everywhere.** 48 terms live in `frontend/src/glossary/terms.ts`: the 42
+  canonical terms from the spec's `GLOSSARY.md`, plus 6 terms specific to this app. Each entry
+  has a short definition (200 characters or fewer), an example, a deeper explanation (*what it
+  means, why it matters here, what could mislead you*), and, where useful, a formula and
+  sources.
+  - Tests check that every canonical term's wording matches the spec, so the two can't drift.
+  - The backend's `GET /api/glossary` serves an exported copy. After editing a term, run
+    `npm run glossary:export` from `frontend/`; a test fails if the copy is stale.
+- **`<Term>` and `<MetricLabel>`.**
+  - Hover or keyboard focus shows a short, non-interactive tooltip. You can move the pointer
+    onto it (there's a 150 ms grace period), and Escape dismisses it while keeping focus.
+  - Click, tap, Enter or Space opens a separate **dialog** with the full explanation, related
+    terms and sources. It traps focus, closes on Escape or a backdrop click, and returns focus
+    to the term.
+  - Touch screens don't rely on hover. Links never appear inside a tooltip.
+- **Glossary page** (`#/glossary`, linked in the header): search by name, alias or
+  definition, filter by category, open "learn more", and try the worked examples for *edge*,
+  *slippage* and *Brier score*.
+- **No clutter.** Terms are explained on table headers and at their first meaningful use. A test
+  fails if any panel marks the same term more than twice.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -267,7 +289,7 @@ backend/
                   /api/markets/{id}/signals, /api/mappings, /api/fee-schedules,
                   /api/paper/{account,orders,settlements,replay}, POST /api/paper/orders
   alembic/        migrations 0001_initial … 0006_paper
-  tests/          189 tests (HTTP via mock transports; network is blocked)
+  tests/          190 tests (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

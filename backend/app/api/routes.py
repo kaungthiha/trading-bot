@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from datetime import timedelta
+from functools import lru_cache
+from pathlib import Path as FsPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
@@ -101,6 +103,30 @@ def _summary(m: Market, repo: MarketRepository, clock: Clock, max_age: int) -> d
         "is_mock": m.is_mock,
         "quote": _quote_out(repo.latest_quote(m.id), clock, max_age),
     }
+
+
+GLOSSARY_FILE = FsPath(__file__).resolve().parents[1] / "glossary.json"
+
+
+@lru_cache(maxsize=1)
+def _load_glossary() -> dict:
+    """Exported from the frontend's typed registry (single editorial source)."""
+    data = json.loads(GLOSSARY_FILE.read_text(encoding="utf-8"))
+    ids = [t["id"] for t in data["terms"]]
+    if len(ids) != len(set(ids)) or any(not t.get("shortDefinition") for t in data["terms"]):
+        raise ValueError("glossary.json is invalid (duplicate ids or empty definitions)")
+    return data
+
+
+@router.get("/glossary")
+def glossary(q: Annotated[str | None, Query(max_length=60)] = None) -> dict:
+    data = _load_glossary()
+    terms = data["terms"]
+    if q:
+        ql = q.lower()
+        terms = [t for t in terms if ql in t["label"].lower() or ql in t["id"]
+                 or any(ql in a.lower() for a in t["aliases"])]
+    return {"source": data["source"], "count": len(terms), "terms": terms}
 
 
 @router.get("/health", response_model=HealthOut)
