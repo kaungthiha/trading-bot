@@ -6,12 +6,12 @@ import hashlib
 import json
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.clock import Clock
 from app.db.models import AuditEvent, Market, MarketRuleVersion, QuoteSnapshot
-from app.domain.models import MarketSnapshot
+from app.domain.models import MarketSnapshot, MarketType
 from app.domain.pricing import derive_quote
 
 
@@ -35,9 +35,13 @@ class MarketRepository:
             self.s.add(market)
         market.exchange = snap.exchange
         market.event_ticker = snap.event_ticker
+        market.series_ticker = snap.series_ticker
         market.title = snap.title
         market.category = snap.category
         market.status = snap.status.value
+        market.status_raw = snap.status_raw
+        market.market_type = snap.market_type.value
+        market.open_at = snap.open_at
         market.close_at = snap.close_at
         market.notional_value = snap.notional_value
         market.price_ranges_json = json.dumps(
@@ -71,7 +75,11 @@ class MarketRepository:
             )
         )
         if exists is None:
-            q = derive_quote(snap.orderbook, snap.notional_value)
+            q = derive_quote(
+                snap.orderbook,
+                snap.notional_value,
+                derivable=snap.market_type is MarketType.BINARY,
+            )
             self.s.add(
                 QuoteSnapshot(
                     market_id=market.id,
@@ -88,11 +96,45 @@ class MarketRepository:
         self.s.flush()
         return market
 
-    def list_markets(self, category: str | None, limit: int, offset: int) -> Sequence[Market]:
+    def list_markets(
+        self,
+        category: str | None,
+        limit: int,
+        offset: int,
+        *,
+        status: str | None = None,
+        series_ticker: str | None = None,
+        q: str | None = None,
+    ) -> Sequence[Market]:
         stmt = select(Market).order_by(Market.close_at, Market.external_ticker)
         if category:
             stmt = stmt.where(Market.category == category)
+        if status:
+            stmt = stmt.where(Market.status == status)
+        if series_ticker:
+            stmt = stmt.where(Market.series_ticker == series_ticker)
+        if q:
+            # Bound parameter (no SQL injection); escape LIKE wildcards in user text.
+            esc = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{esc}%"
+            stmt = stmt.where(
+                or_(
+                    Market.title.ilike(pattern, escape="\\"),
+                    Market.external_ticker.ilike(pattern, escape="\\"),
+                )
+            )
         return self.s.scalars(stmt.limit(limit).offset(offset)).all()
+
+    def categories(self) -> list[str]:
+        return list(self.s.scalars(select(Market.category).distinct().order_by(Market.category)))
+
+    def quotes(self, market_id: str, limit: int) -> Sequence[QuoteSnapshot]:
+        return self.s.scalars(
+            select(QuoteSnapshot)
+            .where(QuoteSnapshot.market_id == market_id)
+            .order_by(QuoteSnapshot.observed_at.desc())
+            .limit(limit)
+        ).all()
 
     def get(self, market_id: str) -> Market | None:
         return self.s.get(Market, market_id)

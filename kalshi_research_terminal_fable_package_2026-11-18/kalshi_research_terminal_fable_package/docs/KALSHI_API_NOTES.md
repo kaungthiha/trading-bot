@@ -20,5 +20,16 @@ Signed authenticated requests use access-key ID, timestamp and signature; docume
 ## Rate limits/history/fees
 Token-bucket read/write budgets, endpoint-specific costs, HTTP 429 handling and headers should be dynamically respected; do not hardcode a universal requests-per-second budget. [Rate limits](https://docs.kalshi.com/getting_started/rate_limits.md). Historic archives may be separated from live market data by cutoff; [Historical data](https://docs.kalshi.com/getting_started/historical_data.md). Fees differ by market/type and can include rounding/rebates; verify exact current documented calculation and source schedule rather than using one hardcoded percentage. [Fee rounding](https://docs.kalshi.com/getting_started/fee_rounding.md).
 
+## Verification log — milestone 02 (2026-11-18)
+Re-read against official docs (api_environments, quick_start_market_data, orderbook_responses, fixed_point_migration, rate_limits, market_lifecycle; api-reference get-markets, get-market, get-market-orderbook, get-series, get-event(s)). Findings that refine the notes above:
+- **Orderbook shape:** `{"orderbook_fp": {"yes_dollars": [[price, count], ...], "no_dollars": [...]}}`, string values, each side **ascending** (best bid is last). `depth` 0–100 (0 = all). Unknown/empty tickers return 200 with empty arrays, not 404. Snapshot only, no exchange timestamp. The implementation uses receipt time as `observed_at`.
+- **Market fields:** `*_dollars` price strings (≤6 dp on responses), `*_fp` count strings (2 dp). `notional_value_dollars`, `price_ranges` [{start,end,step}] is the grid source of truth, `market_type` binary|scalar, `rules_primary`/`rules_secondary`. `title`/`subtitle` are marked deprecated, so the code falls back to `yes_sub_title`.
+- **Category lives on the series** (`GET /series/{ticker}` → `category`). Event-level `category` is deprecated.
+- **Lifecycle statuses:** `initialized, inactive, active, closed, determined, disputed, amended, finalized`. The `GET /markets?status=` filter uses `unopened|open|paused|closed|settled`, which maps onto those.
+- **Pagination:** `cursor`, stop on empty. Markets can repeat across pages, so dedupe by ticker. `limit` max 1000.
+- **Rate limits:** unauthenticated limits are not published. A 429 has no `Retry-After`, so the client uses bounded exponential backoff. Public cacheable responses carry no `X-RateLimit-*` headers.
+- **Live check:** an ingest of series KXFED + KXHIGHNY parsed 248 markets with 0 errors. Derived asks equalled the API's own `yes_ask_dollars`/`no_ask_dollars` on all sampled markets.
+- **Not yet verified:** the complement relation for **scalar** markets, so the code derives no asks for them. Per-endpoint read-token costs. Fee schedule (milestone 05).
+
 ## Mandatory adapter verification checklist
 Actual routes, pagination cursors, quote field names, lifecycle statuses, market-specific allowed price ranges, field precisions, per-market fee terms, auth method, error shapes, 429 behavior, history cutoff, backfill availability, licenses and policy. Keep captured API fixtures with timestamp and redact sensitive fields. Never touch live order routes in prompts 01–08.

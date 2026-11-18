@@ -25,6 +25,20 @@ class TradingMode(StrEnum):
 
 class MarketDataSource(StrEnum):
     FIXTURE = "fixture"
+    KALSHI_PUBLIC = "kalshi_public"
+
+
+class KalshiEnv(StrEnum):
+    PRODUCTION = "production"
+    DEMO = "demo"
+
+
+# Documented public REST bases (docs.kalshi.com/getting_started/api_environments, checked
+# 2026-11-18). Only these hosts are ever contacted by the read-only adapter.
+KALSHI_REST_BASES: dict[KalshiEnv, str] = {
+    KalshiEnv.PRODUCTION: "https://external-api.kalshi.com/trade-api/v2",
+    KalshiEnv.DEMO: "https://external-api.demo.kalshi.co/trade-api/v2",
+}
 
 
 class Settings(BaseSettings):
@@ -49,6 +63,23 @@ class Settings(BaseSettings):
     # --- Data -------------------------------------------------------------------------
     market_data_source: MarketDataSource = MarketDataSource.FIXTURE
     quote_max_age_seconds: int = Field(default=60, ge=1)
+
+    # --- Kalshi public (unauthenticated) market data ----------------------------------
+    kalshi_env: KalshiEnv = KalshiEnv.PRODUCTION
+    # Series tickers to ingest, e.g. ["KXCPIYOY","KXFED"]. Empty = nothing is fetched.
+    kalshi_series_watchlist: list[str] = []
+    kalshi_market_status: str = "open"  # GET /markets?status= filter value
+    kalshi_max_pages: int = Field(default=10, ge=1, le=1000)
+    kalshi_page_limit: int = Field(default=200, ge=1, le=1000)
+    kalshi_orderbook_depth: int = Field(default=10, ge=0, le=100)
+    # Unauthenticated limits are not published; stay well below documented tiers.
+    kalshi_min_request_interval_seconds: float = Field(default=0.25, ge=0.05)
+    kalshi_max_retries: int = Field(default=4, ge=0, le=10)
+    http_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+
+    @property
+    def kalshi_rest_base(self) -> str:
+        return KALSHI_REST_BASES[self.kalshi_env]
 
     # --- Safety (fail closed) ---------------------------------------------------------
     trading_mode: TradingMode = TradingMode.PAPER
@@ -82,6 +113,24 @@ class Settings(BaseSettings):
         # `KEY=` placeholders in .env must mean "not configured", not an empty secret.
         if isinstance(v, str) and not v.strip():
             return None
+        return v
+
+    @field_validator("kalshi_series_watchlist")
+    @classmethod
+    def _valid_series(cls, v: list[str]) -> list[str]:
+        import re
+
+        for t in v:
+            if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{0,63}", t):
+                raise ValueError(f"Invalid series ticker {t!r}")
+        return v
+
+    @field_validator("kalshi_market_status")
+    @classmethod
+    def _valid_status_filter(cls, v: str) -> str:
+        allowed = {"unopened", "open", "paused", "closed", "settled"}
+        if v not in allowed:
+            raise ValueError(f"kalshi_market_status must be one of {sorted(allowed)}")
         return v
 
     @field_validator("api_host")

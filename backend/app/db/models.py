@@ -33,8 +33,12 @@ class Market(Base):
     external_ticker: Mapped[str] = mapped_column(String(128), unique=True)
     event_ticker: Mapped[str] = mapped_column(String(128), index=True)
     title: Mapped[str] = mapped_column(Text)
+    series_ticker: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     category: Mapped[str] = mapped_column(String(64), index=True)
-    status: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(32))  # normalized MarketStatus value
+    status_raw: Mapped[str | None] = mapped_column(String(32), nullable=True)  # as received
+    market_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    open_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     close_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     notional_value: Mapped[Decimal] = mapped_column(DecimalString())
     price_ranges_json: Mapped[str] = mapped_column(Text)
@@ -81,6 +85,18 @@ class QuoteSnapshot(Base):
     __table_args__ = (
         Index("ix_quotes_market_observed", "market_id", "observed_at", unique=True),
     )
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    adapter: Mapped[str] = mapped_column(String(64), index=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    status: Mapped[str] = mapped_column(String(16))  # running|success|partial|failed
+    count: Mapped[int] = mapped_column(default=0)
+    errors_json: Mapped[str] = mapped_column(Text, default="[]")
 
 
 class AuditEvent(Base):

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
@@ -25,9 +25,13 @@ const summary = {
   exchange: "kalshi",
   external_ticker: "MOCK-CPIYOY-26DEC-T3.0",
   event_ticker: "MOCK-CPIYOY-26DEC",
+  series_ticker: "MOCK-CPIYOY",
   title: "[MOCK] CPI above 3.0%?",
   category: "economics",
-  status: "open",
+  status: "active" as const,
+  status_raw: "active",
+  market_type: "binary",
+  open_at: null,
   close_at: "2026-12-10T13:25:00+00:00",
   is_mock: true,
   quote,
@@ -48,6 +52,7 @@ const health: Health = {
   trading_mode: "paper",
   live_execution_enabled: false,
   market_data_source: "fixture",
+  kalshi_env: "production",
   database: "ok",
   server_time: "2026-11-18T15:00:30+00:00",
   credentials_configured: { kalshi: false },
@@ -68,15 +73,33 @@ const detail: MarketDetail = {
   updated_at: "2026-11-18T15:00:30+00:00",
 };
 
+const calls: string[] = [];
+
 function mockFetch() {
   const routes: Record<string, unknown> = {
     "/api/health": health,
-    "/api/markets": { items: [summary, stale], limit: 50, offset: 0 } satisfies MarketList,
+    "/api/markets": { items: [summary, stale], limit: 200, offset: 0 } satisfies MarketList,
     "/api/markets/m1": detail,
+    "/api/categories": { items: ["economics", "technology"] },
+    "/api/ingestion/runs": {
+      items: [
+        {
+          id: "r1",
+          adapter: "fixture",
+          started_at: "2026-11-18T15:00:00+00:00",
+          finished_at: "2026-11-18T15:00:01+00:00",
+          status: "success",
+          count: 2,
+          errors: [],
+        },
+      ],
+    },
   };
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     expect(init?.credentials).toBe("omit");
-    const body = routes[String(input)];
+    const url = new URL(String(input), "http://127.0.0.1");
+    calls.push(url.pathname + url.search);
+    const body = routes[url.pathname];
     return body
       ? new Response(JSON.stringify(body), { status: 200 })
       : new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "nope" } }), { status: 404 });
@@ -84,7 +107,10 @@ function mockFetch() {
 }
 
 describe("<App>", () => {
-  beforeEach(() => vi.stubGlobal("fetch", mockFetch()));
+  beforeEach(() => {
+    calls.length = 0;
+    vi.stubGlobal("fetch", mockFetch());
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it("renders paper-mode banner and mock market list with stale indicator", async () => {
@@ -107,6 +133,37 @@ describe("<App>", () => {
     expect(within(article).getByText(/No bids — no counterparty/)).toBeInTheDocument();
     expect(within(article).getByText("SYNTHETIC RULES FOR TESTING.")).toBeInTheDocument();
     expect(within(article).getByText("MOCK DATA")).toBeInTheDocument();
+  });
+
+  it("shows last ingestion run and category options", async () => {
+    render(<App />);
+    expect(await screen.findByText(/Last ingestion:/)).toHaveTextContent("success via fixture, 2 markets");
+    const category = screen.getByLabelText("Category");
+    await screen.findByRole("option", { name: "technology" });
+    expect(within(category).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "All",
+      "economics",
+      "technology",
+    ]);
+  });
+
+  it("refetches markets with status, category and debounced search filters", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByRole("table");
+    await user.selectOptions(screen.getByLabelText("Status"), "active");
+    await waitFor(() => expect(calls).toContain("/api/markets?limit=200&status=active"));
+    await screen.findByRole("option", { name: "economics" });
+    await user.selectOptions(screen.getByLabelText("Category"), "economics");
+    await waitFor(() =>
+      expect(calls).toContain("/api/markets?limit=200&category=economics&status=active"),
+    );
+    await user.type(screen.getByLabelText("Search"), "cpi");
+    await waitFor(() =>
+      expect(calls).toContain("/api/markets?limit=200&category=economics&status=active&q=cpi"),
+    );
+    // Debounced: no request for the partial strings "c" / "cp".
+    expect(calls.some((c) => c.endsWith("&q=c") || c.endsWith("&q=cp"))).toBe(false);
   });
 
   it("shows an explicit error when the backend is unreachable", async () => {

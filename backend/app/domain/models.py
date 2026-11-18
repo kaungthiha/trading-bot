@@ -39,7 +39,11 @@ class BookLevel(Frozen):
 
 
 class OrderBook(Frozen):
-    """Raw bid ladders as the exchange reports them. Asks are NOT stored here."""
+    """Raw bid ladders as the exchange reports them. Asks are NOT stored here.
+
+    ``observed_at`` is when we received the snapshot: Kalshi's REST orderbook response
+    carries no exchange timestamp, so receipt time is the best available observation time.
+    """
 
     yes_bids: tuple[BookLevel, ...] = ()
     no_bids: tuple[BookLevel, ...] = ()
@@ -57,7 +61,8 @@ class PriceProvenance(StrEnum):
 
 
 class DerivedQuote(Frozen):
-    """Best bids (raw) plus complementary-derived asks. ``None`` means no counterparty."""
+    """Best bids (raw) plus complementary-derived asks. ``None`` means no counterparty
+    (or, for non-binary markets, that derivation is not supported)."""
 
     yes_bid: Decimal | None
     no_bid: Decimal | None
@@ -69,12 +74,38 @@ class DerivedQuote(Frozen):
 
 
 class MarketStatus(StrEnum):
-    # Statuses observed in fixtures only; reverify against current Kalshi lifecycle docs.
-    UNOPENED = "unopened"
-    OPEN = "open"
+    """Kalshi market lifecycle (docs.kalshi.com/getting_started/market_lifecycle,
+    checked 2026-11-18). Unrecognized values map to UNKNOWN; raw value is preserved."""
+
+    INITIALIZED = "initialized"
+    INACTIVE = "inactive"
+    ACTIVE = "active"
     CLOSED = "closed"
-    SETTLED = "settled"
+    DETERMINED = "determined"
+    DISPUTED = "disputed"
+    AMENDED = "amended"
+    FINALIZED = "finalized"
     UNKNOWN = "unknown"
+
+    @classmethod
+    def parse(cls, raw: str) -> MarketStatus:
+        try:
+            return cls(raw)
+        except ValueError:
+            return cls.UNKNOWN
+
+
+class MarketType(StrEnum):
+    BINARY = "binary"
+    SCALAR = "scalar"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def parse(cls, raw: str | None) -> MarketType:
+        try:
+            return cls(raw or "")
+        except ValueError:
+            return cls.UNKNOWN
 
 
 class MarketSnapshot(Frozen):
@@ -83,9 +114,13 @@ class MarketSnapshot(Frozen):
     exchange: str
     external_ticker: str
     event_ticker: str
+    series_ticker: str | None = None
     title: str
     category: str
     status: MarketStatus
+    status_raw: str
+    market_type: MarketType = MarketType.BINARY
+    open_at: AwareDatetime | None = None
     close_at: AwareDatetime | None
     rules_text: str
     official_source_url: str | None
@@ -94,7 +129,7 @@ class MarketSnapshot(Frozen):
     orderbook: OrderBook
     is_mock: bool = False
 
-    @field_validator("close_at")
+    @field_validator("open_at", "close_at")
     @classmethod
     def normalize_utc(cls, v: datetime | None) -> datetime | None:
         return _to_utc(v) if v is not None else None

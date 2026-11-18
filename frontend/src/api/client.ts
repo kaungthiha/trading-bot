@@ -1,4 +1,11 @@
-import type { ApiErrorBody, Health, MarketDetail, MarketList } from "./types";
+import type {
+  ApiErrorBody,
+  Health,
+  IngestionRun,
+  MarketDetail,
+  MarketFilters,
+  MarketList,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -31,9 +38,15 @@ async function getJson<T>(path: string): Promise<T> {
 
 export const api = {
   health: () => getJson<Health>("/api/health"),
-  markets: (category?: string) =>
-    getJson<MarketList>(
-      category ? `/api/markets?category=${encodeURIComponent(category)}` : "/api/markets",
-    ),
+  markets: (filters: MarketFilters = {}) => {
+    const params = new URLSearchParams({ limit: "200" });
+    if (filters.category) params.set("category", filters.category);
+    if (filters.status) params.set("status", filters.status);
+    if (filters.q?.trim()) params.set("q", filters.q.trim());
+    return getJson<MarketList>(`/api/markets?${params.toString()}`);
+  },
+  categories: () => getJson<{ items: string[] }>("/api/categories"),
+  ingestionRuns: (limit = 1) =>
+    getJson<{ items: IngestionRun[] }>(`/api/ingestion/runs?limit=${limit}`),
   market: (id: string) => getJson<MarketDetail>(`/api/markets/${encodeURIComponent(id)}`),
 };

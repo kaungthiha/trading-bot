@@ -36,13 +36,25 @@ export function MarketDetail({ market }: { market: MarketDetailT }) {
     <article className="market-detail" aria-labelledby="market-title">
       <h2 id="market-title">{market.title}</h2>
       <p className="ticker">
-        {market.external_ticker} · event {market.event_ticker} · {market.category}{" "}
+        {market.external_ticker} · event {market.event_ticker}
+        {market.series_ticker && <> · series {market.series_ticker}</>} · {market.category}{" "}
         {market.is_mock && <span className="badge mock">MOCK DATA</span>}
       </p>
       <p>
-        A <Term id="binary-contract">binary contract</Term> paying {formatPrice(market.notional_value)}{" "}
-        per winning contract. Status: <strong>{market.status}</strong>. Closes{" "}
-        {formatUtc(market.close_at)}.
+        {market.market_type === "binary" ? (
+          <>
+            A <Term id="binary-contract">binary contract</Term> paying{" "}
+            {formatPrice(market.notional_value)} per winning contract.
+          </>
+        ) : (
+          <>
+            A <strong>{market.market_type ?? "unknown"}</strong> market (notional{" "}
+            {formatPrice(market.notional_value)}). Asks are not derived for this type.
+          </>
+        )}{" "}
+        Status: <strong>{market.status}</strong>
+        {market.status_raw && market.status_raw !== market.status && <> ({market.status_raw})</>}.
+        Closes {formatUtc(market.close_at)}.
       </p>
 
       <section aria-labelledby="quote-h">

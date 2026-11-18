@@ -12,7 +12,19 @@ from app.db.models import Market, MarketRuleVersion, QuoteSnapshot
 from app.db.repositories import MarketRepository
 from app.db.session import make_engine, make_session_factory
 
-TABLES = {"markets", "market_rule_versions", "quote_snapshots", "audit_events"}
+TABLES = {"markets", "market_rule_versions", "quote_snapshots", "audit_events", "ingestion_runs"}
+
+
+def test_downgrade_one_step_drops_only_0002(db_url: str) -> None:
+    cfg = alembic_config(db_url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "0001_initial")
+    engine = make_engine(db_url)
+    names = set(inspect(engine).get_table_names())
+    assert "ingestion_runs" not in names and "markets" in names
+    cols = {c["name"] for c in inspect(engine).get_columns("markets")}
+    assert "series_ticker" not in cols
+    engine.dispose()
 
 
 def test_migration_up_down_up(db_url: str) -> None:

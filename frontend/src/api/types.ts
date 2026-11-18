@@ -10,6 +10,7 @@ export interface Health {
   trading_mode: string;
   live_execution_enabled: boolean;
   market_data_source: string;
+  kalshi_env: string;
   database: string;
   server_time: string;
   credentials_configured: Record<string, boolean>;
@@ -32,17 +33,51 @@ export interface Quote {
   spread_yes: DecimalString | null;
 }
 
+// Kalshi market lifecycle (docs.kalshi.com market_lifecycle, checked 2026-11-18).
+export const MARKET_STATUSES = [
+  "initialized",
+  "inactive",
+  "active",
+  "closed",
+  "determined",
+  "disputed",
+  "amended",
+  "finalized",
+  "unknown",
+] as const;
+export type MarketStatus = (typeof MARKET_STATUSES)[number];
+
 export interface MarketSummary {
   id: string;
   exchange: string;
   external_ticker: string;
   event_ticker: string;
+  series_ticker: string | null;
   title: string;
   category: string;
-  status: string;
+  status: MarketStatus;
+  status_raw: string | null;
+  market_type: string | null;
+  open_at: string | null;
   close_at: string | null;
   is_mock: boolean;
   quote: Quote | null;
+}
+
+export interface MarketFilters {
+  category?: string;
+  status?: MarketStatus;
+  q?: string;
+}
+
+export interface IngestionRun {
+  id: string;
+  adapter: string;
+  started_at: string;
+  finished_at: string | null;
+  status: "running" | "success" | "partial" | "failed";
+  count: number;
+  errors: { scope: string; code: string; message: string }[];
 }
 
 export interface BookLevel {

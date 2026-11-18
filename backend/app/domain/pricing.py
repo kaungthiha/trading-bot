@@ -20,12 +20,19 @@ def best_bid(levels: Sequence[BookLevel]) -> Decimal | None:
     return max((lvl.price for lvl in levels), default=None)
 
 
-def derive_quote(book: OrderBook, notional: Decimal = Decimal("1")) -> DerivedQuote:
+def derive_quote(
+    book: OrderBook, notional: Decimal = Decimal("1"), *, derivable: bool = True
+) -> DerivedQuote:
+    """Derive asks from complementary bids.
+
+    ``derivable=False`` (e.g. scalar or unknown market types, whose complement relation
+    we have not verified) yields bids only, with no asks.
+    """
     yes_bid = best_bid(book.yes_bids)
     no_bid = best_bid(book.no_bids)
 
-    yes_ask = (notional - no_bid) if no_bid is not None else None
-    no_ask = (notional - yes_bid) if yes_bid is not None else None
+    yes_ask = (notional - no_bid) if (derivable and no_bid is not None) else None
+    no_ask = (notional - yes_bid) if (derivable and yes_bid is not None) else None
 
     spread_yes = (yes_ask - yes_bid) if (yes_ask is not None and yes_bid is not None) else None
 

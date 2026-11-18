@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "./api/client";
-import type { Health, MarketDetail as MarketDetailT, MarketSummary } from "./api/types";
+import type {
+  Health,
+  IngestionRun,
+  MarketDetail as MarketDetailT,
+  MarketFilters,
+  MarketSummary,
+} from "./api/types";
 import { MarketDetail } from "./components/MarketDetail";
+import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
+import { formatUtc } from "./components/format";
 
 type Load<T> = { state: "loading" } | { state: "ok"; data: T } | { state: "error"; message: string };
 
@@ -13,6 +21,9 @@ function errMsg(e: unknown): string {
 
 export default function App() {
   const [health, setHealth] = useState<Load<Health>>({ state: "loading" });
+  const [lastRun, setLastRun] = useState<IngestionRun | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [filters, setFilters] = useState<MarketFilters>({});
   const [markets, setMarkets] = useState<Load<MarketSummary[]>>({ state: "loading" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Load<MarketDetailT> | null>(null);
@@ -22,11 +33,21 @@ export default function App() {
       (data) => setHealth({ state: "ok", data }),
       (e) => setHealth({ state: "error", message: errMsg(e) }),
     );
-    api.markets().then(
-      (data) => setMarkets({ state: "ok", data: data.items }),
-      (e) => setMarkets({ state: "error", message: errMsg(e) }),
-    );
+    api.categories().then((r) => setCategories(r.items), () => setCategories([]));
+    api.ingestionRuns(1).then((r) => setLastRun(r.items[0] ?? null), () => setLastRun(null));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMarkets({ state: "loading" });
+    api.markets(filters).then(
+      (data) => !cancelled && setMarkets({ state: "ok", data: data.items }),
+      (e) => !cancelled && setMarkets({ state: "error", message: errMsg(e) }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [filters]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -41,6 +62,8 @@ export default function App() {
     };
   }, [selectedId]);
 
+  const onFilters = useCallback((next: MarketFilters) => setFilters(next), []);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -50,7 +73,10 @@ export default function App() {
             <>
               <span className="badge paper">{health.data.trading_mode.toUpperCase()} MODE</span>
               <span>Live execution: {health.data.live_execution_enabled ? "ON" : "disabled"}</span>
-              <span>Data: {health.data.market_data_source}</span>
+              <span>
+                Data: {health.data.market_data_source}
+                {health.data.market_data_source === "kalshi_public" && ` (${health.data.kalshi_env})`}
+              </span>
               <span>DB: {health.data.database}</span>
             </>
           ) : health.state === "error" ? (
@@ -62,11 +88,22 @@ export default function App() {
       </header>
       <p className="disclaimer">
         Research and paper-trading tool. Model probabilities are not profits; no orders are placed.
+        {lastRun && (
+          <>
+            {" "}
+            Last ingestion: <strong>{lastRun.status}</strong> via {lastRun.adapter},{" "}
+            {lastRun.count} markets, {formatUtc(lastRun.finished_at ?? lastRun.started_at)}
+            {lastRun.errors.length > 0 && (
+              <span className="badge stale">{lastRun.errors.length} errors</span>
+            )}
+          </>
+        )}
       </p>
 
       <main className="layout">
         <section aria-labelledby="discover-h" className="panel">
           <h2 id="discover-h">Discover</h2>
+          <MarketFiltersBar categories={categories} value={filters} onChange={onFilters} />
           {markets.state === "loading" && <p>Loading markets…</p>}
           {markets.state === "error" && <p role="alert">{markets.message}</p>}
           {markets.state === "ok" && (
