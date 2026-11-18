@@ -12,14 +12,25 @@ from app.db.models import Market, MarketRuleVersion, QuoteSnapshot
 from app.db.repositories import MarketRepository
 from app.db.session import make_engine, make_session_factory
 
-TABLES = {"markets", "market_rule_versions", "quote_snapshots", "audit_events", "ingestion_runs"}
+TABLES = {
+    "markets",
+    "market_rule_versions",
+    "quote_snapshots",
+    "audit_events",
+    "ingestion_runs",
+    "evidence_records",
+    "collection_gaps",
+}
 
 
 def test_downgrade_one_step_drops_only_0002(db_url: str) -> None:
     cfg = alembic_config(db_url)
     command.upgrade(cfg, "head")
-    command.downgrade(cfg, "0001_initial")
+    command.downgrade(cfg, "0002_kalshi_read_only")
     engine = make_engine(db_url)
+    names = set(inspect(engine).get_table_names())
+    assert "evidence_records" not in names and "ingestion_runs" in names
+    command.downgrade(cfg, "0001_initial")
     names = set(inspect(engine).get_table_names())
     assert "ingestion_runs" not in names and "markets" in names
     cols = {c["name"] for c in inspect(engine).get_columns("markets")}

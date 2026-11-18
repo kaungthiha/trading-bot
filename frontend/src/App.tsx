@@ -8,6 +8,7 @@ import type {
   MarketFilters,
   MarketSummary,
 } from "./api/types";
+import { EvidencePanel } from "./components/EvidencePanel";
 import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
@@ -116,7 +117,24 @@ export default function App() {
           {detail?.state === "error" && <p role="alert">{detail.message}</p>}
           {detail?.state === "ok" && <MarketDetail market={detail.data} />}
         </section>
+        <section aria-labelledby="evidence-h" className="panel panel-wide">
+          <h2 id="evidence-h">Evidence</h2>
+          <EvidencePanel />
+        </section>
       </main>
+      <footer className="app-footer small muted">
+        {/* Required by the FRED API Terms of Use. */}
+        This product uses the FRED® API but is not endorsed or certified by the Federal Reserve
+        Bank of St. Louis.{" "}
+        <a
+          href="https://fred.stlouisfed.org/docs/api/terms_of_use.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          FRED API Terms of Use
+        </a>
+        .
+      </footer>
     </div>
   );
 }

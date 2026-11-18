@@ -166,6 +166,18 @@ describe("<App>", () => {
     expect(calls.some((c) => c.endsWith("&q=c") || c.endsWith("&q=cp"))).toBe(false);
   });
 
+  it("shows the FRED attribution notice required by its terms", async () => {
+    render(<App />);
+    expect(
+      screen.getByText(/This product uses the FRED® API but is not endorsed or certified/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "FRED API Terms of Use" })).toHaveAttribute(
+      "href",
+      "https://fred.stlouisfed.org/docs/api/terms_of_use.html",
+    );
+    await screen.findByText("PAPER MODE");
+  });
+
   it("shows an explicit error when the backend is unreachable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("network"))));
     render(<App />);

@@ -100,6 +100,53 @@ export interface MarketList {
   offset: number;
 }
 
+export interface EvidenceSource {
+  id: string;
+  title: string;
+  series_id: string;
+  category: string;
+  frequency: string;
+  upstream_agency: string;
+  source_page_url: string;
+  license_notes: string;
+  attribution: string | null;
+  release_timing_note: string;
+  configured: boolean;
+  record_count: number;
+  latest_vintage: string | null;
+  latest_available_at: string | null;
+  is_fresh: boolean;
+  freshness_max_age_days: number;
+  last_run: IngestionRun | null;
+}
+
+export interface EvidenceObservation {
+  observation_date: string;
+  vintage_date: string;
+  value: DecimalString | null;
+  quality: "ok" | "missing";
+  available_at: string;
+  retrieved_at: string;
+  units: string | null;
+  source_url: string;
+}
+
+export interface EvidenceAsOf {
+  source_id: string;
+  as_of: string;
+  items: EvidenceObservation[];
+}
+
+export interface CollectionGap {
+  id: string;
+  job: string;
+  gap_start: string;
+  gap_end: string;
+  detected_at: string;
+  backfillable: boolean;
+  reason: string;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

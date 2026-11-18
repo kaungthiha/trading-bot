@@ -1,5 +1,8 @@
 import type {
   ApiErrorBody,
+  CollectionGap,
+  EvidenceAsOf,
+  EvidenceSource,
   Health,
   IngestionRun,
   MarketDetail,
@@ -49,4 +52,13 @@ export const api = {
   ingestionRuns: (limit = 1) =>
     getJson<{ items: IngestionRun[] }>(`/api/ingestion/runs?limit=${limit}`),
   market: (id: string) => getJson<MarketDetail>(`/api/markets/${encodeURIComponent(id)}`),
+  evidenceSources: () => getJson<{ items: EvidenceSource[] }>("/api/evidence/sources"),
+  evidenceAsOf: (sourceId: string, asOf?: string, limit = 12) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (asOf) params.set("as_of", asOf);
+    return getJson<EvidenceAsOf>(
+      `/api/evidence/${encodeURIComponent(sourceId)}/observations?${params.toString()}`,
+    );
+  },
+  collectionGaps: () => getJson<{ items: CollectionGap[] }>("/api/collection-gaps?limit=20"),
 };

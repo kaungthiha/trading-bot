@@ -96,6 +96,18 @@ export const TERMS = {
     reviewedAt: REVIEWED,
     relatedTermIds: ["binary-contract"],
   },
+  "look-ahead-bias": {
+    id: "look-ahead-bias",
+    label: "Look-ahead bias",
+    aliases: ["lookahead bias"],
+    category: "quant",
+    shortDefinition:
+      "Using information in a historical simulation that was unavailable at decision time.",
+    example:
+      "Using revised inflation numbers before their revision date creates look-ahead bias.",
+    reviewedAt: REVIEWED,
+    relatedTermIds: [],
+  },
 } as const satisfies Record<string, GlossaryEntry>;
 
 /** Only IDs present in TERMS type-check; unknown IDs are compile-time errors. */

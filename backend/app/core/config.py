@@ -77,6 +77,19 @@ class Settings(BaseSettings):
     kalshi_max_retries: int = Field(default=4, ge=0, le=10)
     http_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
 
+    # --- Evidence sources ------------------------------------------------------------
+    # IDs from app/evidence/sources.py registry, e.g. ["fred:CPIAUCSL"]. Only registered
+    # sources are accepted (controlled source configuration).
+    evidence_sources: list[str] = ["fred:CPIAUCSL"]
+    # FRED documents 120 requests/minute; stay under it.
+    fred_min_request_interval_seconds: float = Field(default=0.6, ge=0.5)
+
+    # --- Local worker ------------------------------------------------------------------
+    worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
+    worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
+    # A gap is recorded when a job's last success is older than interval * this factor.
+    worker_gap_factor: float = Field(default=2.0, ge=1.1)
+
     @property
     def kalshi_rest_base(self) -> str:
         return KALSHI_REST_BASES[self.kalshi_env]
@@ -123,6 +136,16 @@ class Settings(BaseSettings):
         for t in v:
             if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]{0,63}", t):
                 raise ValueError(f"Invalid series ticker {t!r}")
+        return v
+
+    @field_validator("evidence_sources")
+    @classmethod
+    def _registered_sources_only(cls, v: list[str]) -> list[str]:
+        from app.evidence.sources import SOURCES
+
+        unknown = [s for s in v if s not in SOURCES]
+        if unknown:
+            raise ValueError(f"Unregistered evidence source(s): {unknown}")
         return v
 
     @field_validator("kalshi_market_status")

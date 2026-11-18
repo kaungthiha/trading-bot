@@ -99,6 +99,52 @@ class IngestionRun(Base):
     errors_json: Mapped[str] = mapped_column(Text, default="[]")
 
 
+class EvidenceRecord(Base):
+    """Immutable: one value of one series for one period as published in one vintage."""
+
+    __tablename__ = "evidence_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_id: Mapped[str] = mapped_column(String(64))
+    series_id: Mapped[str] = mapped_column(String(64))
+    observation_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD period
+    vintage_date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD published/revised
+    value: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    quality: Mapped[str] = mapped_column(String(16))
+    available_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    retrieved_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    units: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text)
+    license_notes: Mapped[str] = mapped_column(Text)
+    hash: Mapped[str] = mapped_column(String(64))
+
+    __table_args__ = (
+        Index(
+            "ux_evidence_identity",
+            "source_id",
+            "observation_date",
+            "vintage_date",
+            unique=True,
+        ),
+        Index("ix_evidence_source_available", "source_id", "available_at"),
+    )
+
+
+class CollectionGap(Base):
+    """A period when a scheduled job did not run (e.g. laptop asleep). Never back-filled
+    with invented data; ``backfillable`` says whether the source can recover it."""
+
+    __tablename__ = "collection_gaps"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    job: Mapped[str] = mapped_column(String(64), index=True)
+    gap_start: Mapped[datetime] = mapped_column(UTCDateTime())
+    gap_end: Mapped[datetime] = mapped_column(UTCDateTime())
+    detected_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    backfillable: Mapped[bool] = mapped_column(Boolean)
+    reason: Mapped[str] = mapped_column(Text)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

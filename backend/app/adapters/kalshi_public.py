@@ -17,8 +17,7 @@ Safety properties (enforced here and tested):
 from __future__ import annotations
 
 import re
-import time
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -26,6 +25,7 @@ from typing import Any
 import httpx
 
 from app.adapters.base import AdapterError, AdapterErrorCode, FetchError, FetchResult
+from app.adapters.http import RetryingJsonClient
 from app.core.clock import Clock
 from app.core.config import KALSHI_REST_BASES, Settings
 from app.domain.models import (
@@ -46,37 +46,15 @@ _FORBIDDEN_HEADERS = {"authorization", "kalshi-access-key", "kalshi-access-signa
 USER_AGENT = "krt-local-research/0.1 (read-only)"
 
 
-class KalshiPublicClient:
-    def __init__(
-        self,
-        base_url: str,
-        *,
-        timeout: float = 10.0,
-        max_retries: int = 4,
-        min_interval: float = 0.25,
-        backoff_base: float = 0.5,
-        backoff_cap: float = 8.0,
-        transport: httpx.BaseTransport | None = None,
-        sleep: Callable[[float], None] = time.sleep,
-        monotonic: Callable[[], float] = time.monotonic,
-    ) -> None:
-        if base_url not in KALSHI_REST_BASES.values():
-            raise ValueError("Base URL is not a documented Kalshi public REST host")
-        self._http = httpx.Client(
-            base_url=base_url,
-            timeout=timeout,
-            transport=transport,
-            follow_redirects=False,
-            headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+class KalshiPublicClient(RetryingJsonClient):
+    def __init__(self, base_url: str, **kw: Any) -> None:
+        super().__init__(
+            base_url,
+            allowed_bases=KALSHI_REST_BASES.values(),
+            path_pattern=_ALLOWED_PATHS,
+            user_agent=USER_AGENT,
+            **kw,
         )
-        self._max_retries = max_retries
-        self._min_interval = min_interval
-        self._backoff_base = backoff_base
-        self._backoff_cap = backoff_cap
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request: float | None = None
-        self.request_count = 0
 
     @classmethod
     def from_settings(cls, s: Settings, **kw: Any) -> KalshiPublicClient:
@@ -88,76 +66,9 @@ class KalshiPublicClient:
             **kw,
         )
 
-    def close(self) -> None:
-        self._http.close()
-
-    def __enter__(self) -> KalshiPublicClient:
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.close()
-
-    def _throttle(self) -> None:
-        now = self._monotonic()
-        if self._last_request is not None:
-            wait = self._min_interval - (now - self._last_request)
-            if wait > 0:
-                self._sleep(wait)
-        self._last_request = self._monotonic()
-
-    def _backoff(self, attempt: int) -> None:
-        self._sleep(min(self._backoff_base * (2**attempt), self._backoff_cap))
-
-    def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        if not _ALLOWED_PATHS.fullmatch(path):
-            raise ValueError(f"Path not in read-only allowlist: {path!r}")
-        attempt = 0
-        while True:
-            self._throttle()
-            request = self._http.build_request("GET", path, params=params)
-            if _FORBIDDEN_HEADERS & {h.lower() for h in request.headers}:
-                raise RuntimeError("Refusing to send credentials from the public client")
-            self.request_count += 1
-            try:
-                resp = self._http.send(request)
-            except httpx.TimeoutException as exc:
-                if attempt >= self._max_retries:
-                    raise AdapterError("Request timed out", AdapterErrorCode.NETWORK) from exc
-                self._backoff(attempt)
-                attempt += 1
-                continue
-            except httpx.TransportError as exc:
-                if attempt >= self._max_retries:
-                    raise AdapterError("Network error", AdapterErrorCode.NETWORK) from exc
-                self._backoff(attempt)
-                attempt += 1
-                continue
-
-            status = resp.status_code
-            if status == 429 or status >= 500:
-                if attempt >= self._max_retries:
-                    code = (
-                        AdapterErrorCode.RATE_LIMITED
-                        if status == 429
-                        else AdapterErrorCode.UPSTREAM_ERROR
-                    )
-                    raise AdapterError(f"Upstream returned {status}", code, status)
-                self._backoff(attempt)
-                attempt += 1
-                continue
-            if status == 404:
-                raise AdapterError("Not found", AdapterErrorCode.NOT_FOUND, status)
-            if status >= 300:
-                raise AdapterError(
-                    f"Upstream returned {status}", AdapterErrorCode.HTTP_ERROR, status
-                )
-            try:
-                body = resp.json()
-            except ValueError as exc:
-                raise AdapterError("Response was not JSON", AdapterErrorCode.BAD_RESPONSE) from exc
-            if not isinstance(body, dict):
-                raise AdapterError("Unexpected response shape", AdapterErrorCode.BAD_RESPONSE)
-            return body
+    def _check_request(self, request: httpx.Request) -> None:
+        if _FORBIDDEN_HEADERS & {h.lower() for h in request.headers}:
+            raise RuntimeError("Refusing to send credentials from the public client")
 
     # --- Endpoints -----------------------------------------------------------------
     def get_series(self, series_ticker: str) -> dict[str, Any]:

@@ -96,6 +96,67 @@ class CategoriesOut(BaseModel):
     items: list[str]
 
 
+class EvidenceSourceOut(BaseModel):
+    id: str
+    title: str
+    series_id: str
+    category: str
+    frequency: str
+    upstream_agency: str
+    source_page_url: str
+    license_notes: str
+    attribution: str | None
+    release_timing_note: str
+    configured: bool
+    record_count: int
+    latest_vintage: str | None
+    latest_available_at: datetime | None
+    is_fresh: bool
+    freshness_max_age_days: int
+    last_run: IngestionRunOut | None
+
+
+class EvidenceSourceListOut(BaseModel):
+    items: list[EvidenceSourceOut]
+
+
+class EvidenceObservationOut(BaseModel):
+    observation_date: str
+    vintage_date: str
+    value: Decimal | None
+    quality: str
+    available_at: datetime
+    retrieved_at: datetime
+    units: str | None
+    source_url: str
+
+
+class EvidenceAsOfOut(BaseModel):
+    source_id: str
+    as_of: datetime
+    items: list[EvidenceObservationOut]
+
+
+class EvidenceVintagesOut(BaseModel):
+    source_id: str
+    observation_date: str
+    items: list[EvidenceObservationOut]
+
+
+class CollectionGapOut(BaseModel):
+    id: str
+    job: str
+    gap_start: datetime
+    gap_end: datetime
+    detected_at: datetime
+    backfillable: bool
+    reason: str
+
+
+class CollectionGapListOut(BaseModel):
+    items: list[CollectionGapOut]
+
+
 class BookLevelOut(BaseModel):
     price: Decimal
     quantity: Decimal

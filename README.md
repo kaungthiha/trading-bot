@@ -4,9 +4,16 @@ A local-only research and paper-trading terminal for Kalshi event contracts. It 
 place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
-**Status:** Milestones 01 (bootstrap) and 02 (Kalshi read-only market data) are done. The app
-can show synthetic `MOCK-` fixture markets or real markets fetched from Kalshi's **public,
-unauthenticated** market-data API. There are no credentials and no order routes.
+**Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data) and 03 (evidence
+pipeline) are done.
+- **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
+  unauthenticated** market-data API.
+- **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
+  what was known at any past moment. CPI is first.
+- No exchange credentials and no order routes.
+
+> This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of
+> St. Louis. See the [FRED API Terms of Use](https://fred.stlouisfed.org/docs/api/terms_of_use.html).
 
 ## Requirements
 - Python 3.12+ (tested on 3.14.4)
@@ -38,6 +45,43 @@ The client only sends GET requests to the two documented Kalshi hosts, on an all
 `/markets`, `/events` and `/series` paths. It never sends auth headers or follows redirects.
 On 429 or 5xx responses it retries with bounded exponential backoff, and it spaces requests at
 least 0.25 s apart.
+
+## Economic evidence (FRED, vintage-aware)
+Put your key in `.env` as `KRT_FRED_API_KEY=...`, then:
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli ingest-evidence                       # sources in KRT_EVIDENCE_SOURCES
+.venv\Scripts\python -m app.cli ingest-evidence --source fred:UNRATE  # one-off
+```
+- **Every vintage is kept.** Each stored row is one value for one period *as published on one
+  date* (FRED's `realtime_start`). Revisions are added as new rows and never overwrite earlier
+  ones. If FRED ever changes an already-stored vintage, the run reports a
+  `VINTAGE_CONTENT_CHANGED` conflict and keeps the original.
+- **Release time is part of availability.** `available_at` is the vintage date at the source
+  agency's published release time: 08:30 US Eastern for BLS CPI and jobs data, converted
+  correctly across daylight-saving changes. The as-of view
+  (`/api/evidence/{id}/observations?as_of=...`) only returns values with `available_at` at or
+  before the cutoff, so models and backtests can't see data before it was published.
+- **Missing values stay missing.** FRED's `.` is stored as `missing`, never as 0.
+- **Each run fetches the full history** (about 3k rows for CPI, around 2 s). Duplicates are
+  skipped, so re-running is safe.
+- **Your key stays private.** It is sent only to `api.stlouisfed.org`. Error messages never
+  include URLs, and httpx's request logs pass through a redaction filter.
+- **Only registered sources run.** `KRT_EVIDENCE_SOURCES` must list sources registered in
+  `app/evidence/sources.py`. Each entry records its license notes and release-timing source.
+
+## Scheduled collection (worker)
+```powershell
+.\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
+```
+- Runs FRED refreshes every 6 h, plus Kalshi quotes every 15 min if
+  `KRT_MARKET_DATA_SOURCE=kalshi_public` and a watchlist are set.
+- Sleeps until the next job is due, with no busy loop, and waits 10 min before retrying a
+  failed job.
+- Only one worker can run at a time; a second one exits. This uses an OS file lock.
+- **Gaps are recorded, not filled.** If the laptop sleeps or the worker is off, the gap
+  appears in the UI and at `/api/collection-gaps`, marked *recoverable* (FRED: vintages are
+  re-fetched) or *not recoverable* (Kalshi quote snapshots).
 
 ## Test
 ```powershell
@@ -72,12 +116,17 @@ backend/
   app/domain/     immutable Pydantic types; Decimal pricing (derived asks, price grid, staleness)
   app/adapters/   ExchangeMarketDataAdapter protocol; fixture adapter; Kalshi public adapter
   app/db/         SQLAlchemy models, exact-decimal/UTC column types, append-only repository
+  app/adapters/http.py  shared hardened GET client (allowlists, backoff, no URL leaks)
+  app/evidence/   source registry, FRED adapter, insert-only repository, as-of queries
   app/ingest.py   runs an adapter, persists snapshots, records ingestion_runs
+  app/worker.py   scheduled collector with gap detection and single-instance lock
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
-                  /api/ingestion/runs; uniform error envelope
-  alembic/        migrations (0001_initial, 0002_kalshi_read_only)
-  tests/          80 tests (Kalshi tests use a mock HTTP transport; network is blocked)
+                  /api/ingestion/runs, /api/evidence/sources,
+                  /api/evidence/{id}/observations?as_of=, /api/evidence/{id}/vintages,
+                  /api/collection-gaps; uniform error envelope
+  alembic/        migrations 0001_initial, 0002_kalshi_read_only, 0003_evidence
+  tests/          104 tests (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

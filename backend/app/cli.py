@@ -15,6 +15,7 @@ from app.core.clock import SystemClock
 from app.core.config import BACKEND_ROOT, MarketDataSource, Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import make_engine, make_session_factory
+from app.evidence.ingest import build_evidence_adapter, run_evidence_ingestion
 from app.ingest import IngestionSummary, run_ingestion
 
 
@@ -66,6 +67,11 @@ def main(argv: list[str] | None = None) -> int:
     ing.add_argument("--series", nargs="+", help="Override KRT_KALSHI_SERIES_WATCHLIST")
     ing.add_argument("--status", help="Override KRT_KALSHI_MARKET_STATUS")
     ing.add_argument("--demo", action="store_true", help="Use the Kalshi demo environment")
+    ev = sub.add_parser("ingest-evidence", help="Fetch evidence (e.g. FRED vintages)")
+    ev.add_argument(
+        "--source", nargs="+", help="Source ids (default: KRT_EVIDENCE_SOURCES), e.g. fred:CPIAUCSL"
+    )
+    sub.add_parser("worker", help="Run the scheduled collector (Ctrl+C to stop)")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -91,7 +97,41 @@ def main(argv: list[str] | None = None) -> int:
         summary = ingest(settings, source)
         _print_summary(summary)
         return 0 if summary.status in ("success", "partial") else 1
+    elif args.cmd == "ingest-evidence":
+        if args.source:
+            settings = Settings.model_validate(
+                {**settings.model_dump(), "evidence_sources": args.source}
+            )
+        ok = True
+        for sid in settings.evidence_sources:
+            summary = ingest_evidence(settings, sid)
+            _print_summary(summary)
+            ok = ok and summary.status in ("success", "partial")
+        return 0 if ok else 1
+    elif args.cmd == "worker":
+        from app.worker import main as worker_main
+
+        return worker_main()
     return 0
+
+
+def ingest_evidence(settings: Settings, source_id: str) -> IngestionSummary:
+    from app.adapters.base import AdapterError, FetchError
+
+    engine = make_engine(settings.database_url)
+    clock = SystemClock()
+    try:
+        try:
+            adapter = build_evidence_adapter(source_id, settings, clock)
+        except AdapterError as e:  # e.g. missing API key: report without a network call
+            return IngestionSummary("-", source_id, "failed", 0,
+                                    [FetchError(f"adapter:{source_id}", e.code, str(e))])
+        try:
+            return run_evidence_ingestion(adapter, make_session_factory(engine), clock)
+        finally:
+            adapter.client.close()  # type: ignore[attr-defined]
+    finally:
+        engine.dispose()
 
 
 if __name__ == "__main__":
