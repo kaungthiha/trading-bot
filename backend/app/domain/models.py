@@ -128,6 +128,9 @@ class MarketSnapshot(Frozen):
     price_ranges: tuple[PriceRange, ...]
     orderbook: OrderBook
     is_mock: bool = False
+    # Effective fee structure (event override if set, else series). None = unknown.
+    fee_type: str | None = None
+    fee_multiplier: Decimal | None = None
 
     @field_validator("open_at", "close_at")
     @classmethod

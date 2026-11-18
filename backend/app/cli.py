@@ -76,6 +76,16 @@ def main(argv: list[str] | None = None) -> int:
     fc = sub.add_parser("forecast-cpi", help="Forecast next CPI MoM first print > threshold")
     fc.add_argument("--threshold", default="0.3", help="Percent, on the 0.1 grid (default 0.3)")
     fc.add_argument("--save", action="store_true", help="Store forecasts as immutable model runs")
+    sub.add_parser("propose-mappings", help="Propose market->contract mappings (KXCPI)")
+    sub.add_parser("list-mappings", help="Show latest mapping per market with review notes")
+    cm = sub.add_parser("confirm-mapping", help="Confirm a proposed mapping after reading rules")
+    cm.add_argument("ticker")
+    cm.add_argument("--yes", action="store_true", help="Required: you reviewed the rules")
+    cm.add_argument("--note", help="Optional review note")
+    rm = sub.add_parser("reject-mapping", help="Reject a mapping")
+    rm.add_argument("ticker")
+    rm.add_argument("--note")
+    sub.add_parser("generate-signals", help="Evaluate mapped markets; store research signals")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -118,7 +128,82 @@ def main(argv: list[str] | None = None) -> int:
         return worker_main()
     elif args.cmd in ("evaluate-models", "forecast-cpi"):
         return _research_cmd(args, settings)
+    elif args.cmd in ("propose-mappings", "list-mappings", "confirm-mapping", "reject-mapping",
+                      "generate-signals"):
+        return _signal_cmd(args, settings)
     return 0
+
+
+def _signal_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    import json
+
+    from sqlalchemy import select
+
+    from app.db.models import Market, MarketMapping
+    from app.signals.mapping import MappingError, current_rules, decide, latest_mapping, propose_all
+    from app.signals.service import generate_signals
+
+    engine = make_engine(settings.database_url)
+    now = SystemClock().now()
+    try:
+        with make_session_factory(engine)() as s:
+            if args.cmd == "propose-mappings":
+                created = propose_all(s, now)
+                s.commit()
+                for m, row in created:
+                    print(f"{row.status:9} {m.external_ticker}")
+                print(f"{len(created)} new proposal(s). Review with list-mappings, then "
+                      "confirm-mapping <TICKER> --yes")
+                return 0
+            if args.cmd == "list-mappings":
+                for mid in s.scalars(select(MarketMapping.market_id).distinct()).all():
+                    m = s.get(Market, mid)
+                    mp = latest_mapping(s, mid)
+                    rules = current_rules(s, mid)
+                    stale = "" if rules and rules.hash == mp.rules_hash else " [RULES CHANGED]"
+                    print(f"{mp.status:9} {m.external_ticker}  month={mp.reference_month} "
+                          f"threshold={mp.threshold}{stale}")
+                    for n in json.loads(mp.notes_json):
+                        print(f"           - {n}")
+                return 0
+            if args.cmd == "generate-signals":
+                sigs = generate_signals(s, settings, now)
+                s.commit()
+                for g in sigs:
+                    m = s.get(Market, g.market_id)
+                    edge = f" lower_edge={g.lower_edge}" if g.lower_edge is not None else ""
+                    print(f"{g.decision:13} {m.external_ticker}{edge}  "
+                          f"{', '.join(json.loads(g.reasons_json))}")
+                print("Research signals only: nothing was ordered or authorized.")
+                return 0
+            market = s.scalar(select(Market).where(Market.external_ticker == args.ticker))
+            if market is None:
+                print(f"Unknown market {args.ticker}")
+                return 1
+            if args.cmd == "confirm-mapping":
+                rules = current_rules(s, market.id)
+                mp = latest_mapping(s, market.id)
+                print(f"Market: {market.external_ticker}")
+                print("Rules:\n" + (rules.rules_text if rules else "-"))
+                if mp:
+                    print("Review notes:")
+                    for n in json.loads(mp.notes_json):
+                        print(f"  - {n}")
+                if not args.yes:
+                    print("\nNot confirmed. Re-run with --yes once you have reviewed the rules "
+                          "and contract terms.")
+                    return 2
+            try:
+                row = decide(s, market, now, confirm=args.cmd == "confirm-mapping",
+                             note=args.note)
+            except MappingError as e:
+                print(f"Error: {e}")
+                return 1
+            s.commit()
+            print(f"{row.status}: {market.external_ticker}")
+            return 0
+    finally:
+        engine.dispose()
 
 
 def _research_cmd(args: argparse.Namespace, settings: Settings) -> int:

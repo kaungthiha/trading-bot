@@ -8,6 +8,7 @@ raises at startup instead of silently falling back.
 from __future__ import annotations
 
 import ipaddress
+from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -84,6 +85,16 @@ class Settings(BaseSettings):
     # FRED documents 120 requests/minute; stay under it.
     fred_min_request_interval_seconds: float = Field(default=0.6, ge=0.5)
 
+    # --- Signal engine (research only; never places orders) ---------------------------
+    signal_model: str = "gaussian_trailing"
+    signal_quantity: Decimal = Field(default=Decimal("10"), gt=0, le=Decimal("10000"))
+    signal_slippage_per_contract: Decimal = Field(default=Decimal("0.01"), ge=0, le=Decimal("0.5"))
+    signal_max_spread: Decimal = Field(default=Decimal("0.10"), gt=0, le=1)
+    signal_min_edge: Decimal = Field(default=Decimal("0.02"), ge=0, le=1)
+    signal_min_holdout_events: int = Field(default=60, ge=1)
+    # Abstain when model p is further than this outside the market's [bid, ask] range.
+    signal_max_model_market_divergence: Decimal = Field(default=Decimal("0.20"), ge=0, le=1)
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
@@ -146,6 +157,15 @@ class Settings(BaseSettings):
         unknown = [s for s in v if s not in SOURCES]
         if unknown:
             raise ValueError(f"Unregistered evidence source(s): {unknown}")
+        return v
+
+    @field_validator("signal_model")
+    @classmethod
+    def _registered_model(cls, v: str) -> str:
+        from app.research.models import REGISTRY
+
+        if v not in REGISTRY:
+            raise ValueError(f"signal_model must be one of {sorted(REGISTRY)}")
         return v
 
     @field_validator("kalshi_market_status")

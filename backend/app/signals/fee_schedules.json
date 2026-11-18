@@ -1,0 +1,32 @@
+{
+  "_instructions": "Fee schedules used by the signal engine. Signals ABSTAIN (FEE_SCHEDULE_UNVERIFIED) unless the applicable schedule has verified=true. To verify: open the official PDF at source_url, confirm taker_rate, maker multipliers, formula and rounding match, then set verified=true and fill verified_by / verified_at (YYYY-MM-DD). If the PDF differs, add a NEW entry with a new version (never edit a verified entry in place; past signals reference versions).",
+  "schedules": [
+    {
+      "version": "kalshi-quadratic-candidate-2026-11",
+      "fee_types": ["quadratic", "quadratic_with_maker_fees", "quadratic_with_combo_maker_fees"],
+      "formula": "fee = taker_rate * C * P * (1 - P)  (C = contracts, P = price in dollars)",
+      "taker_rate": "0.07",
+      "maker_multiplier": {
+        "quadratic": "0",
+        "quadratic_with_maker_fees": "0.25",
+        "quadratic_with_combo_maker_fees": "0.5"
+      },
+      "trade_fee_rounding_step": "0.000001",
+      "balance_precision": "0.01",
+      "source_url": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
+      "verified": false,
+      "verified_by": null,
+      "verified_at": null,
+      "provenance": {
+        "verified_from_docs": [
+          "fee_type values and maker multipliers 0.25 / 0.5 (api-reference get-series, fee_type field, read 2026-11-18)",
+          "trade fee = model fee rounded UP to $0.000001 per fill; non-direct member balances aligned to $0.01 via a rounding fee (getting_started/fee_rounding, read 2026-11-18)"
+        ],
+        "NOT_verified": [
+          "taker_rate 0.07 and the C*P*(1-P) formula: from prior knowledge; the official PDF could not be fetched (HTTP 429). Confirm before setting verified=true.",
+          "how fee_multiplier is applied: not documented; the engine abstains when fee_multiplier != 1"
+        ]
+      }
+    }
+  ]
+}

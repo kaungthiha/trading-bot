@@ -48,6 +48,8 @@ class MarketRepository:
             [r.model_dump(mode="json") for r in snap.price_ranges]
         )
         market.is_mock = snap.is_mock
+        market.fee_type = snap.fee_type
+        market.fee_multiplier = snap.fee_multiplier
         market.updated_at = now
         self.s.flush()
 

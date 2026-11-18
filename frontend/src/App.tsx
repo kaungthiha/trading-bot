@@ -13,6 +13,7 @@ import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
 import { ModelsPanel } from "./components/ModelsPanel";
+import { SignalsPanel } from "./components/SignalsPanel";
 import { formatUtc } from "./components/format";
 
 type Load<T> = { state: "loading" } | { state: "ok"; data: T } | { state: "error"; message: string };
@@ -117,6 +118,10 @@ export default function App() {
           {detail?.state === "loading" && <p>Loading…</p>}
           {detail?.state === "error" && <p role="alert">{detail.message}</p>}
           {detail?.state === "ok" && <MarketDetail market={detail.data} />}
+        </section>
+        <section aria-labelledby="signals-h" className="panel panel-wide">
+          <h2 id="signals-h">Signals</h2>
+          <SignalsPanel />
         </section>
         <section aria-labelledby="models-h" className="panel panel-wide">
           <h2 id="models-h">Models</h2>

@@ -5,7 +5,7 @@ place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
 **Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data), 03 (evidence
-pipeline) and 04 (probability models) are done.
+pipeline), 04 (probability models) and 05 (signals) are done.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
@@ -113,6 +113,52 @@ These are forecast-quality scores, **not trading results**. Lower is better, and
 months is the effective sample size. The models use only past CPI prints and ignore energy
 prices, nowcasts and consensus forecasts.
 
+## Signals (milestone 05): research hypotheses, never orders
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli ingest --source kalshi_public --series KXCPI   # markets + fees
+.venv\Scripts\python -m app.cli propose-mappings                                # parser proposes
+.venv\Scripts\python -m app.cli list-mappings                                   # read the notes
+.venv\Scripts\python -m app.cli confirm-mapping KXCPI-26NOV-T0.3 --yes          # YOUR decision
+.venv\Scripts\python -m app.cli generate-signals
+```
+**Mappings (human in the loop).** The parser recognises the two live `KXCPI` rule templates
+("more than X% … as reported to one decimal place" and "more than X% (single-decimal) …").
+It checks that the ticker and rules agree on month and threshold, then *proposes* a mapping
+with review notes. Anything else is rejected rather than guessed. Notably, the rules text
+doesn't say "seasonally adjusted", so check the contract terms before you confirm. A
+confirmation is pinned to that exact rules text: if Kalshi edits the rules, existing signals
+show `INVALIDATED_RULES_CHANGED` and new ones abstain until you re-confirm.
+
+**Cost model.** All money math uses `Decimal`, per $1 contract:
+`EV_yes = p − yes_entry − fee − slippage` and `EV_no = (1−p) − no_entry − fee − slippage`.
+- The entry is the depth-aware VWAP over **derived asks** for the configured quantity, never
+  the midpoint or last trade.
+- The lower-bound edge uses the model's band (`p_lower` for YES, `1 − p_upper` for NO).
+- A **candidate** requires the lower-bound edge to exceed `KRT_SIGNAL_MIN_EDGE`, and to stay
+  positive when fees and slippage are doubled.
+
+**Gates that force `ABSTAIN`:** market not open · not binary · no, unconfirmed or stale-rules
+mapping · missing or stale quote · one-sided book · spread too wide · insufficient depth ·
+off-grid price · model abstained · model not validated (holdout months below the minimum, or
+not beating the base rate) · fee type unknown or unsupported · fee multiplier ≠ 1 · **fee
+schedule unverified** · edge below margin or not robust to costs · **model–market
+divergence**. The last one triggers when the model's probability is more than 0.20 outside
+the market's bid–ask range. The model only knows past CPI prints, so a big gap means it is
+probably missing information, not that it has found an opportunity.
+
+> **⚠ Your input needed: fee schedule.** `backend/app/signals/fee_schedules.json` ships a
+> *candidate* entry (`taker_rate 0.07 × C × P × (1−P)`, ceil to $0.000001 per fill, balance
+> rounded up to $0.01) marked `verified: false`. The rounding and maker multipliers come from
+> Kalshi's docs. The 0.07 constant could **not** be verified, because the official PDF
+> rate-limited automated access. Open https://kalshi.com/docs/kalshi-fee-schedule.pdf, compare,
+> then set `verified: true` with `verified_by` and `verified_at`. If the PDF differs, add a new
+> entry with a new version instead of editing this one. Until then every signal abstains with
+> `FEE_SCHEDULE_UNVERIFIED`, but the full calculation is still shown.
+
+Signals are immutable rows linking to the exact quote, model run, mapping, rules hash and fee
+schedule version they used. The API remains GET-only.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -163,15 +209,17 @@ backend/
   app/evidence/   source registry, FRED adapter, insert-only repository, as-of queries
   app/ingest.py   runs an adapter, persists snapshots, records ingestion_runs
   app/research/   CPI contract + first prints, models & cards, metrics, walk-forward
+  app/signals/    fee schedules (versioned JSON), mapping parser, engine, service
   app/worker.py   scheduled collector with gap detection and single-instance lock
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
                   /api/ingestion/runs, /api/evidence/sources,
                   /api/evidence/{id}/observations?as_of=, /api/evidence/{id}/vintages,
                   /api/collection-gaps, /api/models, /api/models/metrics,
-                  /api/research/cpi-mom/forecast, /api/model-runs; uniform error envelope
-  alembic/        migrations 0001_initial … 0004_models
-  tests/          121 tests (HTTP via mock transports; network is blocked)
+                  /api/research/cpi-mom/forecast, /api/model-runs, /api/signals,
+                  /api/markets/{id}/signals, /api/mappings, /api/fee-schedules
+  alembic/        migrations 0001_initial … 0005_signals
+  tests/          160 tests (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

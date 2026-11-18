@@ -16,7 +16,7 @@ from app.db.session import make_engine, make_session_factory
 from app.ingest import run_ingestion
 from app.main import create_app
 from tests.conftest import FROZEN_NOW
-from tests.kalshi_payloads import DEFAULT_BOOK, SERIES, market, orderbook
+from tests.kalshi_payloads import DEFAULT_BOOK, EVENT, SERIES, market, orderbook
 
 
 def kalshi_adapter(routes: dict[str, object]) -> KalshiPublicMarketAdapter:
@@ -36,6 +36,7 @@ def kalshi_adapter(routes: dict[str, object]) -> KalshiPublicMarketAdapter:
 
 ROUTES: dict[str, object] = {
     "/series/TESTCPI": SERIES,
+    "/events/TESTCPI-26DEC": EVENT,
     "/markets": {
         "markets": [
             market("TESTCPI-26DEC-T3.0"),

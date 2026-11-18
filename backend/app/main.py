@@ -11,6 +11,7 @@ from app.api.errors import install_error_handlers
 from app.api.evidence_routes import router as evidence_router
 from app.api.research_routes import router as research_router
 from app.api.routes import router
+from app.api.signal_routes import router as signal_router
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
@@ -50,6 +51,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(router)
     app.include_router(evidence_router)
     app.include_router(research_router)
+    app.include_router(signal_router)
     return app
 
 

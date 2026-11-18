@@ -22,6 +22,8 @@ TABLES = {
     "collection_gaps",
     "model_runs",
     "model_evaluations",
+    "market_mappings",
+    "signals",
 }
 
 

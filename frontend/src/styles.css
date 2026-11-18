@@ -23,6 +23,12 @@ body { margin: 0; }
 .eval { margin-bottom: 0.75rem; }
 details summary { cursor: pointer; margin: 0.35rem 0; }
 code { font-family: ui-monospace, Consolas, monospace; font-size: 0.85em; background: #f0f2f5; padding: 0 0.25rem; border-radius: 3px; }
+.signal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 0.75rem; margin-top: 0.5rem; }
+.signal-card { border: 1px solid #d8dde3; border-radius: 6px; padding: 0.6rem 0.75rem; }
+.signal-card header { display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
+.signal-card h4 { margin: 0; font-size: 0.92rem; }
+.badge.candidate { background: #e5edff; color: #1d3f91; }
+code.reason { display: inline-block; margin: 0.1rem 0.25rem 0.1rem 0; }
 .app-footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid #d8dde3; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; }

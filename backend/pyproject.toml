@@ -30,6 +30,7 @@ include = ["app*"]
 
 [tool.setuptools.package-data]
 "app.adapters" = ["fixtures/*.json"]
+"app.signals" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

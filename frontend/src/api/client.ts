@@ -4,6 +4,7 @@ import type {
   CpiForecast,
   EvidenceAsOf,
   EvidenceSource,
+  FeeScheduleInfo,
   Health,
   IngestionRun,
   MarketDetail,
@@ -11,6 +12,7 @@ import type {
   MarketList,
   ModelCard,
   ModelEvaluation,
+  Signal,
 } from "./types";
 
 export class ApiError extends Error {
@@ -64,6 +66,8 @@ export const api = {
     );
   },
   collectionGaps: () => getJson<{ items: CollectionGap[] }>("/api/collection-gaps?limit=20"),
+  signals: () => getJson<Signal[]>("/api/signals?limit=50"),
+  feeSchedules: () => getJson<FeeScheduleInfo[]>("/api/fee-schedules"),
   models: () => getJson<ModelCard[]>("/api/models"),
   modelMetrics: () => getJson<ModelEvaluation[]>("/api/models/metrics"),
   cpiForecast: (threshold: string) =>

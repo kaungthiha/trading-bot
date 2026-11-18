@@ -43,6 +43,8 @@ class Market(Base):
     notional_value: Mapped[Decimal] = mapped_column(DecimalString())
     price_ranges_json: Mapped[str] = mapped_column(Text)
     is_mock: Mapped[bool] = mapped_column(Boolean, default=False)
+    fee_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fee_multiplier: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
 
     rule_versions: Mapped[list[MarketRuleVersion]] = relationship(back_populates="market")
@@ -184,6 +186,61 @@ class ModelEvaluation(Base):
     dev_json: Mapped[str] = mapped_column(Text)
     holdout_json: Mapped[str] = mapped_column(Text)
     data_notes_json: Mapped[str] = mapped_column(Text)
+
+
+class MarketMapping(Base):
+    """Append-only log linking a market to a model contract definition.
+
+    The latest row per market is in effect. A mapping is pinned to the rules-text hash it
+    was reviewed against; if the market's rules change, the mapping stops applying.
+    Status: proposed (auto-parsed) | confirmed (human) | rejected (human or parser).
+    """
+
+    __tablename__ = "market_mappings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    market_id: Mapped[str] = mapped_column(ForeignKey("markets.id", ondelete="RESTRICT"),
+                                           index=True)
+    contract_type: Mapped[str] = mapped_column(String(64))
+    reference_month: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    threshold: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    rules_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))
+    actor: Mapped[str] = mapped_column(String(64))  # "parser" or "user"
+    notes_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class Signal(Base):
+    """Immutable research signal: a hypothesis, NOT an order or an authorization."""
+
+    __tablename__ = "signals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    market_id: Mapped[str] = mapped_column(ForeignKey("markets.id", ondelete="RESTRICT"),
+                                           index=True)
+    quote_id: Mapped[str | None] = mapped_column(
+        ForeignKey("quote_snapshots.id", ondelete="RESTRICT"), nullable=True)
+    model_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("model_runs.id", ondelete="RESTRICT"), nullable=True)
+    mapping_id: Mapped[str | None] = mapped_column(
+        ForeignKey("market_mappings.id", ondelete="RESTRICT"), nullable=True)
+    rules_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fee_schedule_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    decision: Mapped[str] = mapped_column(String(24))  # CANDIDATE_YES|CANDIDATE_NO|ABSTAIN
+    side: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    p_yes: Mapped[float | None] = mapped_column(nullable=True)
+    entry: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    fee: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    slippage: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    ev: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    lower_edge: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    caveats_json: Mapped[str] = mapped_column(Text, default="[]")
+    details_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 class AuditEvent(Base):

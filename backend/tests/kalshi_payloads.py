@@ -66,3 +66,18 @@ DEFAULT_BOOK = orderbook(
     yes=[["0.4100", "50.00"], ["0.4200", "13.00"], ["0.4300", "120.00"]],
     no=[["0.5300", "10.00"], ["0.5500", "80.00"]],
 )
+
+
+EVENT = {
+    "event": {
+        "event_ticker": "TESTCPI-26DEC",
+        "series_ticker": "TESTCPI",
+        "title": "Test CPI December",
+        "sub_title": "",
+        "collateral_return_type": "",
+        "mutually_exclusive": False,
+        "settlement_sources": [],
+        "fee_type_override": None,
+        "fee_multiplier_override": None,
+    }
+}

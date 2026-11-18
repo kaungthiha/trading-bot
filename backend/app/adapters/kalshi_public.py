@@ -77,6 +77,11 @@ class KalshiPublicClient(RetryingJsonClient):
     def get_market(self, ticker: str) -> dict[str, Any]:
         return _require_dict(self.get(f"/markets/{ticker}"), "market")
 
+    def get_event(self, event_ticker: str) -> dict[str, Any]:
+        return _require_dict(
+            self.get(f"/events/{event_ticker}", {"exclude_markets": "true"}), "event"
+        )
+
     def get_orderbook(self, ticker: str, depth: int = 0) -> dict[str, Any]:
         return self.get(f"/markets/{ticker}/orderbook", {"depth": depth})
 
@@ -188,6 +193,7 @@ def parse_market(
     *,
     series: dict[str, Any] | None,
     orderbook: OrderBook,
+    event: dict[str, Any] | None = None,
 ) -> MarketSnapshot:
     try:
         ticker = m["ticker"]
@@ -213,6 +219,7 @@ def parse_market(
     source_url = None
     if series:
         source_url = series.get("contract_url") or series.get("contract_terms_url") or None
+    fee_type, fee_multiplier = effective_fee(series, event)
 
     return MarketSnapshot(
         exchange="kalshi",
@@ -232,7 +239,35 @@ def parse_market(
         price_ranges=ranges,
         orderbook=orderbook,
         is_mock=False,
+        fee_type=fee_type,
+        fee_multiplier=fee_multiplier,
     )
+
+
+def _num(v: Any) -> Decimal | None:
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float, str)):
+        try:
+            d = Decimal(str(v))
+        except InvalidOperation:
+            return None
+        return d if d.is_finite() else None
+    return None
+
+
+def effective_fee(
+    series: dict[str, Any] | None, event: dict[str, Any] | None
+) -> tuple[str | None, Decimal | None]:
+    """Event-level overrides win when set (docs: get-event-fee-changes); else series.
+    If the event could not be fetched (``event is None``), the override is unknown, so the
+    fee is reported as unknown rather than silently assuming the series default."""
+    if series is None or event is None:
+        return None, None
+    fee_type = event.get("fee_type_override") or series.get("fee_type")
+    mult = event.get("fee_multiplier_override")
+    multiplier = _num(mult) if mult is not None else _num(series.get("fee_multiplier"))
+    return (fee_type if isinstance(fee_type, str) else None), multiplier
 
 
 class KalshiPublicMarketAdapter:
@@ -288,12 +323,21 @@ class KalshiPublicMarketAdapter:
                     limit=self.page_limit,
                     max_pages=self.max_pages,
                 )
+                events: dict[str, dict[str, Any] | None] = {}
                 for m in markets:
                     scope = f"market:{m.get('ticker')}"
+                    et = m.get("event_ticker")
+                    if isinstance(et, str) and et not in events:
+                        try:
+                            events[et] = self.client.get_event(et)
+                        except AdapterError as e:
+                            events[et] = None  # fee override unknown -> fee unknown
+                            errors.append(FetchError(f"event:{et}", e.code, str(e)))
                     try:
                         body = self.client.get_orderbook(m["ticker"], self.depth)
                         book = parse_orderbook(body, self.clock.now())
-                        snapshots.append(parse_market(m, series=series, orderbook=book))
+                        snapshots.append(parse_market(
+                            m, series=series, orderbook=book, event=events.get(et)))
                     except AdapterError as e:
                         errors.append(FetchError(scope, e.code, str(e)))
             except AdapterError as e:

@@ -217,6 +217,64 @@ export interface CpiForecast {
   caveat: string;
 }
 
+export interface SignalSide {
+  side: string;
+  entry: DecimalString | null;
+  fee: DecimalString | null;
+  slippage: DecimalString | null;
+  ev: DecimalString | null;
+  lower_edge: DecimalString | null;
+  lower_edge_stressed: DecimalString | null;
+  filled: DecimalString | null;
+  reasons: string[];
+}
+
+export interface Signal {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  validity: "VALID" | "EXPIRED" | "INVALIDATED_RULES_CHANGED";
+  market_id: string;
+  market_ticker: string;
+  market_title: string;
+  rules_source_url: string | null;
+  decision: "CANDIDATE_YES" | "CANDIDATE_NO" | "ABSTAIN";
+  side: string | null;
+  quantity: DecimalString | null;
+  p_yes: number | null;
+  p_lower: number | null;
+  p_upper: number | null;
+  entry: DecimalString | null;
+  fee: DecimalString | null;
+  slippage: DecimalString | null;
+  ev: DecimalString | null;
+  lower_edge: DecimalString | null;
+  reasons: string[];
+  caveats: string[];
+  quote_id: string | null;
+  quote_observed_at: string | null;
+  model_run_id: string | null;
+  model: string | null;
+  contract_key: string | null;
+  mapping_id: string | null;
+  mapping_status: string | null;
+  fee_schedule_version: string | null;
+  details: {
+    yes?: SignalSide;
+    no?: SignalSide;
+    spread_yes?: DecimalString | null;
+    model_market_divergence?: DecimalString | null;
+  } & Record<string, unknown>;
+}
+
+export interface FeeScheduleInfo {
+  version: string;
+  verified: boolean;
+  verified_by: string | null;
+  verified_at: string | null;
+  source_url: string;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

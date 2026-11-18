@@ -184,6 +184,51 @@ export const TERMS = {
     reviewedAt: REVIEWED,
     relatedTermIds: [],
   },
+  edge: {
+    id: "edge",
+    label: "Edge",
+    aliases: ["model edge"],
+    category: "trading",
+    shortDefinition:
+      "Estimated advantage of a trade over its current cost, after relevant assumptions.",
+    example:
+      "If modeled EV is $0.05 per contract, that is estimated edge, not guaranteed profit.",
+    reviewedAt: REVIEWED,
+    relatedTermIds: ["expected-value", "fees", "slippage"],
+  },
+  "expected-value": {
+    id: "expected-value",
+    label: "Expected value",
+    aliases: ["EV"],
+    category: "quant",
+    shortDefinition: "Probability-weighted average gain or loss across possible outcomes.",
+    example: "With p=.64, YES ask=.56 and costs=.03, modeled EV=$0.05.",
+    formula: "EV_yes = p − ask − fee − slippage",
+    reviewedAt: REVIEWED,
+    relatedTermIds: ["edge"],
+  },
+  fees: {
+    id: "fees",
+    label: "Fees",
+    aliases: ["trading fees"],
+    category: "trading",
+    shortDefinition:
+      "Charges or rebates related to exchange trading or settlement under specific rules.",
+    example: "A positive model edge can disappear after trading costs.",
+    reviewedAt: REVIEWED,
+    relatedTermIds: ["edge"],
+  },
+  slippage: {
+    id: "slippage",
+    label: "Slippage",
+    aliases: ["execution slippage"],
+    category: "trading",
+    shortDefinition:
+      "Difference between assumed and actual execution price, often due to depth or market movement.",
+    example: "A $0.56 quoted ask could yield an average $0.57 fill for larger quantity.",
+    reviewedAt: REVIEWED,
+    relatedTermIds: ["orderbook-depth"],
+  },
   "look-ahead-bias": {
     id: "look-ahead-bias",
     label: "Look-ahead bias",

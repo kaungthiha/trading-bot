@@ -19,7 +19,7 @@ from app.core.config import KALSHI_REST_BASES, KalshiEnv
 from app.domain.models import MarketStatus, MarketType
 from app.domain.pricing import derive_quote
 from tests.conftest import FROZEN_NOW
-from tests.kalshi_payloads import DEFAULT_BOOK, SERIES, market, orderbook
+from tests.kalshi_payloads import DEFAULT_BOOK, EVENT, SERIES, market, orderbook
 
 BASE = KALSHI_REST_BASES[KalshiEnv.PRODUCTION]
 D = Decimal
@@ -325,6 +325,7 @@ def adapter_for(routes: dict[str, object], series: list[str] | None = None):  # 
 def test_adapter_fetches_series_markets_and_books() -> None:
     adapter, rec = adapter_for({
         "/series/TESTCPI": SERIES,
+        "/events/TESTCPI-26DEC": EVENT,
         "/markets": {"markets": [market("TESTCPI-26DEC-T3.0"), market("TESTCPI-26DEC-T3.5")],
                      "cursor": ""},
         "/markets/TESTCPI-26DEC-T3.0/orderbook": DEFAULT_BOOK,
@@ -342,6 +343,7 @@ def test_adapter_fetches_series_markets_and_books() -> None:
 def test_adapter_partial_failure_recorded() -> None:
     adapter, _ = adapter_for({
         "/series/TESTCPI": SERIES,
+        "/events/TESTCPI-26DEC": EVENT,
         "/markets": {"markets": [market("OK"), market("BROKEN")], "cursor": ""},
         "/markets/OK/orderbook": DEFAULT_BOOK,
         "/markets/BROKEN/orderbook": {"unexpected": True},
@@ -366,3 +368,27 @@ def test_adapter_requires_watchlist() -> None:
     with pytest.raises(AdapterError):
         adapter.fetch_markets()
     assert rec.requests == []
+
+
+# --- Fees ------------------------------------------------------------------------------
+
+
+def test_effective_fee_series_and_event_override() -> None:
+    from app.adapters.kalshi_public import effective_fee
+
+    s = {**SERIES["series"], "fee_type": "quadratic_with_maker_fees", "fee_multiplier": 1}
+    assert effective_fee(s, EVENT["event"]) == ("quadratic_with_maker_fees", D("1"))
+    ov = {**EVENT["event"], "fee_type_override": "flat", "fee_multiplier_override": 0.5}
+    assert effective_fee(s, ov) == ("flat", D("0.5"))
+    assert effective_fee(s, None) == (None, None)  # override unknown -> fee unknown
+
+
+def test_adapter_event_failure_recorded_and_fee_unknown() -> None:
+    adapter, _ = adapter_for({
+        "/series/TESTCPI": SERIES,
+        "/markets": {"markets": [market("OK")], "cursor": ""},
+        "/markets/OK/orderbook": DEFAULT_BOOK,
+    })
+    result = adapter.fetch_markets()
+    assert [e.scope for e in result.errors] == ["event:TESTCPI-26DEC"]
+    assert result.snapshots[0].fee_type is None and result.snapshots[0].fee_multiplier is None
