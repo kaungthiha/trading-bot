@@ -4,31 +4,78 @@ A local-only research and paper-trading terminal for Kalshi event contracts. It 
 place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
-**Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data), 03 (evidence
-pipeline), 04 (probability models), 05 (signals), 06 (paper trading) and 07 (educational UX) are done.
+**Status:** milestones 01–08 are complete. The spec's optional milestone 09 (live execution)
+has **not** been started; it needs a separate decision from you.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
   what was known at any past moment. CPI is first.
-- No exchange credentials and no order routes.
+- **Research:** models, fee-aware signals and paper trading, every step traceable to its data.
+- No exchange credentials, no real orders, and paper mode is enforced.
 
 > This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of
 > St. Louis. See the [FRED API Terms of Use](https://fred.stlouisfed.org/docs/api/terms_of_use.html).
 
-## Requirements
-- Python 3.12+ (tested on 3.14.4)
-- Node.js 20+ (tested on 24.15.0)
+## Windows quick start
+**Requirements:** Python 3.12+ (tested on 3.14.4) and Node.js 20+ (tested on 24.15.0), both on
+`PATH`. Use Windows PowerShell, for example VS Code → Terminal → New Terminal.
 
-## Setup (Windows PowerShell)
 ```powershell
-.\scripts\setup.ps1          # venv + deps, DB migration, seeds the mock markets
-```
+# 0. Once, if PowerShell says "running scripts is disabled on this system":
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
-## Run
-```powershell
-.\scripts\start-backend.ps1  # http://127.0.0.1:8000  (API docs: /api/docs)
-.\scripts\start-frontend.ps1 # http://127.0.0.1:5173  (open this one in your browser)
+# 1. Install everything (locked versions; safe to re-run)
+.\scripts\setup.ps1
+
+# 2a. Explore offline with synthetic data (no keys, no network):
+.\scripts\start-demo.ps1        # terminal 1
+.\scripts\start-frontend.ps1    # terminal 2, then open http://127.0.0.1:5173
+
+# 2b. ...or run with your real data:
+.\scripts\start-backend.ps1     # terminal 1  (API docs at http://127.0.0.1:8000/api/docs)
+.\scripts\start-frontend.ps1    # terminal 2
+.\scripts\start-worker.ps1      # optional terminal 3: scheduled data refresh
+
+# 3. Verify the installation (all tests, build, bundle scan)
+.\scripts\test.ps1
 ```
+In the app, the **Getting started** checklist tells you the next command to run until setup
+is complete. Stop any server with Ctrl+C.
+
+**Troubleshooting**
+
+| Symptom | Fix |
+|---|---|
+| `error while attempting to bind on address ('127.0.0.1', 8000)` / Vite "port 5173 is in use" | An earlier backend or frontend is still running. Close its terminal or press Ctrl+C there. To find it: `Get-NetTCPConnection -LocalPort 8000,5173 -State Listen` |
+| New panels missing after updating | Restart both servers. The backend runs database migrations on start. |
+| `running scripts is disabled` | Run step 0 above, or use `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1` |
+| `Another worker holds worker.lock` | A worker is already running. Only one is allowed. |
+| Signals all say `FEE_SCHEDULE_UNVERIFIED` | Expected until you verify fees. See *Signals* below. |
+| `restore`/`reset` says the database is in use | Stop the backend and worker first. Your data was already backed up. |
+
+## Your data: backup, restore, reset
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli backup                 # -> backend\data\backups\
+.venv\Scripts\python -m app.cli list-backups
+.venv\Scripts\python -m app.cli restore <file> --yes   # current data is backed up first
+.venv\Scripts\python -m app.cli reset --yes            # backs up, then starts empty
+```
+Backups use SQLite's online backup API, so they're consistent even while the app runs. Restore
+checks that the file is a valid database from this app, refuses while the worker is running,
+and upgrades older backups to the current schema. Everything lives in `backend/data/`, which
+git ignores. The demo uses its own `demo.sqlite3` and never touches your real database.
+
+## Traceability and health
+- **Lineage:** every signal card has **Trace lineage**, also available as
+  `GET /api/lineage/signal/{id}` and `GET /api/lineage/paper-order/{id}`. It shows the quote
+  snapshot and the ingestion run that captured it, the exact rules version, the mapping
+  decision, the model run, and the exact FRED vintages used. A leakage check confirms that
+  every input was published before the model's cutoff. It also shows the evaluation that
+  validated the model and the fee schedule version.
+- **Health panel** (`GET /api/diagnostics`): last run and failures per source, top error
+  codes, quote freshness, collection gaps, signal reason counts, schema version, and database
+  size.
 
 ## Fetch real Kalshi markets (read-only, no key)
 ```powershell
@@ -147,14 +194,17 @@ divergence**. The last one triggers when the model's probability is more than 0.
 the market's bid–ask range. The model only knows past CPI prints, so a big gap means it is
 probably missing information, not that it has found an opportunity.
 
-> **⚠ Your input needed: fee schedule.** `backend/app/signals/fee_schedules.json` ships a
-> *candidate* entry (`taker_rate 0.07 × C × P × (1−P)`, ceil to $0.000001 per fill, balance
-> rounded up to $0.01) marked `verified: false`. The rounding and maker multipliers come from
-> Kalshi's docs. The 0.07 constant could **not** be verified, because the official PDF
-> rate-limited automated access. Open https://kalshi.com/docs/kalshi-fee-schedule.pdf, compare,
-> then set `verified: true` with `verified_by` and `verified_at`. If the PDF differs, add a new
-> entry with a new version instead of editing this one. Until then every signal abstains with
-> `FEE_SCHEDULE_UNVERIFIED`, but the full calculation is still shown.
+> **Fee schedule: verified against Kalshi's official PDF** (effective July 7, 2026), with
+> version `kalshi-fee-schedule-2026-07-07` in `backend/app/signals/fee_schedules.json`.
+> - Taker fee `round up(M × 0.07 × C × P × (1−P))`; maker fee `0.0175` (= 0.25 × 0.07, or
+>   0.5 for combos); no settlement fee. KXCPI uses maker and taker multipliers of 1.
+> - `tests/test_fee_schedule_pdf.py` reproduces every row of the PDF's General Trading Fees
+>   Table (1 and 100 contracts, $0.01 to $0.99) exactly.
+> - Totals round up to the cent, as for a retail account. The PDF's centicent rounding applies
+>   to direct members, so cent rounding can only overstate fees.
+> - The engine still assumes taker fees and abstains when a market's fee multiplier isn't 1.
+> - When Kalshi publishes a new schedule, add a **new** versioned entry rather than editing this
+>   one, because past signals reference it.
 
 Signals are immutable rows linking to the exact quote, model run, mapping, rules hash and fee
 schedule version they used. The API remains GET-only.
@@ -247,7 +297,8 @@ contacted.
 
 Manual equivalents (from `backend/`): `.venv\Scripts\python -m pytest`,
 `.venv\Scripts\python -m app.cli migrate|downgrade [rev]|seed-mock`.
-From `frontend/`: `npm test`, `npm run typecheck`, `npm run build`.
+From `frontend/`: `npm test`, `npm run typecheck`, `npm run build`, `npm run check:bundle`,
+`npm run glossary:export`.
 
 ## Secrets and API keys
 - Copy `.env.example` to `.env` and fill in keys **only when a later milestone needs them**.
@@ -280,6 +331,8 @@ backend/
   app/signals/    fee schedules (versioned JSON), mapping parser, engine, service
   app/paper/      fill simulator, broker/ledger/settlement service, signal replay
   app/worker.py   scheduled collector with gap detection and single-instance lock
+  app/ops.py      backup / restore / reset;  app/demo.py  offline synthetic demo
+  requirements.lock  exact backend dependency versions (frontend: package-lock.json)
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
                   /api/ingestion/runs, /api/evidence/sources,
@@ -289,7 +342,7 @@ backend/
                   /api/markets/{id}/signals, /api/mappings, /api/fee-schedules,
                   /api/paper/{account,orders,settlements,replay}, POST /api/paper/orders
   alembic/        migrations 0001_initial … 0006_paper
-  tests/          190 tests (HTTP via mock transports; network is blocked)
+  tests/          202 tests incl. end-to-end workflow and performance budgets (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

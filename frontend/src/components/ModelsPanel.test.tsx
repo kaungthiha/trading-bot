@@ -112,7 +112,9 @@ describe("<ModelsPanel>", () => {
     expect(within(holdout).getByText("0.1559")).toBeInTheDocument();
     expect(screen.getByText(/652 first prints used/)).toBeInTheDocument();
     expect(screen.getByText(/not trade recommendations/)).toBeInTheDocument();
-    expect(screen.getByText(/Forecasts only the NEXT unreleased month/)).toBeInTheDocument();
+    const warn = screen.getByRole("note", { name: "Model limitations" });
+    expect(warn).toHaveTextContent(/Forecasts only the NEXT unreleased month/);
+    expect(screen.getAllByText(/Forecasts only the NEXT unreleased month/)).toHaveLength(2);
   });
 
   it("refetches when the threshold changes; shows empty-evaluation hint", async () => {

@@ -60,6 +60,15 @@ code.reason { display: inline-block; margin: 0.1rem 0.25rem 0.1rem 0; }
 .glossary-item dd { margin: 0.25rem 0 0; }
 .glossary-item p { margin: 0.2rem 0; }
 .examples { background: #f6f8fb; border-radius: 6px; padding: 0.25rem 0.75rem; margin-bottom: 0.75rem; }
+.badge.demo { background: #fde7c4; color: #6b3a00; }
+.onboarding-header { display: flex; justify-content: space-between; align-items: center; }
+.onboarding-header h2 { margin: 0; }
+.checklist { margin: 0.25rem 0 0; padding-left: 1.25rem; font-size: 0.9rem; }
+.checklist li { margin: 0.3rem 0; }
+.warning-box { border-left: 3px solid #fab219; background: #fff8e6; padding: 0.4rem 0.75rem; margin: 0.5rem 0; }
+.warning-box ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.lineage-steps { margin: 0.25rem 0 0.25rem; padding-left: 1.2rem; }
+.lineage-steps li { margin: 0.15rem 0; }
 .app-footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid #d8dde3; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; }

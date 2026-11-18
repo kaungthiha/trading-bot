@@ -3,7 +3,11 @@
   "schedules": [
     {
       "version": "kalshi-quadratic-candidate-2026-11",
-      "fee_types": ["quadratic", "quadratic_with_maker_fees", "quadratic_with_combo_maker_fees"],
+      "fee_types": [
+        "quadratic",
+        "quadratic_with_maker_fees",
+        "quadratic_with_combo_maker_fees"
+      ],
       "formula": "fee = taker_rate * C * P * (1 - P)  (C = contracts, P = price in dollars)",
       "taker_rate": "0.07",
       "maker_multiplier": {
@@ -26,6 +30,39 @@
           "taker_rate 0.07 and the C*P*(1-P) formula: from prior knowledge; the official PDF could not be fetched (HTTP 429). Confirm before setting verified=true.",
           "how fee_multiplier is applied: not documented; the engine abstains when fee_multiplier != 1"
         ]
+      }
+    },
+    {
+      "version": "kalshi-fee-schedule-2026-07-07",
+      "fee_types": [
+        "quadratic",
+        "quadratic_with_maker_fees",
+        "quadratic_with_combo_maker_fees"
+      ],
+      "formula": "taker fee = round up(M x 0.07 x C x P x (1 - P)); maker fee = round up(M x 0.0175 x C x P x (1 - P))",
+      "taker_rate": "0.07",
+      "maker_multiplier": {
+        "quadratic": "0",
+        "quadratic_with_maker_fees": "0.25",
+        "quadratic_with_combo_maker_fees": "0.5"
+      },
+      "trade_fee_rounding_step": "0.000001",
+      "balance_precision": "0.01",
+      "source_url": "https://kalshi.com/docs/kalshi-fee-schedule.pdf",
+      "verified": true,
+      "verified_by": "Official PDF supplied by the user; values checked by Claude",
+      "verified_at": "2026-11-18",
+      "provenance": {
+        "document": "Kalshi fee schedule PDF, 'Last updated and effective: July 7, 2026'",
+        "verified_from_pdf": [
+          "Taker: fees = round up(M x 0.07 x C x P x (1-P)), M default 1",
+          "Maker: fees = round up(M x 0.0175 x C x P x (1-P)), M default 0 unless indicated (0.0175 = 0.25 x 0.07; KXMVE maker M=2 -> 0.035 = 0.5 x 0.07)",
+          "KXCPI and KXCPIYOY: maker multiplier 1, taker multiplier 1",
+          "No settlement fee",
+          "General Trading Fees Table (1 and 100 contracts, $0.01-$0.99) reproduced exactly by this model (see tests/test_fee_schedule_pdf.py)"
+        ],
+        "rounding_note": "PDF rounds fee + position cost up to a centicent ($0.0001); Kalshi docs (fee_rounding) align NON-direct member balances to $0.01, and the PDF's own table shows cent-rounded fees. balance_precision 0.01 is used for a retail account (conservative: overstates fees by < $0.01 per order vs centicent).",
+        "still_conservative": "Engine assumes taker fees for every simulated fill and abstains when a market's fee_multiplier != 1 (API fee_multiplier vs separate maker/taker multipliers not mapped one-to-one)."
       }
     }
   ]

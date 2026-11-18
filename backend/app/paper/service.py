@@ -323,8 +323,11 @@ def account_summary(s: Session, now: datetime,
         realized += p.realized
         unrealized += unr
         rows.append((p, mk, unr))
-    verified = all(sch.verified for sch in schedules) if schedules else False
-    notes = [] if verified else ["Fees use an UNVERIFIED schedule; P&L may be misstated."]
+    used = s.scalars(select(PaperOrder.fee_schedule_verified).where(
+        PaperOrder.status.in_(("FILLED", "PARTIAL")))).all()
+    verified = all(used)  # vacuously true with no fills
+    notes = [] if verified else ["Some fills used an UNVERIFIED fee schedule; P&L may be "
+                                 "misstated."]
     return AccountSummary(cash, deposits, open_value, cash + open_value, realized, unrealized,
                           verified, notes), rows
 

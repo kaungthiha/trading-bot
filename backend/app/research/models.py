@@ -142,7 +142,8 @@ class BaseRateModel:
         a, b = k + 0.5, n - k + 0.5
         tail = (1 - self.band) / 2
         inputs = {"n": n, "k": k, "months": [win[0].month.isoformat(), win[-1].month.isoformat()],
-                  "input_hash": dataset_hash(win)}
+                  "input_hash": dataset_hash(win),
+                  "evidence_ids": [p.evidence_id for p in win]}
         return Forecast(self.card.name, self.card.version, FEATURE_VERSION, contract.key, as_of,
                         Decision.FORECAST, a / (a + b), float(beta.ppf(tail, a, b)),
                         float(beta.ppf(1 - tail, a, b)), self.card.uncertainty_method, [], inputs)
@@ -197,7 +198,8 @@ class GaussianTrailingModel:
         win = list(history)[-max(self.k_mean, self.k_sd):]
         inputs = {"mu": round(mu, 6), "sd": round(sd, 6), "se": round(se, 6),
                   "months": [win[0].month.isoformat(), win[-1].month.isoformat()],
-                  "input_hash": dataset_hash(win)}
+                  "input_hash": dataset_hash(win),
+                  "evidence_ids": [p.evidence_id for p in win]}
         return Forecast(self.card.name, self.card.version, FEATURE_VERSION, contract.key, as_of,
                         Decision.FORECAST, p, min(lo, hi), max(lo, hi),
                         self.card.uncertainty_method, [], inputs)

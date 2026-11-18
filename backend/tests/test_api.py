@@ -107,3 +107,13 @@ def test_glossary_endpoint_serves_exported_registry(client: TestClient) -> None:
     assert all(t["shortDefinition"] and t["deepExplanation"] for t in body["terms"])
     hits = client.get("/api/glossary", params={"q": "EV"}).json()["terms"]
     assert "expected-value" in [t["id"] for t in hits]
+
+
+def test_paper_mode_is_enforced_end_to_end(client: TestClient) -> None:
+    """Acceptance (08): paper mode enforced -- config, health, diagnostics and routes agree."""
+    h = client.get("/api/health").json()
+    assert h["trading_mode"] == "paper" and h["live_execution_enabled"] is False
+    d = client.get("/api/diagnostics").json()["safety"]
+    assert d == {"trading_mode": "paper", "live_execution_enabled": False}
+    paths = client.get("/api/openapi.json").json()["paths"]
+    assert not any(k in p for p in paths for k in ("portfolio", "exchange", "live", "execute"))

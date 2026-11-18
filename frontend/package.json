@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "glossary:export": "node scripts/export-glossary.mjs"
+    "glossary:export": "node scripts/export-glossary.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -117,6 +117,16 @@ export function ModelsPanel() {
                 .join(" · ")}
             </p>
             <p className="small disclaimer">{forecast.caveat}</p>
+            {cards.length > 0 && (
+              <div className="warning-box small" role="note" aria-label="Model limitations">
+                <strong>Model limitations</strong>
+                <ul>
+                  {Array.from(new Set(cards.flatMap((c) => c.limitations))).slice(0, 4).map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
       </section>

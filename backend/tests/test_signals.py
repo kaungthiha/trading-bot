@@ -84,11 +84,12 @@ def test_trade_fee_ceil_to_micro_dollar() -> None:
     assert c2.trade_fees == D("0.046431")
 
 
-def test_shipped_schedule_is_unverified_candidate() -> None:
-    (s,) = load_schedules()
-    assert s.verified is False and s.taker_rate == D("0.07")
-    assert select_schedule([s], "quadratic") is s
-    assert select_schedule([s], "flat") is None
+def test_shipped_schedules_prefer_pdf_verified_entry() -> None:
+    cand, verified = load_schedules()
+    assert cand.verified is False and verified.verified is True
+    assert verified.version == "kalshi-fee-schedule-2026-07-07"
+    assert select_schedule([cand, verified], "quadratic_with_maker_fees") is verified
+    assert select_schedule([cand, verified], "flat") is None  # flat fees still unsupported
 
 
 def test_schedule_file_validation(tmp_path: Path) -> None:
@@ -286,9 +287,10 @@ def test_generate_signals_end_to_end(db, settings: Settings) -> None:  # type: i
         assert rejected.decision == "ABSTAIN"
         assert "MAPPING_NOT_CONFIRMED" in json.loads(rejected.reasons_json)
 
-        default = generate_signals(s, settings, NOW)  # shipped unverified schedule
-        assert all("FEE_SCHEDULE_UNVERIFIED" in json.loads(x.reasons_json) for x in default
-                   if _market_ticker(s, x) == "KXCPI-24JAN-T0.2")
+        default = generate_signals(s, settings, NOW)  # shipped schedules (PDF-verified)
+        mine = [x for x in default if _market_ticker(s, x) == "KXCPI-24JAN-T0.2"]
+        assert all("FEE_SCHEDULE_UNVERIFIED" not in json.loads(x.reasons_json) for x in mine)
+        assert {x.fee_schedule_version for x in mine} == {"kalshi-fee-schedule-2026-07-07"}
         s.commit()
 
 

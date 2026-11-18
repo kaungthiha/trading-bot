@@ -97,6 +97,14 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("paper-settle", help="Refresh held markets; settle finalized ones")
     pr = sub.add_parser("paper-replay", help="Replay stored candidate signals (simulation)")
     pr.add_argument("--scenario", choices=["conservative", "baseline", "harsh"])
+    sub.add_parser("backup", help="Back up the database to backend/data/backups/")
+    sub.add_parser("list-backups", help="List available backups")
+    rs = sub.add_parser("restore", help="Restore a backup (current data is backed up first)")
+    rs.add_argument("file")
+    rs.add_argument("--yes", action="store_true")
+    rz = sub.add_parser("reset", help="Back up, then start with an empty database")
+    rz.add_argument("--yes", action="store_true")
+    sub.add_parser("demo", help="Build the offline demo database (synthetic data)")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -144,6 +152,54 @@ def main(argv: list[str] | None = None) -> int:
         return _signal_cmd(args, settings)
     elif args.cmd.startswith("paper-"):
         return _paper_cmd(args, settings)
+    elif args.cmd in ("backup", "list-backups", "restore", "reset", "demo"):
+        return _ops_cmd(args, settings)
+    return 0
+
+
+def _ops_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    from pathlib import Path
+
+    from app import ops
+
+    try:
+        if args.cmd == "backup":
+            print(f"Backup written: {ops.backup(settings.database_url)}")
+        elif args.cmd == "list-backups":
+            backups = ops.list_backups()
+            for b in backups:
+                print(f"  {b.name}  ({b.stat().st_size // 1024} KiB)")
+            if not backups:
+                print("No backups yet. Run: python -m app.cli backup")
+        elif args.cmd == "restore":
+            path = Path(args.file)
+            if not path.is_absolute() and not path.exists():
+                path = ops.BACKUP_DIR / path
+            rev = ops.validate_backup(path)
+            if not args.yes:
+                print(f"{path.name} is valid (schema {rev}). Stop the backend, then re-run "
+                      "with --yes. Your current data will be backed up first.")
+                return 2
+            safety, rev = ops.restore(settings.database_url, path, alembic_config)
+            print(f"Restored {path.name} (schema {rev}); previous data saved to {safety}")
+        elif args.cmd == "reset":
+            if not args.yes:
+                print("This empties the database (a backup is taken first). Stop the backend, "
+                      "then re-run with --yes.")
+                return 2
+            safety = ops.reset(settings.database_url, alembic_config)
+            print(f"Database reset. Previous data saved to {safety}")
+        elif args.cmd == "demo":
+            from app.demo import build_demo
+
+            summary = build_demo(cfg_factory=alembic_config)
+            print("Offline demo database built (SYNTHETIC data, MOCK- markets):")
+            for k, v in summary.items():
+                print(f"  {k}: {v}")
+            print("Start it with: .\\scripts\\start-demo.ps1  (your real data is untouched)")
+    except ops.OpsError as e:
+        print(f"Error: {e}")
+        return 1
     return 0
 
 

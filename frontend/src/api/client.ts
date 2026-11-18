@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   CollectionGap,
   CpiForecast,
+  Diagnostics,
   EvidenceAsOf,
   EvidenceSource,
   FeeScheduleInfo,
@@ -17,7 +18,9 @@ import type {
   PaperOrderInput,
   PaperSettlement,
   ReplayReport,
+  SetupStatus,
   Signal,
+  SignalLineage,
 } from "./types";
 
 export class ApiError extends Error {
@@ -81,6 +84,10 @@ function newClientOrderId(): string {
 }
 
 export const api = {
+  setupStatus: () => getJson<SetupStatus>("/api/setup-status"),
+  diagnostics: () => getJson<Diagnostics>("/api/diagnostics"),
+  signalLineage: (id: string) =>
+    getJson<SignalLineage>(`/api/lineage/signal/${encodeURIComponent(id)}`),
   paperAccount: () => getJson<PaperAccount>("/api/paper/account"),
   paperOrders: () => getJson<PaperOrder[]>("/api/paper/orders?limit=100"),
   paperSettlements: () => getJson<PaperSettlement[]>("/api/paper/settlements"),

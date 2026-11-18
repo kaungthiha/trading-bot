@@ -287,7 +287,7 @@ def test_paper_api_and_csrf(factory, settings: Settings) -> None:  # type: ignor
         assert bad.status_code == 422
         acct = c.get("/api/paper/account").json()
         assert acct["positions"][0]["open_qty"] == "10" and acct["deposits"] == "1000"
-        assert acct["fee_schedule_verified"] is False  # shipped schedule is unverified
+        assert acct["fee_schedule_verified"] is True  # filled with the PDF-verified schedule
         assert len(c.get("/api/paper/orders").json()) == 1
         assert c.get("/api/paper/settlements").json() == []
         assert c.get("/api/paper/replay", params={"scenario": "nope"}).status_code == 422

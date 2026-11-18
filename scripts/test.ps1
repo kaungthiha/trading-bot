@@ -1,4 +1,5 @@
-# Runs all tests: backend (pytest + ruff) and frontend (typecheck + vitest).
+# Full verification: backend (pytest incl. e2e/perf + ruff), frontend (typecheck, vitest,
+# production build, bundle secret/CSP scan).
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
@@ -16,5 +17,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "frontend typecheck failed" }
     npm test
     if ($LASTEXITCODE -ne 0) { throw "frontend tests failed" }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw "frontend build failed" }
+    npm run check:bundle
+    if ($LASTEXITCODE -ne 0) { throw "bundle check failed" }
 } finally { Pop-Location }
 Write-Host "All checks passed."

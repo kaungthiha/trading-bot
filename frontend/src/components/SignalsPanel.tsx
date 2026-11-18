@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import type { FeeScheduleInfo, Signal } from "../api/types";
+import { LineageView } from "./LineageView";
 import { MetricLabel } from "./MetricLabel";
 import { Term } from "./Term";
 import { formatPrice, formatUtc } from "./format";
@@ -98,6 +99,7 @@ function SignalCard({ s }: { s: Signal }) {
           </>
         )}
       </p>
+      <LineageView signalId={s.id} />
       <details className="small">
         <summary>Caveats</summary>
         <ul>
@@ -121,7 +123,9 @@ export function SignalsPanel() {
   }, []);
 
   if (signals === null) return <p>Loading signals…</p>;
-  const unverified = fees.filter((f) => !f.verified);
+  // Warn only when no verified schedule exists (older unverified versions are kept so past
+  // signals stay traceable).
+  const unverified = fees.length > 0 && !fees.some((f) => f.verified) ? fees : [];
   const shown = onlyCandidates
     ? signals.filter((s) => s.decision !== "ABSTAIN" && s.validity === "VALID")
     : signals;

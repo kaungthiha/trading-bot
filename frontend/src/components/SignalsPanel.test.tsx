@@ -90,6 +90,15 @@ describe("<SignalsPanel>", () => {
     expect(screen.getByText(/Nothing here places, queues or authorizes an order/)).toBeInTheDocument();
   });
 
+  it("does not warn when a verified schedule exists alongside an old unverified one", async () => {
+    fees.push({ ...fees[0]!, version: "kalshi-fee-schedule-2026-07-07", verified: true,
+                verified_by: "pdf", verified_at: "2026-11-18" });
+    render(<SignalsPanel />);
+    expect(await screen.findByText(base.market_title)).toBeInTheDocument();
+    expect(screen.queryByText("FEES UNVERIFIED")).toBeNull();
+    fees.pop();
+  });
+
   it("warns that fees are unverified and links the official schedule", async () => {
     render(<SignalsPanel />);
     expect(await screen.findByText("FEES UNVERIFIED")).toBeInTheDocument();

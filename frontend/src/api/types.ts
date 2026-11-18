@@ -383,6 +383,53 @@ export interface PaperOrderInput {
   scenario?: string;
 }
 
+export interface SetupStatus {
+  steps: { key: string; title: string; status: "ok" | "todo" | "warn"; hint: string }[];
+  complete: boolean;
+  paper_mode: boolean;
+}
+
+export interface Diagnostics {
+  app_version: string;
+  schema_revision: string | null;
+  database_bytes: number | null;
+  server_time: string;
+  safety: { trading_mode: string; live_execution_enabled: boolean };
+  config: Record<string, unknown>;
+  ingestion: {
+    adapter: string;
+    last_status: string | null;
+    last_started_at: string | null;
+    last_success_at: string | null;
+    recent_runs: number;
+    recent_failures: number;
+    top_error_codes: [string, number][];
+  }[];
+  collection_gaps: number;
+  quotes: { markets_with_quotes: number; stale: number; fresh: number };
+  evidence: { source_id: string; records: number; latest_vintage: string | null; fresh: boolean; configured: boolean }[];
+  signals_24h: { count: number; by_decision: Record<string, number>; top_reasons: [string, number][] };
+  paper_rejections: [string, number][];
+}
+
+export interface SignalLineage {
+  signal: { id: string; decision: string; reasons: string[] };
+  market: { ticker: string };
+  quote: {
+    id: string;
+    observed_at: string;
+    yes_bid: string | null;
+    yes_ask_derived: string | null;
+    ingestion_run: { id: string; adapter: string; status: string } | null;
+  } | null;
+  rules: { hash: string; is_current: boolean } | null;
+  mapping: { status: string; actor: string; reference_month: string | null; threshold: string | null } | null;
+  model_run: { model: string; version: string; as_of: string; p_yes: number | null } | null;
+  evidence: { id: string; observation_date: string; vintage_date: string; available_at: string }[];
+  leakage_check: string;
+  fee_schedule: { version: string; verified: boolean } | null;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

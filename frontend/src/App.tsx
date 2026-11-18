@@ -14,6 +14,7 @@ import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
 import { ModelsPanel } from "./components/ModelsPanel";
+import { GettingStarted, HealthPanel } from "./components/OpsPanels";
 import { PaperPanel } from "./components/PaperPanel";
 import { SignalsPanel } from "./components/SignalsPanel";
 import { formatUtc } from "./components/format";
@@ -86,6 +87,9 @@ export default function App() {
         <div className="mode-banner" role="status">
           {health.state === "ok" ? (
             <>
+              {health.data.env === "demo" && (
+                <span className="badge demo">DEMO · synthetic data</span>
+              )}
               <span className="badge paper">{health.data.trading_mode.toUpperCase()} MODE</span>
               <span>Live execution: {health.data.live_execution_enabled ? "ON" : "disabled"}</span>
               <span>
@@ -119,6 +123,7 @@ export default function App() {
         <main id="main"><GlossaryPage focusTerm={route.term} /></main>
       ) : (
       <main id="main" className="layout">
+        <div className="panel-wide"><GettingStarted /></div>
         <section aria-labelledby="discover-h" className="panel">
           <h2 id="discover-h">Discover</h2>
           <MarketFiltersBar categories={categories} value={filters} onChange={onFilters} />
@@ -145,6 +150,10 @@ export default function App() {
         <section aria-labelledby="models-h" className="panel panel-wide">
           <h2 id="models-h">Models</h2>
           <ModelsPanel />
+        </section>
+        <section aria-labelledby="health-h" className="panel panel-wide">
+          <h2 id="health-h">Health</h2>
+          <HealthPanel />
         </section>
         <section aria-labelledby="evidence-h" className="panel panel-wide">
           <h2 id="evidence-h">Evidence</h2>
