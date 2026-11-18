@@ -339,8 +339,8 @@ def test_signal_api_shapes(db, settings: Settings) -> None:  # type: ignore[no-u
         mid = sig["market_id"]
         assert len(c.get(f"/api/markets/{mid}/signals").json()) == 1
         paths = c.get("/api/openapi.json").json()["paths"]
-        assert {m for ops in paths.values() for m in ops} == {"get"}  # still read-only API
-        assert not any("order" in p for p in paths)
+        writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
+        assert writes == {("/api/paper/orders", "post")}  # only simulated paper orders
     app.state.engine.dispose()
 
 

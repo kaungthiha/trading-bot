@@ -275,6 +275,114 @@ export interface FeeScheduleInfo {
   source_url: string;
 }
 
+export interface PaperFill {
+  quantity: DecimalString;
+  price: DecimalString;
+  displayed_price: DecimalString;
+  fee: DecimalString;
+  filled_at: string;
+  assumption_code: string;
+}
+
+export interface PaperOrder {
+  id: string;
+  client_order_id: string;
+  submitted_at: string;
+  market_id: string;
+  market_ticker: string;
+  side: "YES" | "NO";
+  action: "BUY" | "SELL";
+  quantity: DecimalString;
+  limit_price: DecimalString;
+  status: "FILLED" | "PARTIAL" | "CANCELLED" | "REJECTED";
+  filled_quantity: DecimalString;
+  reject_reason: string | null;
+  scenario: string;
+  simulation_version: string;
+  fee_schedule_version: string | null;
+  fee_schedule_verified: boolean;
+  quote_id: string | null;
+  signal_id: string | null;
+  source: string;
+  fills: PaperFill[];
+  duplicate: boolean;
+}
+
+export interface PaperPosition {
+  market_id: string;
+  market_ticker: string;
+  side: string;
+  open_qty: DecimalString;
+  avg_cost: DecimalString;
+  realized: DecimalString;
+  unrealized: DecimalString;
+  mark_value: DecimalString;
+  mark_note: string | null;
+  settled: boolean;
+  held: boolean;
+}
+
+export interface PaperAccount {
+  as_of: string;
+  cash: DecimalString;
+  deposits: DecimalString;
+  open_value: DecimalString;
+  equity: DecimalString;
+  realized: DecimalString;
+  unrealized: DecimalString;
+  fee_schedule_verified: boolean;
+  notes: string[];
+  positions: PaperPosition[];
+}
+
+export interface PaperSettlement {
+  id: string;
+  created_at: string;
+  market_ticker: string;
+  exchange_status: string;
+  exchange_result: string;
+  evidence_check: string;
+  status: "SETTLED" | "HELD";
+  notes: string[];
+}
+
+export interface ReplayTrade {
+  signal_id: string;
+  market_ticker: string;
+  side: string;
+  requested: DecimalString;
+  filled: DecimalString;
+  avg_price: DecimalString | null;
+  cost: DecimalString;
+  status: string;
+  outcome: string | null;
+  payout: DecimalString;
+  p_side: number | null;
+  note: string | null;
+}
+
+export interface ReplayReport {
+  as_of: string;
+  scenario: string;
+  n_signals: number;
+  n_resolved: number;
+  total_cost: DecimalString;
+  realized_pnl: DecimalString;
+  unresolved_cost: DecimalString;
+  resolved_brier: number | null;
+  trades: ReplayTrade[];
+  caveat: string;
+}
+
+export interface PaperOrderInput {
+  market_id: string;
+  side: "YES" | "NO";
+  action: "BUY" | "SELL";
+  quantity: number;
+  limit_price: string;
+  scenario?: string;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

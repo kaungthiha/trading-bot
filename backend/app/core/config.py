@@ -95,6 +95,11 @@ class Settings(BaseSettings):
     # Abstain when model p is further than this outside the market's [bid, ask] range.
     signal_max_model_market_divergence: Decimal = Field(default=Decimal("0.20"), ge=0, le=1)
 
+    # --- Paper trading (simulated; local only) ----------------------------------------
+    paper_starting_cash: Decimal = Field(default=Decimal("1000"), gt=0, le=Decimal("10000000"))
+    paper_default_scenario: str = "conservative"  # conservative | baseline | harsh
+    paper_max_order_quantity: int = Field(default=1000, ge=1, le=100000)
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
@@ -166,6 +171,15 @@ class Settings(BaseSettings):
 
         if v not in REGISTRY:
             raise ValueError(f"signal_model must be one of {sorted(REGISTRY)}")
+        return v
+
+    @field_validator("paper_default_scenario")
+    @classmethod
+    def _known_scenario(cls, v: str) -> str:
+        from app.paper.simulator import SCENARIOS
+
+        if v not in SCENARIOS:
+            raise ValueError(f"paper_default_scenario must be one of {sorted(SCENARIOS)}")
         return v
 
     @field_validator("kalshi_market_status")

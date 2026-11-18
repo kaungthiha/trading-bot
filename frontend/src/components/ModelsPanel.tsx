@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { CpiForecast, MetricSummary, ModelCard, ModelEvaluation } from "../api/types";
+import { CalibrationChart } from "./CalibrationChart";
 import { MetricLabel } from "./MetricLabel";
 import { Term } from "./Term";
 
@@ -169,7 +170,10 @@ export function ModelsPanel() {
                   Holdout <Term id="calibration">calibration</Term> (
                   <Term id="out-of-sample">out-of-sample</Term>)
                 </summary>
+                <CalibrationChart title={`${ev.model}: holdout calibration`}
+                  bins={ev.holdout.calibration} />
                 <table className="market-table">
+                  <caption className="visually-hidden">Calibration table view</caption>
                   <thead>
                     <tr>
                       <th scope="col">Forecast bin</th>

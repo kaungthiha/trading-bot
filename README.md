@@ -5,7 +5,7 @@ place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
 **Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data), 03 (evidence
-pipeline), 04 (probability models) and 05 (signals) are done.
+pipeline), 04 (probability models), 05 (signals) and 06 (paper trading) are done.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
@@ -159,6 +159,52 @@ probably missing information, not that it has found an opportunity.
 Signals are immutable rows linking to the exact quote, model run, mapping, rules hash and fee
 schedule version they used. The API remains GET-only.
 
+## Paper trading (milestone 06): simulated, local only
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli paper-order KXCPI-26NOV-T0.0 NO BUY 20 0.99   # ticker side action qty limit
+.venv\Scripts\python -m app.cli paper-account
+.venv\Scripts\python -m app.cli paper-settle      # refresh held markets; settle finalized ones
+.venv\Scripts\python -m app.cli paper-replay      # replay stored candidate signals
+```
+You can also place orders from the **Paper trading** panel in the UI. No exchange is ever
+contacted.
+
+- **Fill model (`paper-sim-v1`).** Orders are immediate-or-cancel limit orders against the
+  latest stored order-book snapshot, which must be fresh. They never fill at the midpoint,
+  never through the limit, and never beyond the displayed depth. Any unfilled remainder is
+  cancelled, never treated as bought.
+
+  | Scenario | Depth you can take | Price penalty (latency) |
+  |---|---|---|
+  | `conservative` (default) | 50% of displayed size | 1 grid step worse |
+  | `harsh` | 25% | 2 steps worse |
+  | `baseline` | 100% | none |
+- **Fees.** Taker fees come from the fee schedule. Buy debits round up and sell credits round
+  down. Each order records the fee schedule version and whether it was verified.
+- **Rejections are recorded too:** stale or missing quote, off-grid limit, market not open or
+  already settled, unknown fee, insufficient cash or position, invalid quantity. Re-sending the
+  same `client_order_id` is idempotent.
+- **Append-only ledger.** `paper_orders`, `paper_fills` and `paper_ledger` reject UPDATE and
+  DELETE at the database level, via SQLite triggers. Starting cash is
+  `KRT_PAPER_STARTING_CASH` (default 1000).
+- **Realized vs unrealized P&L.** Positions use average cost (fees included). Realized P&L comes
+  only from simulated sales and settlements. Unrealized P&L marks open positions at what you
+  could sell for right now (own-side bids, taker fees, credit rounded down). If the book can't
+  absorb the position, the remainder is marked at 0. The identity
+  equity − deposits = realized + unrealized is tested.
+- **Settlement only on verified resolution.** A payout needs the exchange status to be
+  `finalized`; `determined`, `disputed` and `closed` all wait. For mapped CPI markets the
+  result is also cross-checked against our own FRED first print. If they disagree, the
+  settlement is **HELD**, with no payout, for human review.
+- **Replay.** Each stored candidate signal is re-run against the quote snapshot it actually
+  used, never a later one. Results are scored only once markets are finalized. The UI plots the
+  calibration of replayed signals, and the Models panel now shows the holdout calibration chart.
+- The `app/paper` package is tested to import no networking or execution code.
+- `POST /api/paper/orders` is the only state-changing route. It requires the
+  `X-KRT-Request: paper` header and a JSON body, plus the existing Origin allow-list, so other
+  websites can't forge it.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -210,6 +256,7 @@ backend/
   app/ingest.py   runs an adapter, persists snapshots, records ingestion_runs
   app/research/   CPI contract + first prints, models & cards, metrics, walk-forward
   app/signals/    fee schedules (versioned JSON), mapping parser, engine, service
+  app/paper/      fill simulator, broker/ledger/settlement service, signal replay
   app/worker.py   scheduled collector with gap detection and single-instance lock
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
@@ -217,9 +264,10 @@ backend/
                   /api/evidence/{id}/observations?as_of=, /api/evidence/{id}/vintages,
                   /api/collection-gaps, /api/models, /api/models/metrics,
                   /api/research/cpi-mom/forecast, /api/model-runs, /api/signals,
-                  /api/markets/{id}/signals, /api/mappings, /api/fee-schedules
-  alembic/        migrations 0001_initial … 0005_signals
-  tests/          160 tests (HTTP via mock transports; network is blocked)
+                  /api/markets/{id}/signals, /api/mappings, /api/fee-schedules,
+                  /api/paper/{account,orders,settlements,replay}, POST /api/paper/orders
+  alembic/        migrations 0001_initial … 0006_paper
+  tests/          189 tests (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

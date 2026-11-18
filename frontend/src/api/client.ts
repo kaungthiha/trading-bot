@@ -12,6 +12,11 @@ import type {
   MarketList,
   ModelCard,
   ModelEvaluation,
+  PaperAccount,
+  PaperOrder,
+  PaperOrderInput,
+  PaperSettlement,
+  ReplayReport,
   Signal,
 } from "./types";
 
@@ -44,7 +49,47 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "omit",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      // CSRF defence: custom header forces a CORS preflight the backend denies cross-origin.
+      "X-KRT-Request": "paper",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let code = "HTTP_ERROR";
+    let message = `Request failed (${res.status})`;
+    try {
+      const b = (await res.json()) as ApiErrorBody;
+      code = b.error.code;
+      message = b.error.message;
+    } catch {
+      /* non-JSON */
+    }
+    throw new ApiError(res.status, code, message);
+  }
+  return (await res.json()) as T;
+}
+
+function newClientOrderId(): string {
+  return `ui-${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
+}
+
 export const api = {
+  paperAccount: () => getJson<PaperAccount>("/api/paper/account"),
+  paperOrders: () => getJson<PaperOrder[]>("/api/paper/orders?limit=100"),
+  paperSettlements: () => getJson<PaperSettlement[]>("/api/paper/settlements"),
+  paperReplay: (scenario?: string) =>
+    getJson<ReplayReport>(
+      scenario ? `/api/paper/replay?scenario=${encodeURIComponent(scenario)}` : "/api/paper/replay",
+    ),
+  placePaperOrder: (input: PaperOrderInput) =>
+    postJson<PaperOrder>("/api/paper/orders", { ...input, client_order_id: newClientOrderId() }),
   health: () => getJson<Health>("/api/health"),
   markets: (filters: MarketFilters = {}) => {
     const params = new URLSearchParams({ limit: "200" });

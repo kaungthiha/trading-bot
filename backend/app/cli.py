@@ -86,6 +86,17 @@ def main(argv: list[str] | None = None) -> int:
     rm.add_argument("ticker")
     rm.add_argument("--note")
     sub.add_parser("generate-signals", help="Evaluate mapped markets; store research signals")
+    po = sub.add_parser("paper-order", help="Simulate an IOC limit order (no exchange contact)")
+    po.add_argument("ticker")
+    po.add_argument("side", choices=["YES", "NO"])
+    po.add_argument("action", choices=["BUY", "SELL"])
+    po.add_argument("quantity", type=int)
+    po.add_argument("limit_price")
+    po.add_argument("--scenario", choices=["conservative", "baseline", "harsh"])
+    sub.add_parser("paper-account", help="Cash, positions, realized/unrealized P&L")
+    sub.add_parser("paper-settle", help="Refresh held markets; settle finalized ones")
+    pr = sub.add_parser("paper-replay", help="Replay stored candidate signals (simulation)")
+    pr.add_argument("--scenario", choices=["conservative", "baseline", "harsh"])
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -131,6 +142,103 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd in ("propose-mappings", "list-mappings", "confirm-mapping", "reject-mapping",
                       "generate-signals"):
         return _signal_cmd(args, settings)
+    elif args.cmd.startswith("paper-"):
+        return _paper_cmd(args, settings)
+    return 0
+
+
+def _paper_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    import uuid
+    from decimal import Decimal, InvalidOperation
+
+    from sqlalchemy import select
+
+    from app.db.models import Market
+    from app.paper.replay import replay
+    from app.paper.service import OrderRequest, account_summary, positions, settle, submit_order
+    from app.paper.simulator import SCENARIOS
+    from app.signals.fees import load_schedules
+
+    engine = make_engine(settings.database_url)
+    clock = SystemClock()
+    try:
+        factory = make_session_factory(engine)
+        with factory() as s:
+            if args.cmd == "paper-order":
+                m = s.scalar(select(Market).where(Market.external_ticker == args.ticker))
+                if m is None:
+                    print(f"Unknown market {args.ticker}")
+                    return 1
+                try:
+                    limit = Decimal(args.limit_price)
+                except InvalidOperation:
+                    print("limit_price must be a decimal like 0.45")
+                    return 2
+                res = submit_order(s, settings, OrderRequest(
+                    client_order_id=f"cli-{uuid.uuid4().hex[:16]}", market_id=m.id,
+                    side=args.side, action=args.action, quantity=Decimal(args.quantity),
+                    limit_price=limit, scenario=args.scenario or settings.paper_default_scenario,
+                ), clock.now())
+                s.commit()
+                o = res.order
+                print(f"{o.status}: {o.action} {o.filled_quantity}/{o.quantity} {o.side} "
+                      f"{args.ticker} limit {o.limit_price} [{o.scenario}]"
+                      + (f" reason={o.reject_reason}" if o.reject_reason else ""))
+                if not o.fee_schedule_verified and o.status in ("FILLED", "PARTIAL"):
+                    print("Note: fees from an UNVERIFIED schedule.")
+                print("Simulated only: no exchange was contacted.")
+                return 0
+            if args.cmd == "paper-account":
+                summ, rows = account_summary(s, clock.now())
+                print(f"cash={summ.cash} open_value={summ.open_value} equity={summ.equity} "
+                      f"realized={summ.realized:.4f} unrealized={summ.unrealized:.4f}")
+                for p, mk, unr in rows:
+                    t = s.get(Market, p.market_id).external_ticker
+                    state = "SETTLED" if p.settled else ("HELD" if p.held else "open")
+                    print(f"  {t} {p.side} open={p.open_qty} avg={p.avg_cost:.4f} "
+                          f"realized={p.realized:.4f} unrealized={unr:.4f} [{state}]"
+                          + (f" ({mk.note})" if mk.note else ""))
+                for n in summ.notes:
+                    print(f"Note: {n}")
+                return 0
+            if args.cmd == "paper-settle":
+                held = sorted({s.get(Market, p.market_id).external_ticker
+                               for p in positions(s).values() if p.open_qty > 0})
+                live = [t for t in held if not t.startswith("MOCK-")]
+                if live:
+                    from app.adapters.kalshi_public import KalshiPublicMarketAdapter
+                    from app.db.repositories import MarketRepository
+
+                    adapter = KalshiPublicMarketAdapter.from_settings(settings, clock)
+                    try:
+                        res = adapter.refresh_tickers(live)
+                    finally:
+                        adapter.client.close()
+                    repo = MarketRepository(s, clock)
+                    for snap in res.snapshots:
+                        repo.upsert_snapshot(snap, source=adapter.name)
+                    for e in res.errors:
+                        print(f"  refresh error {e.scope}: {e.code}")
+                for st in settle(s, clock.now()):
+                    t = s.get(Market, st.market_id).external_ticker
+                    print(f"{st.status}: {t} exchange={st.exchange_result} "
+                          f"evidence={st.evidence_check}")
+                s.commit()
+                print("Settlement only uses FINALIZED exchange results.")
+                return 0
+            if args.cmd == "paper-replay":
+                sc = SCENARIOS[args.scenario or settings.paper_default_scenario]
+                rep = replay(s, sc, clock.now(), load_schedules())
+                print(f"Replay [{sc.name}]: signals={rep.n_signals} resolved={rep.n_resolved} "
+                      f"cost={rep.total_cost} realized_pnl={rep.realized_pnl} "
+                      f"brier={rep.resolved_brier}")
+                for t in rep.trades:
+                    print(f"  {t.status:9} {t.market_ticker} {t.side} {t.filled}/{t.requested} "
+                          f"outcome={t.outcome}")
+                print("Simulation of research signals; not evidence of real returns.")
+                return 0
+    finally:
+        engine.dispose()
     return 0
 
 

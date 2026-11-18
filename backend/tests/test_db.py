@@ -24,6 +24,10 @@ TABLES = {
     "model_evaluations",
     "market_mappings",
     "signals",
+    "paper_orders",
+    "paper_fills",
+    "paper_settlements",
+    "paper_ledger",
 }
 
 

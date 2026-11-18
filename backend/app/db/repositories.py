@@ -50,6 +50,7 @@ class MarketRepository:
         market.is_mock = snap.is_mock
         market.fee_type = snap.fee_type
         market.fee_multiplier = snap.fee_multiplier
+        market.result = snap.result
         market.updated_at = now
         self.s.flush()
 

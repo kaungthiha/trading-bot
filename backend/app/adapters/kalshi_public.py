@@ -241,6 +241,7 @@ def parse_market(
         is_mock=False,
         fee_type=fee_type,
         fee_multiplier=fee_multiplier,
+        result=m.get("result") if m.get("result") in ("yes", "no", "scalar") else None,
     )
 
 
@@ -305,6 +306,43 @@ class KalshiPublicMarketAdapter:
             max_pages=s.kalshi_max_pages,
             orderbook_depth=s.kalshi_orderbook_depth,
         )
+
+    def refresh_tickers(self, tickers: list[str]) -> FetchResult:
+        """Re-fetch specific markets regardless of status (e.g. held paper positions after
+        close, to pick up the exchange result)."""
+        snapshots: list[MarketSnapshot] = []
+        errors: list[FetchError] = []
+        for i in range(0, len(tickers), 50):
+            chunk = tickers[i:i + 50]
+            try:
+                body = self.client.get("/markets", {"tickers": ",".join(chunk)})
+            except AdapterError as e:
+                errors.append(FetchError(f"tickers:{chunk[0]}..", e.code, str(e)))
+                continue
+            series_cache: dict[str, dict[str, Any] | None] = {}
+            events: dict[str, dict[str, Any] | None] = {}
+            for m in body.get("markets") or []:
+                scope = f"market:{m.get('ticker')}"
+                try:
+                    st = str(m.get("event_ticker", "")).split("-")[0]
+                    if st not in series_cache:
+                        try:
+                            series_cache[st] = self.client.get_series(st)
+                        except AdapterError:
+                            series_cache[st] = None
+                    et = m.get("event_ticker")
+                    if et not in events:
+                        try:
+                            events[et] = self.client.get_event(et)
+                        except AdapterError:
+                            events[et] = None
+                    book = parse_orderbook(self.client.get_orderbook(m["ticker"], self.depth),
+                                           self.clock.now())
+                    snapshots.append(parse_market(m, series=series_cache[st], orderbook=book,
+                                                  event=events[et]))
+                except AdapterError as e:
+                    errors.append(FetchError(scope, e.code, str(e)))
+        return FetchResult(snapshots=snapshots, errors=errors)
 
     def fetch_markets(self) -> FetchResult:
         if not self.series_watchlist:

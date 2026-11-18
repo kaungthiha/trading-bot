@@ -13,6 +13,7 @@ import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
 import { ModelsPanel } from "./components/ModelsPanel";
+import { PaperPanel } from "./components/PaperPanel";
 import { SignalsPanel } from "./components/SignalsPanel";
 import { formatUtc } from "./components/format";
 
@@ -122,6 +123,10 @@ export default function App() {
         <section aria-labelledby="signals-h" className="panel panel-wide">
           <h2 id="signals-h">Signals</h2>
           <SignalsPanel />
+        </section>
+        <section aria-labelledby="paper-h" className="panel panel-wide">
+          <h2 id="paper-h">Paper trading</h2>
+          <PaperPanel />
         </section>
         <section aria-labelledby="models-h" className="panel panel-wide">
           <h2 id="models-h">Models</h2>

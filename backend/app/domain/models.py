@@ -131,6 +131,8 @@ class MarketSnapshot(Frozen):
     # Effective fee structure (event override if set, else series). None = unknown.
     fee_type: str | None = None
     fee_multiplier: Decimal | None = None
+    # Exchange-reported outcome: "yes" | "no" | "scalar" | None (not determined).
+    result: str | None = None
 
     @field_validator("open_at", "close_at")
     @classmethod

@@ -88,6 +88,34 @@ class FillCost:
     effective_fee: Decimal  # total_debit - notional
 
 
+def _floor(x: Decimal, step: Decimal) -> Decimal:
+    return (x / step).to_integral_value(rounding="ROUND_FLOOR") * step
+
+
+@dataclass(frozen=True)
+class SaleProceeds:
+    gross: Decimal  # sum C_i * P_i
+    trade_fees: Decimal
+    net_credit: Decimal  # floored to balance precision (conservative)
+    effective_fee: Decimal  # gross - net_credit
+
+
+def taker_sell_proceeds(schedule: FeeSchedule,
+                        fills: Sequence[tuple[Decimal, Decimal]]) -> SaleProceeds:
+    """Selling C contracts at P as a taker; credit is rounded DOWN (conservative)."""
+    if not fills:
+        raise ValueError("no fills")
+    gross = Decimal(0)
+    fees = Decimal(0)
+    for c, p in fills:
+        if c <= 0 or not (Decimal(0) <= p <= Decimal(1)):
+            raise ValueError(f"invalid fill ({c}, {p})")
+        gross += c * p
+        fees += _ceil(schedule.taker_rate * c * p * (1 - p), schedule.trade_fee_rounding_step)
+    net = max(_floor(gross - fees, schedule.balance_precision), Decimal(0))
+    return SaleProceeds(gross, fees, net, gross - net)
+
+
 def taker_buy_cost(schedule: FeeSchedule, fills: Sequence[tuple[Decimal, Decimal]]) -> FillCost:
     """fills: [(contracts, price)] at the levels actually crossed."""
     if not fills:

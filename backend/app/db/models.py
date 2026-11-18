@@ -45,6 +45,7 @@ class Market(Base):
     is_mock: Mapped[bool] = mapped_column(Boolean, default=False)
     fee_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fee_multiplier: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    result: Mapped[str | None] = mapped_column(String(16), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
 
     rule_versions: Mapped[list[MarketRuleVersion]] = relationship(back_populates="market")
@@ -241,6 +242,84 @@ class Signal(Base):
     reasons_json: Mapped[str] = mapped_column(Text, default="[]")
     caveats_json: Mapped[str] = mapped_column(Text, default="[]")
     details_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class PaperOrder(Base):
+    """Immutable simulated order. Immediate-or-cancel: its final status is known at
+    submission (FILLED | PARTIAL | CANCELLED | REJECTED); unfilled remainder is cancelled."""
+
+    __tablename__ = "paper_orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    client_order_id: Mapped[str] = mapped_column(String(64), unique=True)
+    submitted_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    market_id: Mapped[str] = mapped_column(ForeignKey("markets.id", ondelete="RESTRICT"),
+                                           index=True)
+    signal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("signals.id", ondelete="RESTRICT"), nullable=True)
+    quote_id: Mapped[str | None] = mapped_column(
+        ForeignKey("quote_snapshots.id", ondelete="RESTRICT"), nullable=True)
+    side: Mapped[str] = mapped_column(String(3))  # YES | NO
+    action: Mapped[str] = mapped_column(String(4))  # BUY | SELL
+    quantity: Mapped[Decimal] = mapped_column(DecimalString())
+    limit_price: Mapped[Decimal] = mapped_column(DecimalString())
+    status: Mapped[str] = mapped_column(String(10))
+    filled_quantity: Mapped[Decimal] = mapped_column(DecimalString())
+    reject_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    scenario: Mapped[str] = mapped_column(String(32))
+    simulation_version: Mapped[str] = mapped_column(String(32))
+    fee_schedule_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fee_schedule_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | replay
+
+
+class PaperFill(Base):
+    __tablename__ = "paper_fills"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    paper_order_id: Mapped[str] = mapped_column(
+        ForeignKey("paper_orders.id", ondelete="RESTRICT"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(DecimalString())
+    price: Mapped[Decimal] = mapped_column(DecimalString())
+    displayed_price: Mapped[Decimal] = mapped_column(DecimalString())
+    fee: Mapped[Decimal] = mapped_column(DecimalString())  # per-fill trade fee (pre-rounding)
+    filled_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    assumption_code: Mapped[str] = mapped_column(String(64))
+
+
+class PaperSettlement(Base):
+    """One per market. SETTLED only on a finalized exchange result that our own evidence
+    does not contradict; otherwise HELD for human review (no payout)."""
+
+    __tablename__ = "paper_settlements"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    market_id: Mapped[str] = mapped_column(ForeignKey("markets.id", ondelete="RESTRICT"),
+                                           unique=True)
+    exchange_status: Mapped[str] = mapped_column(String(32))
+    exchange_result: Mapped[str] = mapped_column(String(16))
+    evidence_check: Mapped[str] = mapped_column(String(16))  # agree|disagree|unavailable
+    status: Mapped[str] = mapped_column(String(16))  # SETTLED | HELD
+    notes_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class PaperLedgerEntry(Base):
+    """Append-only cash ledger. Balance = sum(amount). Never updated or deleted."""
+
+    __tablename__ = "paper_ledger"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    kind: Mapped[str] = mapped_column(String(24))  # DEPOSIT|BUY|SELL|SETTLEMENT_PAYOUT
+    amount: Mapped[Decimal] = mapped_column(DecimalString())
+    market_id: Mapped[str | None] = mapped_column(
+        ForeignKey("markets.id", ondelete="RESTRICT"), nullable=True)
+    paper_order_id: Mapped[str | None] = mapped_column(
+        ForeignKey("paper_orders.id", ondelete="RESTRICT"), nullable=True)
+    settlement_id: Mapped[str | None] = mapped_column(
+        ForeignKey("paper_settlements.id", ondelete="RESTRICT"), nullable=True)
+    memo: Mapped[str] = mapped_column(Text, default="")
 
 
 class AuditEvent(Base):

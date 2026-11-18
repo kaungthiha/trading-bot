@@ -88,9 +88,10 @@ def test_cross_origin_post_blocked(client: TestClient) -> None:
     assert r.json()["error"]["code"] == "ORIGIN_NOT_ALLOWED"
 
 
-def test_no_order_routes_exist(client: TestClient) -> None:
-    paths = set(client.get("/api/openapi.json").json()["paths"])
+def test_no_exchange_order_routes_and_only_paper_post(client: TestClient) -> None:
+    paths = client.get("/api/openapi.json").json()["paths"]
     assert "/api/markets" in paths  # sanity: schema is populated
-    assert not any("order" in p or "portfolio" in p for p in paths)
-    methods = {m for ops in client.get("/api/openapi.json").json()["paths"].values() for m in ops}
-    assert methods == {"get"}  # milestone 01 exposes no state-changing routes
+    assert not any("portfolio" in p for p in paths)
+    writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
+    # The only state-changing route SIMULATES orders locally (milestone 06).
+    assert writes == {("/api/paper/orders", "post")}

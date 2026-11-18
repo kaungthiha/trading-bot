@@ -9,6 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app import __version__
 from app.api.errors import install_error_handlers
 from app.api.evidence_routes import router as evidence_router
+from app.api.paper_routes import router as paper_router
 from app.api.research_routes import router as research_router
 from app.api.routes import router
 from app.api.signal_routes import router as signal_router
@@ -42,7 +43,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
         allow_origins=settings.cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-KRT-Request"],
     )
     app.add_middleware(OriginGuardMiddleware, allowed_origins=settings.cors_origins)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(evidence_router)
     app.include_router(research_router)
     app.include_router(signal_router)
+    app.include_router(paper_router)
     return app
 
 
