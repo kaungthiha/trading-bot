@@ -1,0 +1,35 @@
+# --- Secrets: never commit -------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+secrets/
+**/kalshi*private*
+
+# --- Local data ---------------------------------------------------------------------
+backend/data/
+*.sqlite3
+*.sqlite3-*
+*.db
+
+# --- Python -------------------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Node ---------------------------------------------------------------------------
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# --- OS / editor --------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

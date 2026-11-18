@@ -1,0 +1,81 @@
+{
+  "_comment": "Synthetic fixture data for offline development. Not real Kalshi markets, prices, or rules.",
+  "markets": [
+    {
+      "exchange": "kalshi",
+      "external_ticker": "MOCK-CPIYOY-26DEC-T3.0",
+      "event_ticker": "MOCK-CPIYOY-26DEC",
+      "title": "[MOCK] Will headline CPI YoY for Nov 2026 be above 3.0%?",
+      "category": "economics",
+      "status": "open",
+      "close_at": "2026-12-10T13:25:00Z",
+      "rules_text": "SYNTHETIC RULES FOR TESTING. Resolves YES if the headline CPI-U 12-month percent change for November 2026, as first published by the source agency, is strictly greater than 3.0%. Otherwise resolves NO.",
+      "official_source_url": "https://www.bls.gov/cpi/",
+      "notional_value": "1.00",
+      "price_ranges": [{"start": "0.01", "end": "0.99", "step": "0.01"}],
+      "orderbook": {
+        "observed_at": "2026-11-18T15:00:00Z",
+        "yes_bids": [{"price": "0.43", "quantity": "120"}, {"price": "0.42", "quantity": "300"}],
+        "no_bids": [{"price": "0.55", "quantity": "80"}, {"price": "0.54", "quantity": "210"}]
+      }
+    },
+    {
+      "exchange": "kalshi",
+      "external_ticker": "MOCK-FEDRATE-26DEC-CUT",
+      "event_ticker": "MOCK-FEDRATE-26DEC",
+      "title": "[MOCK] Will the FOMC lower the target range at the December 2026 meeting?",
+      "category": "economics",
+      "status": "open",
+      "close_at": "2026-12-16T18:55:00Z",
+      "rules_text": "SYNTHETIC RULES FOR TESTING. Resolves YES if the upper bound of the federal funds target range announced at the conclusion of the December 2026 FOMC meeting is lower than the upper bound in effect immediately before the meeting.",
+      "official_source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "notional_value": "1.00",
+      "price_ranges": [
+        {"start": "0.01", "end": "0.10", "step": "0.001"},
+        {"start": "0.10", "end": "0.90", "step": "0.01"},
+        {"start": "0.90", "end": "0.99", "step": "0.001"}
+      ],
+      "orderbook": {
+        "observed_at": "2026-11-18T14:58:30Z",
+        "yes_bids": [{"price": "0.61", "quantity": "500"}],
+        "no_bids": [{"price": "0.37", "quantity": "450"}]
+      }
+    },
+    {
+      "exchange": "kalshi",
+      "external_ticker": "MOCK-TECHREL-26DEC-SHIP",
+      "event_ticker": "MOCK-TECHREL-26DEC",
+      "title": "[MOCK] Will a fictional vendor ship product version 9 before Dec 31, 2026?",
+      "category": "technology",
+      "status": "open",
+      "close_at": "2026-12-31T23:59:00Z",
+      "rules_text": "SYNTHETIC RULES FOR TESTING. Resolves YES if the fictional vendor's official release notes list general availability of version 9 dated on or before December 31, 2026.",
+      "official_source_url": null,
+      "notional_value": "1.00",
+      "price_ranges": [{"start": "0.01", "end": "0.99", "step": "0.01"}],
+      "orderbook": {
+        "observed_at": "2026-11-18T12:00:00Z",
+        "yes_bids": [{"price": "0.20", "quantity": "40"}],
+        "no_bids": []
+      }
+    },
+    {
+      "exchange": "kalshi",
+      "external_ticker": "MOCK-NBAGAME-26NOV20-HOME",
+      "event_ticker": "MOCK-NBAGAME-26NOV20",
+      "title": "[MOCK] Will the home team win a fictional Nov 20, 2026 game?",
+      "category": "nba",
+      "status": "unopened",
+      "close_at": "2026-11-21T03:00:00Z",
+      "rules_text": "SYNTHETIC RULES FOR TESTING. Resolves YES if the home team is the winner of the fictional game per the official final score, including overtime.",
+      "official_source_url": null,
+      "notional_value": "1.00",
+      "price_ranges": [{"start": "0.01", "end": "0.99", "step": "0.01"}],
+      "orderbook": {
+        "observed_at": "2026-11-18T15:00:00Z",
+        "yes_bids": [],
+        "no_bids": []
+      }
+    }
+  ]
+}
