@@ -9,6 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app import __version__
 from app.api.errors import install_error_handlers
 from app.api.evidence_routes import router as evidence_router
+from app.api.research_routes import router as research_router
 from app.api.routes import router
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings, get_settings
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     install_error_handlers(app)
     app.include_router(router)
     app.include_router(evidence_router)
+    app.include_router(research_router)
     return app
 
 

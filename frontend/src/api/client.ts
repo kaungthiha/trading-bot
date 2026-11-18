@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   CollectionGap,
+  CpiForecast,
   EvidenceAsOf,
   EvidenceSource,
   Health,
@@ -8,6 +9,8 @@ import type {
   MarketDetail,
   MarketFilters,
   MarketList,
+  ModelCard,
+  ModelEvaluation,
 } from "./types";
 
 export class ApiError extends Error {
@@ -61,4 +64,10 @@ export const api = {
     );
   },
   collectionGaps: () => getJson<{ items: CollectionGap[] }>("/api/collection-gaps?limit=20"),
+  models: () => getJson<ModelCard[]>("/api/models"),
+  modelMetrics: () => getJson<ModelEvaluation[]>("/api/models/metrics"),
+  cpiForecast: (threshold: string) =>
+    getJson<CpiForecast>(
+      `/api/research/cpi-mom/forecast?threshold=${encodeURIComponent(threshold)}`,
+    ),
 };

@@ -145,6 +145,47 @@ class CollectionGap(Base):
     reason: Mapped[str] = mapped_column(Text)
 
 
+class ModelRun(Base):
+    """Immutable record of one forecast (or abstention) with its exact inputs."""
+
+    __tablename__ = "model_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    contract_key: Mapped[str] = mapped_column(String(128), index=True)
+    market_id: Mapped[str | None] = mapped_column(
+        ForeignKey("markets.id", ondelete="RESTRICT"), nullable=True
+    )
+    model: Mapped[str] = mapped_column(String(64))
+    version: Mapped[str] = mapped_column(String(32))
+    feature_version: Mapped[str] = mapped_column(String(64))
+    as_of: Mapped[datetime] = mapped_column(UTCDateTime())
+    decision: Mapped[str] = mapped_column(String(16))
+    p_yes: Mapped[float | None] = mapped_column(nullable=True)
+    lower: Mapped[float | None] = mapped_column(nullable=True)
+    upper: Mapped[float | None] = mapped_column(nullable=True)
+    uncertainty_method: Mapped[str] = mapped_column(Text)
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    inputs_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class ModelEvaluation(Base):
+    """Immutable walk-forward evaluation report for one model version on one dataset."""
+
+    __tablename__ = "model_evaluations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    model: Mapped[str] = mapped_column(String(64), index=True)
+    version: Mapped[str] = mapped_column(String(32))
+    feature_version: Mapped[str] = mapped_column(String(64))
+    dataset_hash: Mapped[str] = mapped_column(String(64))
+    config_json: Mapped[str] = mapped_column(Text)
+    dev_json: Mapped[str] = mapped_column(Text)
+    holdout_json: Mapped[str] = mapped_column(Text)
+    data_notes_json: Mapped[str] = mapped_column(Text)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

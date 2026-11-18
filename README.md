@@ -4,8 +4,8 @@ A local-only research and paper-trading terminal for Kalshi event contracts. It 
 place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
-**Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data) and 03 (evidence
-pipeline) are done.
+**Status:** Milestones 01 (bootstrap), 02 (Kalshi read-only market data), 03 (evidence
+pipeline) and 04 (probability models) are done.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
@@ -70,6 +70,49 @@ cd backend
 - **Only registered sources run.** `KRT_EVIDENCE_SOURCES` must list sources registered in
   `app/evidence/sources.py`. Each entry records its license notes and release-timing source.
 
+## Probability models (CPI, milestone 04)
+**Contract type (narrow by design):** headline CPI-U, seasonally adjusted, month-over-month %
+change for the next reference month, *as first published*, rounded to 0.1, strictly above a
+threshold T. Before applying this to any real market, read that market's official rules (SA vs
+NSA, rounding, first release vs revised, strict vs inclusive).
+
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli evaluate-models            # walk-forward; stores reports
+.venv\Scripts\python -m app.cli forecast-cpi --threshold 0.3 [--save]
+```
+
+| Model | What it does | Uncertainty |
+|---|---|---|
+| `base_rate` v1.0.0 | Share of the last 120 first prints that would have resolved YES | Jeffreys Beta posterior; 90% credible interval |
+| `gaussian_trailing` v1.0.0 | Normal(mean of last 12, SD of last 36 first-print MoMs). Rounding is exact: rounded > T ⇔ x ≥ T+0.05 | Heuristic ±1 SE band on the mean (**not** a confidence interval) |
+
+- **First prints are rebuilt from vintages.** Each month's change compares its first index
+  with the previous month's index *from the same release*. Months whose earliest stored
+  vintage arrives more than 60 days after the month ends aren't true first prints and are
+  excluded; the excluded counts are reported.
+- **No look-ahead in evaluation.** For each month, the cutoff is 1 s before its release, so
+  the model sees only prints already public. Leakage checks raise errors instead of trusting
+  the data. Hyperparameters were fixed in advance, not tuned. Dev (before 2015) and holdout
+  (2015 onward) are reported separately, and the split is enforced.
+- **Models abstain instead of guessing** on: insufficient history, a month already published,
+  any month other than the next unreleased one, or a threshold off the 0.1 grid.
+- **Results are reproducible.** The same inputs produce identical forecasts. Each forecast
+  records its input hash, and each evaluation records its dataset hash. Stored forecasts and
+  evaluations are immutable rows (`model_runs`, `model_evaluations`).
+
+**Evaluation on real FRED data (run 2026-11-18, dataset `c6ff5fd82633`, thresholds −0.1…0.6):**
+
+| Model | Period | Predictions | Months | Brier | Log loss |
+|---|---|---|---|---|---|
+| base_rate | holdout 2014-12 → 2026-10 | 1,120 | 140 | 0.1655 | 0.5076 |
+| gaussian_trailing | holdout 2014-12 → 2026-10 | 1,120 | 140 | 0.1559 | 0.4784 |
+
+These are forecast-quality scores, **not trading results**. Lower is better, and a constant
+50% forecast scores 0.25 on Brier. Predictions within a month are correlated, so the number of
+months is the effective sample size. The models use only past CPI prints and ignore energy
+prices, nowcasts and consensus forecasts.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -119,14 +162,16 @@ backend/
   app/adapters/http.py  shared hardened GET client (allowlists, backoff, no URL leaks)
   app/evidence/   source registry, FRED adapter, insert-only repository, as-of queries
   app/ingest.py   runs an adapter, persists snapshots, records ingestion_runs
+  app/research/   CPI contract + first prints, models & cards, metrics, walk-forward
   app/worker.py   scheduled collector with gap detection and single-instance lock
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
                   /api/ingestion/runs, /api/evidence/sources,
                   /api/evidence/{id}/observations?as_of=, /api/evidence/{id}/vintages,
-                  /api/collection-gaps; uniform error envelope
-  alembic/        migrations 0001_initial, 0002_kalshi_read_only, 0003_evidence
-  tests/          104 tests (HTTP via mock transports; network is blocked)
+                  /api/collection-gaps, /api/models, /api/models/metrics,
+                  /api/research/cpi-mom/forecast, /api/model-runs; uniform error envelope
+  alembic/        migrations 0001_initial … 0004_models
+  tests/          121 tests (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

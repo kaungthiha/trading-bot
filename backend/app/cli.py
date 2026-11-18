@@ -72,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
         "--source", nargs="+", help="Source ids (default: KRT_EVIDENCE_SOURCES), e.g. fred:CPIAUCSL"
     )
     sub.add_parser("worker", help="Run the scheduled collector (Ctrl+C to stop)")
+    sub.add_parser("evaluate-models", help="Walk-forward evaluate all models; store reports")
+    fc = sub.add_parser("forecast-cpi", help="Forecast next CPI MoM first print > threshold")
+    fc.add_argument("--threshold", default="0.3", help="Percent, on the 0.1 grid (default 0.3)")
+    fc.add_argument("--save", action="store_true", help="Store forecasts as immutable model runs")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -112,7 +116,56 @@ def main(argv: list[str] | None = None) -> int:
         from app.worker import main as worker_main
 
         return worker_main()
+    elif args.cmd in ("evaluate-models", "forecast-cpi"):
+        return _research_cmd(args, settings)
     return 0
+
+
+def _research_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    from decimal import Decimal, InvalidOperation
+
+    from app.research.service import evaluate_and_save, forecast_all, save_forecast
+
+    engine = make_engine(settings.database_url)
+    clock = SystemClock()
+    try:
+        with make_session_factory(engine)() as s:
+            if args.cmd == "evaluate-models":
+                for rep in evaluate_and_save(s, clock.now()):
+                    print(f"{rep.model} v{rep.version} dataset={rep.dataset_hash[:12]}")
+                    for label, m in (("dev", rep.dev), ("holdout", rep.holdout)):
+                        if m.brier is None:
+                            print(f"  {label:8} no scored predictions")
+                            continue
+                        print(f"  {label:8} predictions={m.n_predictions} months={m.n_events} "
+                              f"abstained={m.n_abstained} base_rate={m.base_rate:.3f} "
+                              f"brier={m.brier:.4f} log_loss={m.log_loss:.4f}")
+                s.commit()
+                return 0
+            try:
+                threshold = Decimal(args.threshold)
+            except InvalidOperation:
+                print("--threshold must be a number like 0.3")
+                return 2
+            contract, forecasts, _ = forecast_all(s, threshold, clock.now())
+            if contract is None:
+                print("No CPI evidence stored; run: python -m app.cli ingest-evidence")
+                return 1
+            print(f"Contract: {contract.key}")
+            for f in forecasts:
+                if f.p_yes is None:
+                    print(f"  {f.model:18} ABSTAIN {', '.join(f.reasons)}")
+                else:
+                    print(f"  {f.model:18} p={f.p_yes:.3f} band=[{f.lower:.3f}, {f.upper:.3f}]")
+                if args.save:
+                    save_forecast(s, f, clock.now())
+            if args.save:
+                s.commit()
+                print("Saved as model runs.")
+            print("Note: estimates from past CPI prints only; not trade recommendations.")
+            return 0
+    finally:
+        engine.dispose()
 
 
 def ingest_evidence(settings: Settings, source_id: str) -> IngestionSummary:

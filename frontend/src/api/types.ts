@@ -147,6 +147,76 @@ export interface CollectionGap {
   reason: string;
 }
 
+export interface ModelCard {
+  name: string;
+  version: string;
+  summary: string;
+  contract_type: string;
+  features: string;
+  uncertainty_method: string;
+  hyperparameters: Record<string, unknown>;
+  limitations: string[];
+}
+
+export interface CalibrationBin {
+  lower: number;
+  upper: number;
+  count: number;
+  mean_p: number | null;
+  observed_rate: number | null;
+}
+
+export interface MetricSummary {
+  n_predictions: number;
+  n_events: number;
+  n_abstained: number;
+  base_rate: number | null;
+  brier: number | null;
+  log_loss: number | null;
+  log_loss_eps: number;
+  calibration: CalibrationBin[];
+}
+
+export interface ModelEvaluation {
+  id: string;
+  created_at: string;
+  model: string;
+  version: string;
+  feature_version: string;
+  dataset_hash: string;
+  config: {
+    thresholds: string[];
+    holdout_start: string;
+    dev_range: [string, string] | null;
+    holdout_range: [string, string] | null;
+  } & Record<string, unknown>;
+  dev: MetricSummary;
+  holdout: MetricSummary;
+  data_notes: { first_prints_used: number; excluded: Record<string, number> };
+}
+
+export interface ModelForecast {
+  model: string;
+  version: string;
+  decision: "FORECAST" | "ABSTAIN";
+  p_yes: number | null;
+  lower: number | null;
+  upper: number | null;
+  uncertainty_method: string;
+  reasons: string[];
+  inputs: Record<string, unknown>;
+}
+
+export interface CpiForecast {
+  contract_key: string | null;
+  reference_month: string | null;
+  threshold: DecimalString;
+  as_of: string;
+  forecasts: ModelForecast[];
+  recent_prints: { month: string; mom_rounded: DecimalString; released_at: string }[];
+  caveat: string;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

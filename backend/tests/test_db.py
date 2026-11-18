@@ -20,6 +20,8 @@ TABLES = {
     "ingestion_runs",
     "evidence_records",
     "collection_gaps",
+    "model_runs",
+    "model_evaluations",
 }
 
 
