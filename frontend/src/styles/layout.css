@@ -146,3 +146,23 @@
 /* Page titles receive focus on navigation (for keyboard / screen-reader users); the
    heading itself is the cue, so no ring box around a title. */
 #main h2[tabindex="-1"]:focus { outline: none !important; }
+
+/* --- Phase 3: the Docket column ------------------------------------------------------ */
+@media (min-width: 1180px) {
+  .app.shell.has-docket {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) 360px;
+    grid-template-areas: "app-rail top docket" "app-rail work docket";
+  }
+  .app.shell.has-docket:has(.docket[data-collapsed="true"]) { grid-template-columns: var(--rail-w) minmax(0, 1fr) 52px; }
+  .shell > .docket { grid-area: docket; }
+}
+@media (max-width: 1179px) {
+  .app.shell.has-docket { padding-bottom: 52px; }
+}
+@media (max-width: 719px) {
+  .app.shell.has-docket { padding-bottom: calc(64px + 52px + env(safe-area-inset-bottom)); }
+}
+/* Games: the slip moved into the Docket, so the board gets the room. */
+.games-layout { grid-template-columns: 220px minmax(0, 1fr); }
+@media (max-width: 1150px) { .games-layout { grid-template-columns: 190px minmax(0, 1fr); } }
+@media (max-width: 760px) { .games-layout { grid-template-columns: 1fr; } }

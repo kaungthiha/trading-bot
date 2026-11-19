@@ -4,6 +4,7 @@ import { useState } from "react";
 import { vi } from "vitest";
 
 import type { CatalogEventDetail, CatalogMarket } from "../../api/types";
+import { ResearchDocket } from "../docket/ResearchDocket";
 import { slip } from "../games/slip";
 import { MarketsPage } from "./MarketsPage";
 
@@ -93,7 +94,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 function Harness() {
   const [ev, setEv] = useState<string | null>(null);
-  return <MarketsPage eventTicker={ev} onOpenEvent={setEv} />;
+  return <><MarketsPage eventTicker={ev} onOpenEvent={setEv} /><ResearchDocket /></>;
 }
 
 describe("<MarketsPage>", () => {
@@ -134,9 +135,11 @@ describe("<MarketsPage>", () => {
     expect(await screen.findByText(/2 contract\(s\)/)).toBeInTheDocument();
     expect(calls.some((c) => c.includes("/ev?side=yes&prob=0.4750&contracts=10"))).toBe(true);
     await user.click(screen.getByRole("button", { name: "Add YES Boston to combo" }));
-    const tray = await screen.findByRole("complementary", { name: "Combo builder" });
-    await waitFor(() => expect(tray).toHaveTextContent("23.75%"));
-    expect(tray).toHaveTextContent("Same game");
+    // Markets and Games share one Docket (no separate combo tray).
+    const docket = screen.getByRole("complementary", { name: "Research docket" });
+    expect(within(docket).getByLabelText("1 legs")).toBeInTheDocument();
+    await waitFor(() => expect(within(docket).getByRole("region", { name: "Where this may be wrong" }))
+      .toHaveTextContent("Same game"));
     expect(screen.getByRole("button", { name: "Add YES Boston to combo" })).toBeDisabled();
   });
 

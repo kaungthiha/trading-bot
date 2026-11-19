@@ -68,7 +68,7 @@ describe("<IdeasPanel>", () => {
     await user.click(within(row).getByRole("button", { name: "Add" }));
     expect(slip.get()).toEqual([{ ticker: "KXNBAREB-26NOV19NYKMIN-NYKKTOWNS32-14", side: "no",
       label: "Karl-Anthony Towns reb 14+", event: "KXNBAREB-26NOV19NYKMIN" }]);
-    await user.click(screen.getByRole("button", { name: "Use as slip" }));
+    await user.click(screen.getByRole("button", { name: "Put on docket" }));
     expect(slip.get().map((l) => l.side)).toEqual(["no", "yes"]);
   });
 

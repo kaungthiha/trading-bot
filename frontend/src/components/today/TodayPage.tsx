@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "../../api/client";
+import { docketTitle, saved, useSaved } from "../docket/saved";
 import { StatusLabel } from "../design/StatusLabel";
+import { slip } from "../games/slip";
 import { PageHead } from "../Hairline";
 import { useDataRefresh } from "../useDataRefresh";
 import { type Candidate, SOURCES, type SectionData, type SourceId } from "./sources";
@@ -77,6 +79,9 @@ export function TodayPage() {
         <span className="small muted">Your marks are saved in this browser only.</span>
       </div>
       {SOURCES.map((s) => (
+        s.id === "scanner" ? [<SavedSection key="saved" now={now} />,
+          <Section key={s.id} id={s.id} title={s.title} blurb={s.blurb} load={loads[s.id]}
+            filter={filter} triage={triage} setTriage={setTriage} now={now} onRetry={() => load(s.id)} />] :
         <Section key={s.id} id={s.id} title={s.title} blurb={s.blurb} load={loads[s.id]}
           filter={filter} triage={triage} setTriage={setTriage} now={now} onRetry={() => load(s.id)} />
       ))}
@@ -147,7 +152,7 @@ export function CandidateRow({ c, entry, now, onStatus, onNote }: {
       <div className="cand-main">
         <span className="cand-title" id={tid}>{c.title}</span>
         <span className="cand-sub small muted">
-          <StatusLabel tone={c.tone}>{c.kind}</StatusLabel>{c.sub && <> {c.sub}</>}
+          <StatusLabel tone={c.tone}>{c.kind}</StatusLabel>{c.sub && <span className="cand-sub-text">{c.sub}</span>}
         </span>
         {entry?.note && !editing && <span className="cand-note small">Note: {entry.note}</span>}
       </div>
@@ -180,5 +185,56 @@ export function CandidateRow({ c, entry, now, onStatus, onNote }: {
         </form>
       )}
     </li>
+  );
+}
+
+/** Research you saved from the Docket. Its own decision (watching / passed), so the triage
+ * filter above doesn't apply. The price shown is the snapshot from when you saved it. */
+function SavedSection({ now }: { now: number }) {
+  const items = useSaved();
+  const [show, setShow] = useState<"watch" | "pass">("watch");
+  const shown = items.filter((d) => d.decision === show);
+  const n = (d: "watch" | "pass") => items.filter((x) => x.decision === d).length;
+  return (
+    <section className="today-section" aria-labelledby="today-saved">
+      <header className="today-section-head">
+        <h2 id="today-saved">Saved research</h2>
+        <span className="small muted">{items.length} saved from the Docket</span>
+        <div className="segmented small-seg" role="group" aria-label="Saved research to show">
+          <button type="button" aria-pressed={show === "watch"} onClick={() => setShow("watch")}>
+            Watching <span className="seg-count">{n("watch")}</span></button>
+          <button type="button" aria-pressed={show === "pass"} onClick={() => setShow("pass")}>
+            Passed <span className="seg-count">{n("pass")}</span></button>
+        </div>
+        <p className="small muted today-blurb">Combos and legs you saved, with the price when you saved them (not live).</p>
+      </header>
+      {shown.length === 0 ? (
+        <p className="small muted today-empty">
+          {items.length === 0 ? "Nothing saved yet. Use \"Save to watch\" on the Docket." : `Nothing ${show === "watch" ? "being watched" : "passed"}.`}
+        </p>
+      ) : (
+        <ul className="cand-list">
+          {shown.map((d) => (
+            <li key={d.id} className="cand" aria-label={docketTitle(d.legs)}>
+              <div className="cand-main">
+                <span className="cand-title">{docketTitle(d.legs)}</span>
+                {d.note && <span className="cand-note small">Note: {d.note}</span>}
+              </div>
+              <div className="cand-measure">
+                <span className="cand-label">Fair when saved (snapshot)</span>
+                <span>{d.fair != null ? `${(d.fair * 100).toFixed(1)}¢` : "—"}</span>
+              </div>
+              <div className="cand-time small">
+                <span>saved <time dateTime={d.at} title={exact(d.at)}>{rel(d.at, now)}</time></span>
+              </div>
+              <div className="cand-actions">
+                <button type="button" className="cand-load" onClick={() => slip.replace(d.legs)}>Load into docket</button>
+                <button type="button" onClick={() => saved.remove(d.id)} aria-label={`Delete saved: ${docketTitle(d.legs)}`}>Delete</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

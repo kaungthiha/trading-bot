@@ -1,0 +1,78 @@
+/* Research Docket: right rail >= 1180px (collapsible), bottom sheet below. */
+.docket { --docket-w: 360px; }
+.docket-body { display: flex; flex-direction: column; gap: 0.15rem; }
+.docket-head { display: flex; align-items: center; gap: 0.5rem; }
+.docket-head h2 { margin: 0; font-family: var(--font-display); font-optical-sizing: auto; font-size: 1.3rem; font-weight: 520; letter-spacing: -0.01em; }
+.docket .count { display: inline-grid; place-items: center; min-width: 1.4rem; height: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-size: 0.78rem; }
+.docket-head .link-button { margin-left: auto; }
+.docket-collapse, .docket-close { border: 1px solid var(--field-line); background: var(--surface); color: var(--ink-2); border-radius: 6px; width: 1.8rem; height: 1.8rem; cursor: pointer; font-size: 1rem; line-height: 1; }
+.docket-head > :last-child { margin-left: 0; }
+
+.dk-section { border-top: 1px solid var(--line); padding: 0.55rem 0 0.35rem; margin: 0; }
+.dk-section h3 { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 0.35rem; display: inline; }
+.dk-section > h3 { display: block; }
+details.dk-section > summary { cursor: pointer; list-style-position: outside; margin: 0 0 0.3rem; }
+.dk-must { margin: 0 0 0.25rem; padding-left: 1.2rem; font-size: 0.88rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.dk-side { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 4px; padding: 0 0.3rem; }
+.dk-side.no { background: var(--ink); color: var(--on-ink); }
+.dk-rows { list-style: none; padding: 0; margin: 0 0 0.3rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.dk-rows li { display: flex; justify-content: space-between; gap: 0.6rem; }
+.dk-rows li > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.dk-evidence li { flex-direction: column; gap: 0; }
+.dk-evidence li > span:last-child { text-align: left; }
+.dk-risks .reasons { font-size: 0.82rem; }
+.dk-save textarea { width: 100%; resize: vertical; border-color: var(--field-line); margin: 0.2rem 0 0.35rem; font-size: 0.85rem; }
+.dk-save-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.dk-saved-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.dk-saved-list li { display: flex; flex-direction: column; gap: 0.1rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--line); }
+.dk-saved-title { font-size: 0.85rem; font-weight: 500; }
+.dk-saved-note { font-style: italic; color: var(--ink-2); }
+.dk-saved-actions { display: flex; gap: 0.8rem; }
+.docket .slip-summary { border-top: none; padding-top: 0.2rem; }
+
+.docket-handle, .docket-strip { display: none; }
+
+/* --- Wide: a right rail spanning the full height --------------------------------------- */
+@media (min-width: 1180px) {
+  .docket { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--surface);
+    border-left: 1px solid var(--line); padding: 0.9rem 1rem 1.2rem; }
+  .docket-close { display: none; }
+  .docket[data-collapsed="true"] { padding: 0.75rem 0.35rem; overflow: hidden; }
+  .docket[data-collapsed="true"] .docket-body { display: none; }
+  .docket[data-collapsed="true"] .docket-strip {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: 100%;
+    border: 0; background: none; cursor: pointer; color: var(--ink-2); padding: 0.4rem 0;
+  }
+  .docket-strip-label { writing-mode: vertical-rl; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.7rem; font-weight: 600; }
+  .docket-strip-count { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--ink); color: var(--on-ink); font-size: 0.78rem; }
+}
+
+/* --- Narrow: a bottom sheet with a summary handle ------------------------------------- */
+@media (max-width: 1179px) {
+  .docket { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; background: var(--surface);
+    border-top: 1px solid var(--line-strong); box-shadow: 0 -1px 0 rgba(255, 252, 246, 0.9); }
+  .docket-handle { display: flex; align-items: center; gap: 0.6rem; width: 100%; min-height: 44px; padding: 0.4rem 1rem;
+    border: 0; background: var(--surface); cursor: pointer; text-align: left; color: var(--ink); }
+  .docket-handle-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 560; }
+  .docket-handle-sum { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+  .docket-chevron { margin-left: auto; color: var(--muted); }
+  .docket-body { display: none; }
+  .docket[data-open="true"] .docket-body { display: flex; max-height: min(78vh, 760px); overflow-y: auto; padding: 0 1rem 1rem; }
+  .docket-collapse { display: none; }
+}
+@media (max-width: 719px) {
+  .docket { bottom: calc(60px + env(safe-area-inset-bottom)); }
+}
+
+/* Slip pieces that games.css scopes to the old .slip container. */
+.docket .x { font-size: 1.1rem; line-height: 1; background: none; border: none; cursor: pointer; color: var(--muted); padding: 0 0.15rem; }
+.docket .x:hover { color: var(--red); }
+/* Disclosure: our own chevron, kept inside the panel. */
+details.dk-section > summary { list-style: none; display: flex; align-items: center; gap: 0.35rem; }
+details.dk-section > summary::-webkit-details-marker { display: none; }
+details.dk-section > summary::before { content: "▸"; font-size: 0.7rem; color: var(--muted); transition: transform 150ms; }
+details.dk-section[open] > summary::before { transform: rotate(90deg); }
+@media (max-width: 1179px) {
+  /* The handle already names the sheet. */
+  .docket[data-open="true"] .docket-head h2, .docket[data-open="true"] .docket-head .count { display: none; }
+}

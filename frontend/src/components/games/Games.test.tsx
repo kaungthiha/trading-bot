@@ -4,6 +4,7 @@ import { useState } from "react";
 import { vi } from "vitest";
 
 import type { EvidenceResult, GameDetail, LegEvidence } from "../../api/types";
+import { ResearchDocket } from "../docket/ResearchDocket";
 import { GamesPage } from "./GamesPage";
 import { LegResearch, MiniBars } from "./LegResearch";
 import { slip } from "./slip";
@@ -121,7 +122,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 function Harness() {
   const [ref, setRef] = useState<string | null>(null);
-  return <GamesPage gameRef={ref} onOpenGame={setRef} />;
+  return <><GamesPage gameRef={ref} onOpenGame={setRef} /><ResearchDocket /></>;
 }
 
 describe("<GamesPage>", () => {
@@ -129,7 +130,7 @@ describe("<GamesPage>", () => {
     const user = userEvent.setup();
     render(<Harness />);
     expect(screen.getByText("Pick a game")).toBeInTheDocument();
-    expect(screen.getByText("Empty slip")).toBeInTheDocument();
+    expect(screen.getByText("Nothing on the docket")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "NHL" })).toHaveAttribute("aria-pressed", "false");
     await user.click(screen.getByRole("button", { name: /NYK @ MIN/ }));
     expect(await screen.findByRole("heading", { name: /New York @ Minnesota/ })).toBeInTheDocument();
@@ -151,11 +152,11 @@ describe("<GamesPage>", () => {
     await user.click(screen.getByRole("button", { name: /Karl-Anthony Towns REB: market line 12.9/ }));
     await user.click(screen.getByRole("button", { name: /Add Karl-Anthony Towns: 12\+ rebounds/ }));
 
-    const slipEl = screen.getByRole("complementary", { name: "Bet slip" });
+    const slipEl = screen.getByRole("complementary", { name: "Research docket" });
     expect(within(slipEl).getByLabelText("2 legs")).toBeInTheDocument();
     expect(await within(slipEl).findAllByText("fits history")).toHaveLength(2);
     expect(within(slipEl).getByText(/NYK legs all hit/)).toHaveTextContent("30/83");
-    await waitFor(() => expect(within(slipEl).getByText("37.5¢")).toBeInTheDocument());
+    await waitFor(() => expect(within(slipEl).getAllByText("37.5¢").length).toBeGreaterThan(0));
     expect(within(slipEl).getByText("Combinable on Kalshi")).toBeInTheDocument();
     expect(within(slipEl).getByText(/past 2 legs combos paid \$0.80\/\$1/)).toBeInTheDocument();
 
@@ -172,7 +173,7 @@ describe("<GamesPage>", () => {
     const user = userEvent.setup();
     slip.add({ ticker: `KXNBAREB-${KEY}-NYKKTOWNS32-12`, side: "yes", label: "Karl-Anthony Towns: 12+ rebounds", event: `KXNBAREB-${KEY}` });
     render(<Harness />);
-    const slipEl = screen.getByRole("complementary", { name: "Bet slip" });
+    const slipEl = screen.getByRole("complementary", { name: "Research docket" });
     await within(slipEl).findByText("fits history");
     await user.click(within(slipEl).getByRole("button", { name: "Karl-Anthony Towns: 12+ rebounds" }));
     expect(within(slipEl).getByRole("img", { name: /Last 2 games: the YES side happened 1 times; line 11.5/ })).toBeInTheDocument();

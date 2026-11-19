@@ -6,7 +6,6 @@ import { ControlBar } from "../ControlBar";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { PageHead } from "../Hairline";
 import { useDataRefresh } from "../useDataRefresh";
-import { BetSlip } from "./BetSlip";
 import { EmptyState } from "./Figure";
 import { parseGameRef } from "./format";
 import { GameBoard } from "./GameBoard";
@@ -25,7 +24,7 @@ export function GamesPage({ gameRef, onOpenGame }: Props) {
   return (
     <div className="games-page">
       <PageHead figure="riffle" title="Games" actions={<ControlBar compact />}>
-        One game per screen. Tap prices into the slip; it prices the combo and checks each leg.
+        One game per screen. Tap prices onto the docket; it prices the combo and checks each leg.
       </PageHead>
       <div className="games-layout">
         <GameList selected={gameRef} onSelect={onOpenGame} tick={tick} />
@@ -35,7 +34,6 @@ export function GamesPage({ gameRef, onOpenGame }: Props) {
                 Every market for that game on one screen: winner, spread, totals, quarters and each
                 player's props.</EmptyState></div>}
         </ErrorBoundary>
-        <BetSlip />
       </div>
     </div>
   );

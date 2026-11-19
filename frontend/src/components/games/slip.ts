@@ -8,7 +8,7 @@ const KEY = "krt.slip.v1";
 const MAX = 12;
 const TICKER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/;
 
-function valid(x: unknown): x is ComboLeg {
+export function isLeg(x: unknown): x is ComboLeg {
   if (!x || typeof x !== "object") return false;
   const l = x as Record<string, unknown>;
   return typeof l.ticker === "string" && TICKER.test(l.ticker) && (l.side === "yes" || l.side === "no")
@@ -19,7 +19,7 @@ function valid(x: unknown): x is ComboLeg {
 function load(): ComboLeg[] {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "[]") as unknown;
-    return Array.isArray(raw) ? raw.filter(valid).slice(0, MAX) : [];
+    return Array.isArray(raw) ? raw.filter(isLeg).slice(0, MAX) : [];
   } catch {
     return [];
   }
@@ -48,6 +48,8 @@ export const slip = {
   remove: (ticker: string) => set(legs.filter((l) => l.ticker !== ticker)),
   setSide: (ticker: string, side: Side) => set(legs.map((l) => (l.ticker === ticker ? { ...l, side } : l))),
   clear: () => set([]),
+  /** Replace the whole slip (e.g. loading saved research). Invalid legs are dropped. */
+  replace: (next: ComboLeg[]) => set(next.filter(isLeg).slice(0, MAX)),
   max: MAX,
 };
 

@@ -82,8 +82,9 @@ calls. Browse by category and series, search, and open an event to see:
   series' fee multiplier), the break-even chance, expected value, and a quarter-Kelly size
   capped at 5% of your budget. It can also fetch the current orderbook and full rules from
   Kalshi;
-- **Combo builder**: add YES or NO legs to price a parlay as if the legs were independent.
-  It warns about legs from the same game or event, where that assumption is wrong.
+- **Add to the Docket**: add YES or NO legs to price a parlay as if the legs were
+  independent. The Docket warns about legs from the same game or event, where that
+  assumption is wrong.
 
 Prices are a snapshot from the last scan, so check the live book before trading. The catalog
 is a cache: closed markets drop out on the next complete scan.
@@ -91,9 +92,9 @@ is a cache: closed markets drop out on the next complete scan.
 **Combos on Kalshi.** Kalshi builds combo (multivariate) markets on request, and market
 makers price them privately, so there is no public combo orderbook. The app gives you:
 - **Eligibility:** each scan reads Kalshi's combo collections, and events that can be legs
-  show "combo-eligible on Kalshi". The combo builder says whether Kalshi can build your exact
+  show "combo-eligible on Kalshi". The Docket says whether Kalshi can build your exact
   combination.
-- **Quote check:** type the quote Kalshi gives you into the builder to see the markup over
+- **Quote check:** type the quote Kalshi gives you into the Docket to see the markup over
   the independent fair value. It flags legs from the same game, where that fair value is
   wrong.
 - **"Do combos pay?" study (Markets page):** reads recently settled combos and compares their
@@ -464,10 +465,20 @@ From `frontend/`: `npm test`, `npm run typecheck`, `npm run build`, `npm run che
 ## Games page: build a same-game combo and check it
 **Games** puts one game on one screen: winner, spread, totals, team totals, halves and
 quarters, and a grid of every player's props. Each cell in the grid shows where the market
-puts that stat's 50/50 point (its median line). Tap a price to add it to the **slip**, which
-is shared with the Markets page and kept across reloads.
+puts that stat's 50/50 point (its median line). Tap a price to add it to the **Docket**.
 
-For the legs in the slip:
+**The Docket** is one slip that follows you across Today, Games and All markets, kept across
+reloads. On wide screens it's a right-hand column (collapse it with »); on narrower screens
+it's a bar at the bottom that opens into a sheet. For the legs on it, it shows, in order:
+what would have to happen (sides in words: "Happens" / "Doesn't happen"), the price and
+history numbers below, **where this may be wrong** (injuries, thin data, linked same-game
+legs, combos Kalshi can't build; never collapsed), what the price implies (market-implied,
+with the scan time), your box-score evidence (labelled as a frequency, not a calibrated
+probability), what you'd pay (the slip check), the AI second opinion, and **Save or pass**:
+your decision and why, saved in this browser with the price at the time and listed on Today
+under *Saved research*. Numbers are only shown for the legs they were computed for.
+
+For the legs on the Docket:
 - **Fair price** is the market's prices multiplied together, as if the legs were independent.
 - **Per-leg check.** NBA/WNBA legs are checked against ESPN box scores: last 5 and last 10
   games, this season, last season, and a shrunk estimate with an 80% range. The pill says

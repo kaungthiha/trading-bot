@@ -34,7 +34,7 @@ function SingleRow({ x, inSlip }: { x: IdeaSingle; inSlip: boolean }) {
       </span>
       <button type="button" className="link-button small" aria-pressed={inSlip}
         onClick={() => slip.toggle({ ticker: x.ticker, side: x.side, label: plain(x.bet), event: x.event_ticker })}>
-        {inSlip ? "In slip" : "Add"}
+        {inSlip ? "On docket" : "Add"}
       </button>
     </li>
   );
@@ -61,7 +61,7 @@ function ComboRow({ c, singles }: { c: IdeaCombo; singles: Map<string, IdeaSingl
       </div>
       <span className="idea-edge">×{c.ratio}</span>
       <span className="small idea-how">{c.walk_away ? <>quote ≤ {cents(num(c.walk_away))}</> : "no fair quote"}</span>
-      <button type="button" className="link-button small" onClick={use}>Use as slip</button>
+      <button type="button" className="link-button small" onClick={use}>Put on docket</button>
     </li>
   );
 }

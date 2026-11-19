@@ -1,11 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 import type { HistoryReport } from "../../api/types";
 import { PnlCharts } from "../history/PnlCharts";
 import { ComboStudyPanel } from "./ComboStudyPanel";
-import { ComboTray } from "./ComboTray";
 
 const bucket = (b: string, n: number, p: number, h: number) => ({
   bucket: b, n, avg_price: p, hit_rate: h, edge: h - p, se: 0.01, return_per_dollar: h / p });
@@ -15,20 +13,10 @@ const STUDY = {
   by_price: [bucket("35¢+", 1852, 0.59, 0.388)],
   markets_scanned: 19000, generated_at: "2026-11-18T23:00:00Z",
 };
-const COMBO = {
-  legs: [{ ticker: "A", label: "Boston", side: "yes", event: "KXNBAGAME-26NOV18BOSDEN", probability: 0.5, quality: "mid" },
-         { ticker: "B", label: "Over 220.5", side: "yes", event: "KXNBATOTAL-26NOV18BOSDEN", probability: 0.5, quality: "mid" }],
-  independent_probability: 0.25, fair_price: 0.25, fair_multiple: 4,
-  warnings: ["Same game (26NOV18BOSDEN) across 2 markets"],
-  kalshi: { eligible: true, collections: ["KXMVECROSSCATEGORY-R"], ineligible_events: [],
-            history: bucket("2 legs", 1085, 0.317, 0.241) },
-};
-
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const path = new URL(String(input), "http://127.0.0.1").pathname;
     if (path === "/api/catalog/combo-study") return new Response(JSON.stringify({ study: STUDY }));
-    if (path === "/api/catalog/combo") return new Response(JSON.stringify(COMBO));
     return new Response("{}", { status: 404 });
   }));
 });
@@ -40,18 +28,6 @@ describe("combos", () => {
     expect(await screen.findByText(/\$0\.38 per \$1/)).toBeInTheDocument();
     expect(screen.getByText("2 legs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh the study" })).toBeInTheDocument();
-  });
-
-  it("tray shows Kalshi eligibility, history and a quote markup check", async () => {
-    const user = userEvent.setup();
-    render(<ComboTray legs={[{ ticker: "A", side: "yes", label: "Boston", event: "E1" },
-                             { ticker: "B", side: "yes", label: "Over 220.5", event: "E2" }]}
-      onRemove={() => undefined} onClear={() => undefined} />);
-    expect(await screen.findByText("Kalshi can build this")).toBeInTheDocument();
-    expect(screen.getByText(/back per \$1/)).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Kalshi's quote/), "30");
-    await waitFor(() => expect(screen.getByText("20% markup")).toBeInTheDocument());
-    expect(screen.getByText(/legs are correlated/)).toBeInTheDocument();
   });
 });
 

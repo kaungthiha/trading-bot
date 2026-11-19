@@ -101,7 +101,7 @@ describe("<TodayPage>", () => {
     expect(within(games).queryByText("Far away game")).not.toBeInTheDocument();
     expect(within(games).getByText("Not screened yet")).toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: /To review/ })).toHaveTextContent("5");
+    expect(within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name: /To review/ })).toHaveTextContent("5");
   });
 
   it("marks items researching or passed, saves notes locally, and filters by mark", async () => {
@@ -111,10 +111,10 @@ describe("<TodayPage>", () => {
     await within(scan).findByText("Ladder gap");
     await user.click(within(scan).getByRole("button", { name: "Pass" }));
     expect(within(scan).queryByText("Ladder gap")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Passed/ })).toHaveTextContent("1");
+    expect(within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name: /Passed/ })).toHaveTextContent("1");
     expect(loadTriage()["opp:o1"]?.status).toBe("passed");
 
-    await user.click(screen.getByRole("button", { name: /Passed/ }));
+    await user.click(within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name: /Passed/ }));
     expect(within(scan).getByText("Ladder gap")).toBeInTheDocument();
     await user.click(within(scan).getByRole("button", { name: "Note" }));
     await user.type(within(scan).getByRole("textbox", { name: /Note on Ladder gap/ }), "Rules unclear{Enter}");
@@ -122,7 +122,7 @@ describe("<TodayPage>", () => {
     expect(loadTriage()["opp:o1"]).toMatchObject({ status: "passed", note: "Rules unclear" });
 
     await user.click(within(scan).getByRole("button", { name: "Pass" })); // un-pass
-    await user.click(screen.getByRole("button", { name: /To review/ }));
+    await user.click(within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name: /To review/ }));
     expect(within(scan).getByText("Ladder gap")).toBeInTheDocument();
   });
 

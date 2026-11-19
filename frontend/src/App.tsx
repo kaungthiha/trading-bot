@@ -9,6 +9,7 @@ import type {
   MarketSummary,
 } from "./api/types";
 import { ControlBar } from "./components/ControlBar";
+import { ResearchDocket } from "./components/docket/ResearchDocket";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { EvidencePanel } from "./components/EvidencePanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
@@ -97,6 +98,8 @@ export default function App() {
   });
   useEffect(() => { if (route.tab) setTermTab(route.tab); }, [route.tab]);
   useEffect(() => { sessionStorage.setItem("krt.termTab", termTab); }, [termTab]);
+  // The Docket follows you across the research pages (audit Phase 3).
+  const showDocket = route.page === "today" || route.page === "games" || route.page === "markets";
   const pickTab = (t: TermTab) => {
     setTermTab(t);
     // Keep the address shareable without adding a history entry per tab click.
@@ -115,7 +118,7 @@ export default function App() {
 
   return (
     <GlossaryProvider>
-    <div className="app shell">
+    <div className={`app shell${showDocket ? " has-docket" : ""}`}>
       <a className="skip-link" href="#main">Skip to content</a>
       <Topbar health={health} />
       <LeftRail section={sectionOf(route.page)} />
@@ -226,6 +229,7 @@ export default function App() {
         .
       </footer>
       </div>
+      {showDocket && <ResearchDocket />}
     </div>
     </GlossaryProvider>
   );

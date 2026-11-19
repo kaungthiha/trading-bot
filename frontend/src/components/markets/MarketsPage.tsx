@@ -16,7 +16,6 @@ import { formatUtc } from "../format";
 import { slip, useSlip } from "../games/slip";
 import { useDataRefresh } from "../useDataRefresh";
 import { ComboStudyPanel } from "./ComboStudyPanel";
-import { ComboTray } from "./ComboTray";
 import { EventView } from "./EventView";
 
 const SORTS: { v: CatalogSort; label: string }[] = [
@@ -175,7 +174,6 @@ export function MarketsPage({ eventTicker, onOpenEvent }: Props) {
               </>
             )}
           </ErrorBoundary>
-          <ComboTray legs={legs} onRemove={(t) => slip.remove(t)} onClear={() => slip.clear()} />
         </div>
       </div>
     </div>

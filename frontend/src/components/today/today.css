@@ -3,6 +3,9 @@
 .segmented { display: inline-flex; border: 1px solid var(--field-line); border-radius: 999px; padding: 2px; background: var(--surface); }
 .segmented button { border: 0; background: none; border-radius: 999px; padding: 0.25rem 0.8rem; font-size: 0.85rem; color: var(--ink-2); cursor: pointer; }
 .segmented button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.small-seg { margin-left: auto; }
+.small-seg button { font-size: 0.75rem; padding: 0.12rem 0.6rem; }
+.cand-actions .cand-load { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .seg-count { font-variant-numeric: tabular-nums; opacity: 0.75; margin-left: 0.15rem; }
 
 .today-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem 1rem 0.6rem; margin-bottom: 0.85rem; }
@@ -28,6 +31,7 @@
 .cand-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cand-sub { display: flex; align-items: center; gap: 0.35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cand-sub .badge { flex: none; }
+.cand-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cand-note { color: var(--ink-2); font-style: italic; }
 .cand-measure { display: flex; flex-direction: column; gap: 0.05rem; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
 .cand-label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.02em; }
@@ -44,7 +48,7 @@
   .cand-measure { grid-column: 1; }
   .cand-time { grid-column: 2; grid-row: 2; text-align: right; }
   .cand-actions { grid-column: 1 / -1; justify-content: flex-start; }
-  .cand-title, .cand-sub { white-space: normal; }
+  .cand-title, .cand-sub, .cand-sub-text { white-space: normal; }
   .cand-sub { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .today-skeleton span { animation: none; } }

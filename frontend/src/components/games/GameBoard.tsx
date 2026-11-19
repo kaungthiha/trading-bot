@@ -208,7 +208,7 @@ export function GameBoard({ prefix, gameKey, tick }: Props) {
           ? <PlayerGrid game={game} tickers={tickers} />
           : current?.groups.map((g) => <ChipRail key={g.id} group={g} tickers={tickers} />)}
       </div>
-      <p className="small muted legend-line">Tap a price to add YES to your slip (flip to NO there). <span className="chip-flag">•</span> = can't be combined on Kalshi.</p>
+      <p className="small muted legend-line">Tap a price to add YES to the docket (flip to NO there). <span className="chip-flag">•</span> = can't be combined on Kalshi.</p>
     </section>
   );
 }
