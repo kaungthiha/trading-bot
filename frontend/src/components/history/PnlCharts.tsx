@@ -1,17 +1,18 @@
 import { useState } from "react";
 
 import type { HistoryReport } from "../../api/types";
+import { CHART } from "../../styles/palette";
 
 // Two charts, one axis each (never dual-axis): cumulative realized P&L (single series, no
 // legend; the title names it) and daily P&L bars (diverging gain/loss pair, legend shown).
-// Colours from the validated chart palette: series/gain #2a78d6, loss #e34948 (pair passes
-// all validator checks on #fcfcfb incl. CVD); sign is ALSO encoded by bar direction.
-const BLUE = "#2a78d6";
-const RED = "#e34948";
-const MUTED = "#898781";
-const GRID = "#e1e0d9";
-const BASE = "#c3c2b7";
-const SURFACE = "#fcfcfb";
+// Colours from the validated chart palette (styles/palette.ts; gain/loss pass every
+// validator check incl. CVD); sign is ALSO encoded by bar direction.
+const BLUE = CHART.gain;
+const RED = CHART.loss;
+const MUTED = CHART.muted;
+const GRID = CHART.grid;
+const BASE = CHART.base;
+const SURFACE = CHART.surface;
 const W = 720;
 const H = 180;
 const PAD = { left: 52, right: 12, top: 10, bottom: 26 };
@@ -103,7 +104,7 @@ export function PnlCharts({ timeline }: { timeline: Day[] }) {
             aria-label={`Cumulative realized P&L over ${n} days, now ${money(last)}. Table view below.`}>
             <Axis ticks={c.ticks} y={c.y} days={timeline} x={x} />
             <path d={path} fill="none" stroke={BLUE} strokeWidth={2} strokeLinejoin="round" />
-            <text x={x(n - 1) - 4} y={c.y(last) - 8} textAnchor="end" fontSize={11} fill="#0b0b0b">{money(last)}</text>
+            <text x={x(n - 1) - 4} y={c.y(last) - 8} textAnchor="end" fontSize={11} fill={CHART.ink}>{money(last)}</text>
             {hover != null && (
               <g pointerEvents="none">
                 <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + H} stroke={MUTED} strokeDasharray="3 3" />

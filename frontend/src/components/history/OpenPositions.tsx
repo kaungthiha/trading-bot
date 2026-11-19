@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../../api/client";
 import type { LlmStatus, OpenAnalysis, OpenPosition, OpenReview } from "../../api/types";
+import { CHART } from "../../styles/palette";
 import { offReason } from "../games/SecondOpinion";
 import { EmptyState, Figure } from "../Hairline";
 
@@ -42,9 +43,9 @@ export function Sparkline({ trail, entry }: { trail: OpenPosition["trail"]; entr
   return (
     <svg className="spark" width={W} height={H} role="img"
       aria-label={`Price went from ${cents(pts[0]!.mid)} to ${cents(last)}${entry != null ? `; you paid ${cents(entry)}` : ""}`}>
-      {entry != null && <line x1={0} x2={W} y1={y(entry)} y2={y(entry)} stroke="#a1a1aa" strokeDasharray="3 3" strokeWidth={1} />}
-      <path d={d} fill="none" stroke="#18181b" strokeWidth={1.25} />
-      <circle cx={x(pts.length - 1)} cy={y(last)} r={2.5} fill={up ? "#2a78d6" : "#e34948"} />
+      {entry != null && <line x1={0} x2={W} y1={y(entry)} y2={y(entry)} stroke={CHART.base} strokeDasharray="3 3" strokeWidth={1} />}
+      <path d={d} fill="none" stroke={CHART.ink} strokeWidth={1.25} />
+      <circle cx={x(pts.length - 1)} cy={y(last)} r={2.5} fill={up ? CHART.gain : CHART.loss} />
     </svg>
   );
 }

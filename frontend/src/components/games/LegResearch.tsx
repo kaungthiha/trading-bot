@@ -2,13 +2,14 @@ import { useState } from "react";
 
 import { api, ApiError } from "../../api/client";
 import type { LegEvidence, NewsResult } from "../../api/types";
+import { CHART } from "../../styles/palette";
 import { Figure } from "./Figure";
 import { pct } from "./format";
 
-const HIT = "#2a78d6";
-const MISS = "#e34948";
-const LINE = "#1b1f24";
-const BASE = "#c3c2b7";
+const HIT = CHART.gain;
+const MISS = CHART.loss;
+const LINE = CHART.ink;
+const BASE = CHART.base;
 
 /** Last 10 games, oldest to newest, against the leg's line. */
 export function MiniBars({ ev }: { ev: LegEvidence }) {
@@ -42,7 +43,7 @@ export function MiniBars({ ev }: { ev: LegEvidence }) {
         {line != null && line !== 0 && (
           <>
             <line x1={0} x2={W - 40} y1={y(line)} y2={y(line)} stroke={LINE} strokeWidth={1.5} strokeDasharray="4 3" />
-            <text x={W - 36} y={y(line) + 4} fontSize={11} fill="#52514e">{line}</text>
+            <text x={W - 36} y={y(line) + 4} fontSize={11} fill={CHART.muted}>{line}</text>
           </>
         )}
       </svg>

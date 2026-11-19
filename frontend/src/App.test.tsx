@@ -115,6 +115,7 @@ describe("<App>", () => {
   beforeEach(() => {
     calls.length = 0;
     sessionStorage.clear();
+    window.location.hash = "#/terminal"; // these tests cover the Tools page (former Terminal)
     vi.stubGlobal("fetch", mockFetch());
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -124,7 +125,7 @@ describe("<App>", () => {
     expect(await screen.findByText("PAPER MODE")).toBeInTheDocument();
     expect(screen.getByText(/Live execution: disabled/)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Scanner" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Terminal", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tools", level: 2 })).toBeInTheDocument();
   });
 
   it("renders paper-mode banner and mock market list with stale indicator", async () => {

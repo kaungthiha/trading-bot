@@ -54,6 +54,21 @@ buttons at the top replace the CLI:
 Under the opportunity list, "What the last scan looked at" shows coverage by category and
 series, and the events that came closest to a mispricing.
 
+**Pages (left rail; a bottom bar on phones).** Old links keep working.
+- **Today** (`#/`): the daily desk. Your open positions that need a look (a warning, or
+  closing within 24h), open scanner ideas, valid model signals, and the most-traded games
+  starting in the next 36h. Each group keeps its own number and label and is never ranked
+  against another group. Mark items *Researching* or *Pass* and add a note; marks live only in
+  this browser (`localStorage`). Each group loads on its own and offers Retry if it fails.
+- **Explore**: Games (`#/games`) and All markets (`#/markets`), with a switch between them.
+- **Journal** (`#/journal`, was `#/history`): your synced Kalshi history.
+- **Learn** (`#/glossary`): the glossary.
+- **Tools** (`#/terminal`, `?tab=scanner|watchlist|signals|paper|models|system`): the former
+  Terminal tabs, including approval-gated execution.
+
+The top bar shows mode, live execution, connection and when prices were last scanned (marked
+stale after 30 minutes). **Compact rows** tightens tables and is saved in this browser.
+
 **Markets page (`#/markets`):** every open Kalshi event and market from the last scan, about
 21k events and 186k markets. Each scan saves this snapshot, so browsing makes no extra API
 calls. Browse by category and series, search, and open an event to see:

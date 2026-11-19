@@ -1,0 +1,76 @@
+/* Walnut Atelier: design tokens. Loaded after styles.css / theme.css.
+   A walnut drafting table, archival paper, technical ink lines.
+
+   Every value below was checked, not eyeballed:
+   - Text tokens are >= 4.5:1 (WCAG AA) on --surface, --canvas and --surface-alt.
+   - --blue / --red (gain / loss, chart series) pass the dataviz palette validator on
+     --surface, including colour-vision deficiency (worst protan dE 15.8). The audit's
+     teal #285E58 / brick #A5483C pair FAILED that check (protan dE 4.4), so gains stay blue.
+   - --field-line is >= 3:1 against --surface (WCAG 1.4.11 for input boundaries).
+
+   The legacy names (--plate, --soft, --line, --blue-ink ...) are kept as aliases so every
+   existing selector re-skins without edits. New code should use the semantic names. */
+:root {
+  /* Paper and furniture */
+  --canvas: #f5f0e6;        /* parchment: the page */
+  --surface: #fffcf6;       /* paper: cards and panels */
+  --surface-alt: #ece3d5;   /* warm inset */
+  --soft: #f4eee4;          /* hover / quiet fill */
+  --walnut: #4a3428;        /* the rail */
+  --walnut-2: #5a3f31;      /* brand furniture, selection ink */
+  --walnut-ink: #f3eadb;    /* text on walnut (9.7:1) */
+  --walnut-muted: #cdbba5;  /* secondary text on walnut (6.2:1) */
+  --bronze: #8a6339;        /* focus and active emphasis (4.7:1 on canvas) */
+  --bronze-light: #d9b27c;  /* active marker on walnut (5.9:1) */
+
+  /* Ink */
+  --ink: #2d2925;
+  --ink-2: #4e4740;
+  --muted: #6b645b;
+  --on-ink: #fffcf6;        /* text on --ink, --blue, --red-ink buttons */
+
+  /* Lines */
+  --line: #e2d9cc;          /* hairline */
+  --line-2: #cdbfae;        /* stronger hairline (decorative) */
+  --line-strong: #b9aa98;
+  --field-line: #94846f;    /* inputs and toggles: >= 3:1 on paper */
+
+  /* Data and status: colour is reserved for these. Always paired with a label or sign. */
+  --blue: #356fa3;      --blue-ink: #24527d;  --blue-tint: #eaf0f6;  --blue-line: #b9ccdf;
+  --red: #b8483b;       --red-ink: #8f3328;   --red-tint: #f8eae6;   --red-line: #e5bdb5;
+  --amber: #c08a3e;     --amber-ink: #7a5520; --amber-tint: #faf1e1; --amber-line: #e8d3ae;
+  --ok-ink: #2e5e4e;    --ok-tint: #e7efe9;
+
+  /* Interaction */
+  --select: var(--walnut-2);
+  --select-tint: #f1e8da;
+  --focus: var(--bronze);
+
+  /* Legacy aliases */
+  --plate: var(--canvas);
+
+  /* Type: bundled OFL faces (see main.tsx), system fallbacks while they load.
+     Fraunces (display: titles, hero numbers), IBM Plex Sans (UI), IBM Plex Mono (tickers). */
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --font-display: "Fraunces Variable", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Shape and rhythm */
+  --radius: 8px;
+  --radius-sm: 6px;
+  --rail-w: 84px;
+  --topbar-h: 52px;
+  --row-pad-y: 0.5rem;
+
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+/* Compact density: tighter tables and rows for the data-heavy pages. Stored locally. */
+:root[data-density="compact"] {
+  --row-pad-y: 0.28rem;
+  font-size: 14px;
+}

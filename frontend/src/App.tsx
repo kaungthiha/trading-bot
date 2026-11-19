@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "./api/client";
 import type {
@@ -14,7 +14,7 @@ import { EvidencePanel } from "./components/EvidencePanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
 import { GamesPage } from "./components/games/GamesPage";
 import { GlossaryPage } from "./components/GlossaryPage";
-import { EmptyState, Figure, PageHead } from "./components/Hairline";
+import { EmptyState, PageHead } from "./components/Hairline";
 import { HistoryPage } from "./components/history/HistoryPage";
 import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
@@ -25,9 +25,14 @@ import { OpportunitiesPanel } from "./components/OpportunitiesPanel";
 import { GettingStarted, HealthPanel } from "./components/OpsPanels";
 import { PaperPanel } from "./components/PaperPanel";
 import { SignalsPanel } from "./components/SignalsPanel";
+import { ExploreSwitch } from "./components/shell/ExploreSwitch";
+import { LeftRail } from "./components/shell/LeftRail";
+import { Topbar } from "./components/shell/Topbar";
 import { formatUtc } from "./components/format";
+import { TodayPage } from "./components/today/TodayPage";
 import { useDataRefresh } from "./components/useDataRefresh";
 import { GlossaryProvider } from "./glossary/GlossaryContext";
+import { href, sectionOf, type TermTab, useHashRoute } from "./router";
 
 type Load<T> = { state: "loading" } | { state: "ok"; data: T } | { state: "error"; message: string };
 
@@ -86,70 +91,65 @@ export default function App() {
   }, []));
   const route = useHashRoute();
   const [termTab, setTermTab] = useState<TermTab>(() => {
+    if (route.tab) return route.tab;
     const v = sessionStorage.getItem("krt.termTab");
     return TERMINAL_TABS.some((t) => t.id === v) ? (v as TermTab) : "scanner";
   });
+  useEffect(() => { if (route.tab) setTermTab(route.tab); }, [route.tab]);
   useEffect(() => { sessionStorage.setItem("krt.termTab", termTab); }, [termTab]);
+  const pickTab = (t: TermTab) => {
+    setTermTab(t);
+    // Keep the address shareable without adding a history entry per tab click.
+    if (route.page === "tools") window.history.replaceState(null, "", href.tools(t));
+  };
+
+  // On navigation between pages, move focus to the new page's title so keyboard and
+  // screen-reader users start at the top (not mid-page). Not on first load.
+  const lastPage = useRef(route.page);
+  useEffect(() => {
+    if (lastPage.current === route.page) return; // first load (and StrictMode's re-run)
+    lastPage.current = route.page;
+    const h = document.querySelector<HTMLElement>("#main h2");
+    if (h) { h.tabIndex = -1; h.focus(); }
+  }, [route.page]);
 
   return (
     <GlossaryProvider>
-    <div className="app">
+    <div className="app shell">
       <a className="skip-link" href="#main">Skip to content</a>
-      <header className="app-header">
-        <h1><Figure name="terrain" size={30} /> Kalshi Research</h1>
-        <nav aria-label="Primary" className="nav">
-          <a href="#/" aria-current={route.page === "terminal" ? "page" : undefined}>Terminal</a>
-          <a href="#/games" aria-current={route.page === "games" ? "page" : undefined}>Games</a>
-          <a href="#/markets" aria-current={route.page === "markets" ? "page" : undefined}>Markets</a>
-          <a href="#/history" aria-current={route.page === "history" ? "page" : undefined}>My trades</a>
-          <a href="#/glossary" aria-current={route.page === "glossary" ? "page" : undefined}>
-            Glossary
-          </a>
-        </nav>
-        <div className="mode-banner" role="status">
-          {health.state === "ok" ? (
-            <>
-              {health.data.env === "demo" && (
-                <span className="badge demo">DEMO · synthetic data</span>
-              )}
-              <span className="badge paper" title="Research and paper trading. No real orders are placed by this app.">{health.data.trading_mode.toUpperCase()} MODE</span>
-              <span>Live execution: {health.data.live_execution_enabled ? "ON" : "disabled"}</span>
-              <span title={`Market data: ${health.data.market_data_source}${health.data.market_data_source === "kalshi_public" ? ` (${health.data.kalshi_env})` : ""} · database ${health.data.database}`}>
-                {health.data.database === "ok" ? "● connected" : `DB: ${health.data.database}`}
-              </span>
-            </>
-          ) : health.state === "error" ? (
-            <span className="badge stale">Backend: {health.message}</span>
-          ) : (
-            <span>Connecting…</span>
-          )}
-        </div>
-      </header>
+      <Topbar health={health} />
+      <LeftRail section={sectionOf(route.page)} />
+      <div className="work">
 
       <ErrorBoundary resetKey={route.page}>
-      {route.page === "glossary" ? (
+      {route.page === "today" ? (
+        <main id="main"><TodayPage /></main>
+      ) : route.page === "learn" ? (
         <main id="main"><GlossaryPage focusTerm={route.term} /></main>
-      ) : route.page === "history" ? (
+      ) : route.page === "journal" ? (
         <main id="main"><HistoryPage /></main>
       ) : route.page === "games" ? (
         <main id="main">
+          <ExploreSwitch page="games" />
           <GamesPage gameRef={route.game}
-            onOpenGame={(r) => { window.location.hash = r ? `#/games?game=${encodeURIComponent(r)}` : "#/games"; }} />
+            onOpenGame={(r) => { window.location.hash = href.game(r); }} />
         </main>
       ) : route.page === "markets" ? (
         <main id="main">
+          <ExploreSwitch page="markets" />
           <MarketsPage eventTicker={route.event}
-            onOpenEvent={(t) => { window.location.hash = t ? `#/markets?event=${encodeURIComponent(t)}` : "#/markets"; }} />
+            onOpenEvent={(t) => { window.location.hash = href.market(t); }} />
         </main>
       ) : (
       <main id="main">
-        <PageHead figure="terrain" title="Terminal" actions={<ControlBar compact />}>
-          Scanner ideas, your watchlist, signals and paper trading.
+        <PageHead figure="terrain" title="Tools" actions={<ControlBar compact />}>
+          The full scanner, your watchlist, model signals, paper trading and approval-gated
+          execution, models and evidence, setup and health.
         </PageHead>
-        <div className="subtabs" role="tablist" aria-label="Terminal sections">
+        <div className="subtabs" role="tablist" aria-label="Tools sections">
           {TERMINAL_TABS.map((t) => (
             <button key={t.id} type="button" role="tab" aria-selected={termTab === t.id}
-              onClick={() => setTermTab(t.id)}>{t.label}</button>
+              onClick={() => pickTab(t.id)}>{t.label}</button>
           ))}
         </div>
         <div className="subtab-panel" role="tabpanel" key={termTab}>
@@ -225,44 +225,14 @@ export default function App() {
         </a>
         .
       </footer>
+      </div>
     </div>
     </GlossaryProvider>
   );
 }
 
-type TermTab = "scanner" | "watchlist" | "signals" | "paper" | "models" | "system";
 const TERMINAL_TABS: { id: TermTab; label: string }[] = [
   { id: "scanner", label: "Scanner" }, { id: "watchlist", label: "Watchlist" },
   { id: "signals", label: "Signals" }, { id: "paper", label: "Paper & execution" },
   { id: "models", label: "Models & evidence" }, { id: "system", label: "Setup & health" },
 ];
-
-type Route = { page: "terminal" | "glossary" | "markets" | "history" | "games"; term: string | null;
-  event: string | null; game: string | null };
-
-function parseHash(hash: string): Route {
-  const m = /^#\/glossary(?:\?term=([a-z0-9-]{1,64}))?$/.exec(hash);
-  if (m) return { page: "glossary", term: m[1] ?? null, event: null, game: null };
-  if (hash === "#/history") return { page: "history", term: null, event: null, game: null };
-  const mg = /^#\/games(?:\?game=(KX[A-Z0-9]{2,20}-[A-Z0-9]{4,40}))?$/.exec(hash);
-  if (mg) return { page: "games", term: null, event: null, game: mg[1] ?? null };
-  const mk = /^#\/markets(?:\?event=([A-Za-z0-9._%-]{1,200}))?$/.exec(hash);
-  if (mk) {
-    let event: string | null = null;
-    try { event = mk[1] ? decodeURIComponent(mk[1]) : null; } catch { event = null; }
-    return { page: "markets", term: null, game: null,
-      event: event && /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(event) ? event : null };
-  }
-  return { page: "terminal", term: null, event: null, game: null };
-}
-
-/** Minimal hash router (no dependency): #/ = terminal, #/glossary[?term=id]. */
-function useHashRoute(): Route {
-  const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
-  useEffect(() => {
-    const onChange = () => setRoute(parseHash(window.location.hash));
-    window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
-  }, []);
-  return route;
-}

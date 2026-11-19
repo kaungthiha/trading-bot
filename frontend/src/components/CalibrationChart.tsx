@@ -1,13 +1,13 @@
 import { useState } from "react";
 
 import type { CalibrationBin } from "../api/types";
+import { CHART } from "../styles/palette";
 
-// Reliability diagram. Single series (no legend: the title names it). Colour: categorical
-// slot 1 (#2a78d6), validated against the #fcfcfb chart surface with the dataviz
-// validator (all checks pass). Muted ink #898781 for axes/reference; recessive grid.
-const SERIES = "#2a78d6";
-const MUTED = "#898781";
-const GRID = "#e6e5e1";
+// Reliability diagram. Single series (no legend: the title names it). Colours from the
+// validated chart palette (styles/palette.ts); muted ink for axes/reference; recessive grid.
+const SERIES = CHART.series;
+const MUTED = CHART.muted;
+const GRID = CHART.grid;
 const SIZE = 220;
 const PAD = { left: 40, right: 12, top: 10, bottom: 34 };
 const W = SIZE + PAD.left + PAD.right;
@@ -45,7 +45,7 @@ export function CalibrationChart({ title, bins }: Props) {
             role="img"
             aria-label={`${title}: ${pts.length} bins. Table view below.`}
           >
-            <rect x={PAD.left} y={PAD.top} width={SIZE} height={SIZE} fill="#fcfcfb" />
+            <rect x={PAD.left} y={PAD.top} width={SIZE} height={SIZE} fill={CHART.surface} />
             {[0, 0.25, 0.5, 0.75, 1].map((t) => (
               <g key={t}>
                 <line x1={x(t)} x2={x(t)} y1={y(0)} y2={y(1)} stroke={GRID} strokeWidth={1} />
@@ -73,7 +73,7 @@ export function CalibrationChart({ title, bins }: Props) {
               return (
                 <g key={b.lower}>
                   <circle cx={x(b.mean_p!)} cy={y(b.observed_rate!)} r={r} fill={SERIES}
-                    stroke="#fcfcfb" strokeWidth={2} />
+                    stroke={CHART.surface} strokeWidth={2} />
                   {/* Hit target larger than the mark. */}
                   <circle
                     cx={x(b.mean_p!)}

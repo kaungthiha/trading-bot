@@ -1,0 +1,62 @@
+/* Type system. Loaded last.
+   Fraunces (optical-size variable serif) for titles, section heads and hero numbers;
+   IBM Plex Sans for everything you read and click; IBM Plex Mono for tickers and code.
+   Numbers are always tabular so columns of prices line up. */
+
+body {
+  font-family: var(--font-ui);
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: inherit; }
+code, kbd, samp, pre, .ticker, .payload { font-family: var(--mono); }
+.ticker { font-size: 0.72rem; letter-spacing: 0; }
+
+/* --- Display ----------------------------------------------------------------------- */
+.display, .wordmark, .page-head h2, .panel > h2, .board-head h2, .event-view h3,
+.empty-title, .dialog-header h2, .onboarding-header h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variant-numeric: lining-nums;
+  letter-spacing: -0.01em;
+}
+.wordmark { font-size: 1.15rem; font-weight: 600; }
+.wordmark em { font-style: italic; font-weight: 400; color: var(--ink-2); }
+.page-head h2 { font-size: 1.85rem; font-weight: 480; line-height: 1.08; letter-spacing: -0.02em; }
+.page-head p { font-size: 0.9rem; margin-top: 0.25rem; max-width: 62ch; }
+.panel > h2, .board-head h2, .event-view h3, .dialog-header h2, .onboarding-header h2 {
+  font-size: 1.25rem; font-weight: 520; line-height: 1.2;
+}
+.empty-title { font-size: 1.1rem; font-weight: 500; }
+
+/* --- Labels ------------------------------------------------------------------------ */
+h3, h4, h5 { font-family: var(--font-ui); font-weight: 600; letter-spacing: -0.005em; }
+.kicker, .market-table th, .player-grid thead th, .tile-label, .metric-label, .big-num .label {
+  font-family: var(--font-ui);
+}
+.kicker { font-size: 0.66rem; font-weight: 500; letter-spacing: 0.13em; }
+.market-table th { font-size: 0.66rem; font-weight: 500; letter-spacing: 0.09em; }
+.subtabs button, .tabs button { font-weight: 450; letter-spacing: 0.005em; }
+.subtabs button[aria-selected="true"], .tabs button[aria-selected="true"] { font-weight: 600; }
+.badge, .strength, .verdict, .conf { letter-spacing: 0.02em; }
+.app-rail-link { font-weight: 500; letter-spacing: 0.02em; }
+
+/* --- Numbers ----------------------------------------------------------------------- */
+:root { font-variant-numeric: tabular-nums; }
+.big-num .value, .thesis-profit b, .metric-value, .tile, .pos-pnl, .stat-chip b {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.01em;
+}
+.big-num .value { font-weight: 560; }
+.tile { font-size: 1.35rem; font-weight: 480; }
+.tile .tile-label, .tile small, .tile .small { font-family: var(--font-ui); letter-spacing: 0; }
+.metric-value { font-size: 1.35rem; font-weight: 480; }
+.thesis-profit b { font-size: 1.35rem; font-weight: 560; }
+.chip-price, .leg-p, .cell, .idea-edge { font-variant-numeric: tabular-nums; }
+
+/* --- Editorial notes: disclaimers and AI summaries read as notes, not UI ---------------- */
+.disclaimer { font-family: var(--font-display); font-style: italic; font-size: 0.86rem; }
+.ai-read p:not(.stance) { font-size: 0.88rem; }

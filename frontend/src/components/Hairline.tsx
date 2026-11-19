@@ -22,6 +22,12 @@ export function Figure({ name, size = 150, play = false }: { name: FigureName; s
     } catch {
       return; // decoration only: never break the page over a drawing
     }
+    // Decorative here (aria-hidden), so it must not take keyboard focus either. Riffle makes
+    // itself a focusable group; demote it so Tab never lands on something screen readers
+    // can't see. The pointer interaction still works.
+    for (const n of [el.current, ...el.current.querySelectorAll("[tabindex]")]) {
+      if (n.hasAttribute("tabindex")) n.setAttribute("tabindex", "-1");
+    }
     return () => fig?.destroy();
   }, [name, play]);
   return <div ref={el} className="hl-figure" style={{ width: size }} aria-hidden="true" />;

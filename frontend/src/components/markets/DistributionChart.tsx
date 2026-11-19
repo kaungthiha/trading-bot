@@ -1,13 +1,14 @@
 import { useState } from "react";
 
 import type { LadderBucket } from "../../api/types";
+import { CHART } from "../../styles/palette";
 
 // Implied distribution as bars. Single series (no legend: the caption names it). Colours
-// reuse the validated chart palette from CalibrationChart (series #2a78d6 on #fcfcfb,
-// muted ink #898781, recessive grid #e6e5e1). The strike table beside it is the table view.
-const SERIES = "#2a78d6";
-const MUTED = "#898781";
-const GRID = "#e6e5e1";
+// use the validated chart palette (styles/palette.ts). The strike table beside it is the
+// table view.
+const SERIES = CHART.series;
+const MUTED = CHART.muted;
+const GRID = CHART.grid;
 const H = 150;
 const PAD = { left: 36, right: 8, top: 8, bottom: 30 };
 
@@ -37,7 +38,7 @@ export function DistributionChart({ title, buckets }: { title: string; buckets: 
         <svg width={W} height={H + PAD.top + PAD.bottom} role="img"
           aria-label={`${title}: implied probability across ${n} ranges. The strike table lists the same numbers.`}
           onMouseLeave={() => setHover(null)}>
-          <rect x={PAD.left} y={PAD.top} width={slot * n} height={H} fill="#fcfcfb" />
+          <rect x={PAD.left} y={PAD.top} width={slot * n} height={H} fill={CHART.surface} />
           {[0, top / 2, top].map((t) => (
             <g key={t}>
               <line x1={PAD.left} x2={PAD.left + slot * n} y1={y(t)} y2={y(t)} stroke={GRID} />

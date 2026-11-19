@@ -1,32 +1,8 @@
-/* Hairline theme: loaded LAST so it restyles every tab.
-   Monochrome ink on a pale plate, 1px lines, no shadows, generous space. Colour is reserved
-   for data: one blue (gain / series) and one red (loss). Matches the hairline figures. */
-:root {
-  --plate: #fafafa;
-  --surface: #ffffff;
-  --ink: #18181b;
-  --ink-2: #3f3f46;
-  --muted: #71717a;
-  --line: #e4e4e7;
-  --line-2: #d4d4d8;
-  --soft: #f4f4f5;
-  --blue: #2a78d6;
-  --blue-ink: #1d4f91;
-  --red: #e34948;
-  --red-ink: #a3201f;
-  --amber-ink: #8a5a00;
-  --radius: 10px;
-  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  color: var(--ink);
-  background: var(--plate);
-  font-feature-settings: "tnum" 1;
-}
-body {
-  background-color: var(--plate);
-  background-image: radial-gradient(var(--line) 0.8px, transparent 0.8px);
-  background-size: 22px 22px;
-}
-::selection { background: #dbe8fb; }
+/* Hairline theme: restyles every tab. Ink on paper, 1px lines, no shadows, generous space.
+   Colour is reserved for data: one blue (gain / series) and one red (loss).
+   Token values live in styles/tokens.css (Walnut Atelier); this file only uses them. */
+:root { font-feature-settings: "tnum" 1; }
+::selection { background: var(--blue-tint); }
 a { color: var(--ink); text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 a:hover { text-decoration-color: var(--ink); }
 :focus-visible { outline: 1.5px solid var(--ink) !important; outline-offset: 2px; }
@@ -43,7 +19,7 @@ code { background: var(--soft); border: 1px solid var(--line); }
 .nav { gap: 0.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 0.2rem; }
 .nav a { color: var(--ink-2); border: none; padding: 0.25rem 0.85rem; border-radius: 999px; font-size: 0.88rem; transition: background 150ms, color 150ms; }
 .nav a:hover { background: var(--soft); }
-.nav a[aria-current="page"] { background: var(--ink); color: #fff; font-weight: 500; }
+.nav a[aria-current="page"] { background: var(--ink); color: var(--on-ink); font-weight: 500; }
 .mode-banner { gap: 0.35rem; font-size: 0.75rem; color: var(--muted); }
 .mode-banner > span:not(.badge) { border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.5rem; background: var(--surface); }
 .disclaimer { font-size: 0.78rem; color: var(--muted); border-left: 1px solid var(--line-2); padding: 0.1rem 0 0.1rem 0.6rem; margin: 0 0 0.75rem; }
@@ -61,8 +37,8 @@ code { background: var(--soft); border: 1px solid var(--line); }
   background: var(--soft); border-radius: 8px; border: 1px solid var(--line);
 }
 .rules { border-left: 1px solid var(--line); }
-.warning-box { background: #fffbf0; border: 1px solid #f1e2bd; border-left: 2px solid #d9a521; border-radius: 8px; }
-.approval-card { border: 1px solid var(--red); background: #fffafa; border-radius: var(--radius); }
+.warning-box { background: var(--amber-tint); border: 1px solid var(--amber-line); border-left: 2px solid var(--amber); border-radius: 8px; }
+.approval-card { border: 1px solid var(--red); background: var(--red-tint); border-radius: var(--radius); }
 
 /* Section kicker: small uppercase label above a block */
 .kicker { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.35rem; font-weight: 600; }
@@ -70,7 +46,7 @@ code { background: var(--soft); border: 1px solid var(--line); }
 /* --- Controls ----------------------------------------------------------------------- */
 button { font: inherit; }
 .primary-button, .control-buttons button, .control-bar.compact > button, .paper-form button {
-  background: var(--ink); border: 1px solid var(--ink); color: #fff; border-radius: 8px; padding: 0.35rem 0.85rem; transition: opacity 150ms, transform 120ms;
+  background: var(--ink); border: 1px solid var(--ink); color: var(--on-ink); border-radius: 8px; padding: 0.35rem 0.85rem; transition: opacity 150ms, transform 120ms;
 }
 .primary-button:hover:not(:disabled), .control-buttons button:hover:not(:disabled) { opacity: 0.88; }
 .primary-button:active, .control-buttons button:active { transform: scale(0.97); }
@@ -80,7 +56,7 @@ button { font: inherit; }
 .ghost-button { color: var(--ink); border-color: var(--line-2); border-radius: 8px; }
 .ghost-button:hover:not(:disabled) { background: var(--soft); }
 .row-actions button { color: var(--ink); border-color: var(--line-2); border-radius: 6px; background: var(--surface); }
-.row-actions button[aria-expanded="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.row-actions button[aria-expanded="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .danger-button { border-radius: 8px; }
 .link-button { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 .link-button:hover { text-decoration-color: var(--ink); }
@@ -88,13 +64,13 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .filters label { color: var(--muted); font-size: 0.72rem; }
 .filters input, .filters select { border-color: var(--line-2); border-radius: 8px; }
 .pick-list button:hover { background: var(--soft); }
-.pick-list button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 500; }
+.pick-list button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 500; }
 
 /* --- Badges: outline pills ---------------------------------------------------------- */
 .badge { font-weight: 500; border-radius: 999px; padding: 0.05rem 0.5rem; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); }
-.badge.paper { border-color: #bcd3f1; color: var(--blue-ink); background: #f5f9fe; }
-.badge.stale { border-color: #f0c2c1; color: var(--red-ink); background: #fff7f7; }
-.badge.mock, .badge.demo { border-color: #ecd9a8; color: var(--amber-ink); background: #fffbf0; }
+.badge.paper { border-color: var(--blue-line); color: var(--blue-ink); background: var(--blue-tint); }
+.badge.stale { border-color: var(--red-line); color: var(--red-ink); background: var(--red-tint); }
+.badge.mock, .badge.demo { border-color: var(--amber-line); color: var(--amber-ink); background: var(--amber-tint); }
 .badge.candidate { border-color: var(--line-2); color: var(--ink-2); background: var(--surface); }
 
 /* --- Numbers ------------------------------------------------------------------------ */
@@ -107,7 +83,7 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .market-table { font-size: 0.86rem; }
 .market-table th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line-2); }
 .market-table td { border-bottom: 1px solid var(--line); }
-.market-table tr:hover td { background: #fcfcfc; }
+.market-table tr:hover td { background: var(--soft); }
 .market-table tr[aria-selected="true"] td { background: var(--soft); }
 
 /* --- Tooltips & dialogs ------------------------------------------------------------- */
@@ -131,8 +107,8 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .layout { gap: 0.75rem; }
 
 /* --- Hairline figure defaults (light theme) ----------------------------------------- */
-.hl-figure { --hairline-plate: #ffffff; --hairline-hi: #18181b; --hairline-edge: #52525b; --hairline-mid: #a1a1aa; --hairline-lo: #e4e4e7; --hairline-stroke: 0.9; }
-.page-head .hl-figure { --hairline-plate: #fafafa; }
+.hl-figure { --hairline-plate: var(--surface); --hairline-hi: var(--ink); --hairline-edge: var(--ink-2); --hairline-mid: #a89a87; --hairline-lo: var(--line); --hairline-stroke: 0.9; }
+.page-head .hl-figure { --hairline-plate: var(--canvas); }
 
 @keyframes fade-up { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
@@ -148,7 +124,7 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .playbook { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .playbook li::marker { color: var(--muted); font-size: 0.8rem; }
 .conf { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--line-2); border-radius: 999px; padding: 0 0.4rem; color: var(--muted); margin-left: 0.3rem; vertical-align: 1px; }
-.conf.medium { border-color: #bcd3f1; color: var(--blue-ink); }
+.conf.medium { border-color: var(--blue-line); color: var(--blue-ink); }
 .coach-body { display: flex; align-items: center; gap: 0.75rem; }
 .insights .insight { border: 1px solid var(--line); border-left: 2px solid var(--line-2); background: var(--surface); border-radius: 8px; font-size: 0.85rem; }
 .insight.good { border-left-color: var(--blue); }
@@ -174,12 +150,12 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .pos-title a:hover { text-decoration: underline; }
 .pos-pnl { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; font-weight: 600; }
 .side-chip { font-size: 0.68rem; font-weight: 600; border: 1px solid var(--ink); border-radius: 6px; padding: 0.05rem 0.35rem; margin-top: 0.1rem; }
-.side-chip.no { background: var(--ink); color: #fff; }
+.side-chip.no { background: var(--ink); color: var(--on-ink); }
 .pos-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.45rem 0 0.2rem; }
 .spark-empty { font-style: italic; }
 .flag { font-size: 0.8rem; margin: 0.3rem 0 0; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid var(--line); }
-.flag.warn { border-color: #f0c2c1; background: #fff9f9; color: var(--red-ink); }
-.flag.good { border-color: #bcd3f1; background: #f5f9fe; color: var(--blue-ink); }
+.flag.warn { border-color: var(--red-line); background: var(--red-tint); color: var(--red-ink); }
+.flag.good { border-color: var(--blue-line); background: var(--blue-tint); color: var(--blue-ink); }
 .flag.info { color: var(--ink-2); }
 .pos-more { margin-top: 0.35rem; }
 .legs { list-style: none; padding: 0; margin: 0.3rem 0 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; }
@@ -197,9 +173,10 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 /* Scanner cards */
 .thesis-card { border-left-width: 1px; }
 .thesis-card.guaranteed { border-top: 2px solid var(--blue); }
-.thesis-card.conditional { border-top: 2px solid #d9a521; }
-.thesis-card.expired { opacity: 0.6; }
-.thesis-card.expired:hover { opacity: 1; }
+.thesis-card.conditional { border-top: 2px solid var(--amber); }
+/* Expired: quieter surface and dashed edge instead of opacity, which dropped every line of
+   text below 4.5:1 (axe: 144 failures). The status is also written on the card. */
+.thesis-card.expired { background: var(--soft); border-style: dashed; border-top-style: dashed; }
 .thesis-profit { margin: 0.2rem 0; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .checklist-box { padding: 0.35rem 0.6rem; }
 .checklist-box summary { cursor: pointer; font-weight: 500; }
@@ -208,11 +185,11 @@ input, select, textarea { font: inherit; border: 1px solid var(--line-2); border
 .coach-out .kicker { margin-top: 0.6rem; }
 .coach-rules { margin: 0; padding-left: 1.2rem; font-size: 0.86rem; display: flex; flex-direction: column; gap: 0.2rem; }
 .coach-rules li { font-weight: 500; }
-.coach .reasons li::before, .coach-out .reasons li::before { content: ""; position: absolute; left: 0.1rem; top: 0.45rem; width: 5px; height: 5px; border-radius: 50%; background: #a1a1aa; }
+.coach .reasons li::before, .coach-out .reasons li::before { content: ""; position: absolute; left: 0.1rem; top: 0.45rem; width: 5px; height: 5px; border-radius: 50%; background: var(--line-2); }
 .coach-out .reasons { list-style: none; padding: 0; margin: 0.2rem 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; }
 .coach-out .reasons li { padding-left: 0.9rem; position: relative; }
-.coach-out .reasons li.warn::before { background: #e34948; }
-.coach-out .reasons li.good::before { background: #2a78d6; }
+.coach-out .reasons li.warn::before { background: var(--red); }
+.coach-out .reasons li.good::before { background: var(--blue); }
 
 /* --- AI reads and game ideas ------------------------------------------------------------ */
 .ai-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin: 0.6rem 0; animation: fade-up 220ms ease-out; }

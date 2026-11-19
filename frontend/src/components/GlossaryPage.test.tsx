@@ -59,11 +59,11 @@ describe("App navigation and jargon audit", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Glossary", level: 2 })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Primary" });
-    expect(within(nav).getByRole("link", { name: "Glossary" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getByRole("link", { name: "Learn" })).toHaveAttribute("aria-current", "page");
   });
 
   it("explains jargon at first meaningful occurrence without repeating triggers per panel", () => {
-    window.location.hash = "";
+    window.location.hash = "#/terminal"; // the Tools panels carry the jargon
     const { container } = render(<App />);
     for (const panel of container.querySelectorAll("section.panel")) {
       const counts = new Map<string, number>();
