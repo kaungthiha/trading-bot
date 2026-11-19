@@ -176,6 +176,7 @@ export const api = {
   runJob: (name: JobName) => postJson<JobsSnapshot>(`/api/jobs/${name}/run`, {}, "ops"),
   setAutoScan: (enabled: boolean) => postJson<JobsSnapshot>("/api/jobs/auto-scan", { enabled }, "ops"),
   opportunities: () => getJson<OpportunityCard[]>("/api/opportunities?limit=50"),
+  opportunity: (id: string) => getJson<OpportunityCard>(`/api/opportunities/${encodeURIComponent(id)}`),
   scannerStatus: () => getJson<ScannerStatus>("/api/scanner/status"),
   scorecard: () => getJson<Scorecard>("/api/scorecard"),
   journal: (id: string, body: { action: "EXECUTED" | "SKIPPED" | "NOTE";
@@ -227,6 +228,7 @@ export const api = {
   },
   collectionGaps: () => getJson<{ items: CollectionGap[] }>("/api/collection-gaps?limit=20"),
   signals: () => getJson<Signal[]>("/api/signals?limit=50"),
+  signal: (id: string) => getJson<Signal>(`/api/signals/${encodeURIComponent(id)}`),
   feeSchedules: () => getJson<FeeScheduleInfo[]>("/api/fee-schedules"),
   models: () => getJson<ModelCard[]>("/api/models"),
   modelMetrics: () => getJson<ModelEvaluation[]>("/api/models/metrics"),

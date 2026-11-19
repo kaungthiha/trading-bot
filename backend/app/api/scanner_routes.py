@@ -67,6 +67,15 @@ def list_opportunities(session: SessionDep, clock: ClockDep,
     return [_card(session, o, now) for o in rows]
 
 
+@router.get("/opportunities/{opportunity_id}")
+def get_opportunity(opportunity_id: IdPath, session: SessionDep, clock: ClockDep) -> dict[str, Any]:
+    """One thesis card by id (deep links from the research workspace)."""
+    o = session.get(Opportunity, opportunity_id)
+    if o is None:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Opportunity not found")
+    return _card(session, o, clock.now())
+
+
 @router.get("/scanner/status")
 def scanner_status(session: SessionDep, settings: SettingsDep) -> dict[str, Any]:
     last = session.scalar(select(AuditEvent).where(AuditEvent.action == "SCAN_COMPLETED")

@@ -313,6 +313,9 @@ def test_scanner_api(factory, ssettings: Settings) -> None:  # type: ignore[no-u
     later = create_app(ssettings, FrozenClock(NOW + timedelta(minutes=10)))
     with TestClient(later, base_url="http://127.0.0.1") as c:
         assert c.get("/api/opportunities").json()[0]["status"] == "SKIPPED"
+        one = c.get(f"/api/opportunities/{cid}").json()  # deep link from the research page
+        assert one["id"] == cid and one["status"] == "SKIPPED" and one["journal"]
+        assert c.get("/api/opportunities/missing").status_code == 404
     later.state.engine.dispose()
 
 

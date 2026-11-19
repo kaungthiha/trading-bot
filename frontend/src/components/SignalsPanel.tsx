@@ -7,6 +7,7 @@ import { MetricLabel } from "./MetricLabel";
 import { Term } from "./Term";
 import { formatPrice, formatUtc } from "./format";
 import { useDataRefresh } from "./useDataRefresh";
+import { href } from "../router";
 
 const pct = (p: number | null | undefined) => (p == null ? "—" : `${(p * 100).toFixed(1)}%`);
 
@@ -28,7 +29,7 @@ function SignalCard({ s }: { s: Signal }) {
   return (
     <article className="signal-card" aria-labelledby={`sig-${s.id}`}>
       <header>
-        <h4 id={`sig-${s.id}`}>{s.market_title}</h4>
+        <h4 id={`sig-${s.id}`}><a href={href.research("sig", s.id)} title="Open the research page">{s.market_title}</a></h4>
         <DecisionBadge s={s} />
       </header>
       <p className="ticker">

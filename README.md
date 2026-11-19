@@ -65,6 +65,15 @@ series, and the events that came closest to a mispricing.
 - **Learn** (`#/glossary`): the glossary.
 - **Tools** (`#/terminal`, `?tab=scanner|watchlist|signals|paper|models|system`): the former
   Terminal tabs, including approval-gated execution.
+- **Research pages** (shareable links; "Copy link" copies only ids, never prices or account
+  data): `#/research/opp/<id>` for a scanner idea, `#/research/sig/<id>` for a model signal,
+  `#/research/event/<event ticker>` for an event. Each opens with a **decision summary**
+  (cost, payoff, downside, model vs all-in market cost) and the risks you must check (always
+  visible), then **evidence and assumptions** (every leg with its fee, the fee schedule,
+  freshness), then **audit details** (ids, journal, signal lineage; collapsed). Stale or
+  expired items are flagged at the top. The event page gathers your open positions, scanner
+  ideas, signals and saved research for that event above its markets. Today's rows, scanner
+  cards and signal cards link here.
 
 The top bar shows mode, live execution, connection and when prices were last scanned (marked
 stale after 30 minutes). **Compact rows** tightens tables and is saved in this browser.

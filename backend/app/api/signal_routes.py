@@ -26,6 +26,7 @@ class SignalOut(BaseModel):
     market_id: str
     market_ticker: str
     market_title: str
+    market_event_ticker: str | None = None
     rules_source_url: str | None
     decision: str
     side: str | None
@@ -87,6 +88,7 @@ def _signal_out(session, s: Signal, now) -> SignalOut:  # type: ignore[no-untype
         id=s.id, created_at=s.created_at, expires_at=s.expires_at,
         validity=validity(s, rules.hash if rules else None, now),
         market_id=s.market_id, market_ticker=m.external_ticker, market_title=m.title,
+        market_event_ticker=m.event_ticker,
         rules_source_url=rules.official_source_url if rules else None,
         decision=s.decision, side=s.side, quantity=s.quantity, p_yes=s.p_yes,
         p_lower=details.get("p_lower"), p_upper=details.get("p_upper"),
@@ -110,6 +112,16 @@ def list_signals(session: SessionDep, clock: ClockDep,
         rows = [r for r in rows if not (r.market_id in seen or seen.add(r.market_id))]
     now = clock.now()
     return [_signal_out(session, s, now) for s in rows[:limit]]
+
+
+@router.get("/signals/{signal_id}", response_model=SignalOut)
+def get_signal(signal_id: Annotated[str, Path(min_length=1, max_length=36)],
+               session: SessionDep, clock: ClockDep) -> SignalOut:
+    """One signal by id (deep links from the research workspace)."""
+    s = session.get(Signal, signal_id)
+    if s is None:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Signal not found")
+    return _signal_out(session, s, clock.now())
 
 
 @router.get("/markets/{market_id}/signals", response_model=list[SignalOut])

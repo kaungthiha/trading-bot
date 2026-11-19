@@ -5,6 +5,7 @@ import type { OpportunityCard, ScannerStatus, Scorecard } from "../api/types";
 import { formatPrice, formatUtc } from "./format";
 import { EmptyState } from "./Hairline";
 import { useDataRefresh } from "./useDataRefresh";
+import { href } from "../router";
 
 function errText(e: unknown): string {
   return e instanceof ApiError ? e.message : "Request failed";
@@ -74,7 +75,7 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
     <article className={`thesis-card ${card.guaranteed ? "guaranteed" : "conditional"}${open ? "" : " expired"}`}
       aria-labelledby={`opp-${card.id}`}>
       <header>
-        <h4 id={`opp-${card.id}`}>{card.title}</h4>
+        <h3 id={`opp-${card.id}`}><a href={href.research("opp", card.id)} title="Open the research page">{card.title}</a></h3>
         <span className={`badge ${card.guaranteed ? "paper" : "stale"}`}>
           {card.guaranteed ? "GUARANTEED (if rules hold)" : "CONDITIONAL"}
         </span>

@@ -1,6 +1,5 @@
 import { api } from "../../api/client";
 import type { GameSummary, OpenPosition, OpportunityCard, Signal } from "../../api/types";
-import type { TermTab } from "../../router";
 import { href } from "../../router";
 import type { Tone } from "../design/StatusLabel";
 import { formatPrice } from "../format";
@@ -41,7 +40,6 @@ const signed = (s: string | null | undefined) => {
   return { text: `${n > 0 ? "+" : n < 0 ? "−" : ""}$${Math.abs(n).toFixed(2)}`,
     sign: n > 0 ? "pos" as const : n < 0 ? "neg" as const : null };
 };
-const toolsLink = (tab: TermTab) => href.tools(tab);
 
 // --- Your open positions: only the ones that need a look --------------------------------
 
@@ -62,8 +60,8 @@ export function positionRow(p: OpenPosition): Candidate | null {
     measure: `${cents(p.avg_cost)} → ${cents(p.mid)} · ${u.text}`, measureSign: u.sign,
     asOfLabel: "priced", asOf: null, closeLabel: "closes", closes: p.close_at,
     research: p.game ? href.game(gameRef(p.game.prefix, p.game.game_key))
-      : p.event_ticker ? href.market(p.event_ticker) : href.journal(),
-    researchLabel: p.game ? "Open game" : p.event_ticker ? "Open market" : "Open journal",
+      : p.event_ticker ? href.research("event", p.event_ticker) : href.journal(),
+    researchLabel: p.game ? "Open game" : p.event_ticker ? "Research event" : "Open journal",
   };
 }
 
@@ -90,7 +88,7 @@ export function scannerRow(c: OpportunityCard): Candidate | null {
     measureLabel: "Scanner profit after fees",
     measure: `${pr.text} · ${c.return_pct}% on ${formatPrice(c.cost)}`, measureSign: pr.sign,
     asOfLabel: "detected", asOf: c.detected_at, closeLabel: "expires", closes: c.expires_at,
-    research: toolsLink("scanner"), researchLabel: "Open in scanner",
+    research: href.research("opp", c.id), researchLabel: "Research",
   };
 }
 
@@ -117,7 +115,7 @@ export function signalRow(s: Signal): Candidate | null {
     measureLabel: "Conservative edge (model, after costs)",
     measure: edge, measureSign: e == null ? null : e > 0 ? "pos" : e < 0 ? "neg" : null,
     asOfLabel: "quote", asOf: s.quote_observed_at, closeLabel: "signal expires", closes: s.expires_at,
-    research: toolsLink("signals"), researchLabel: "Open in signals",
+    research: href.research("sig", s.id), researchLabel: "Research",
   };
 }
 

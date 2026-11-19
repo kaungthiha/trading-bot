@@ -355,6 +355,10 @@ def test_signal_api_shapes(db, settings: Settings) -> None:  # type: ignore[no-u
         assert fees[0]["verified"] is False
         mid = sig["market_id"]
         assert len(c.get(f"/api/markets/{mid}/signals").json()) == 1
+        one = c.get(f"/api/signals/{sig['id']}").json()  # deep link from the research page
+        assert one["id"] == sig["id"] and one["validity"] == "EXPIRED"
+        assert one["market_event_ticker"] == "KXCPI-24JAN"
+        assert c.get("/api/signals/nope").status_code == 404
         paths = c.get("/api/openapi.json").json()["paths"]
         writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
         assert writes == WRITE_ROUTES

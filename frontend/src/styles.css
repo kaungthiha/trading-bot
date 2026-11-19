@@ -79,7 +79,7 @@ code.reason { display: inline-block; margin: 0.1rem 0.25rem 0.1rem 0; }
 .thesis-card.guaranteed { border-left-color: var(--ok-ink); }
 .thesis-card.conditional { border-left-color: var(--amber); }
 .thesis-card header { display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
-.thesis-card h4 { margin: 0; font-size: 0.95rem; }
+.thesis-card h3, .thesis-card h4 { margin: 0; font-size: 0.95rem; }
 .checklist-box { border: 1px solid var(--line); border-radius: 4px; margin: 0.4rem 0; }
 .check-item { display: block; margin: 0.25rem 0; }
 .execute-form { background: var(--soft); padding: 0.4rem 0.6rem; border-radius: 4px; }

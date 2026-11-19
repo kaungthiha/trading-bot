@@ -237,6 +237,7 @@ export interface Signal {
   market_id: string;
   market_ticker: string;
   market_title: string;
+  market_event_ticker?: string | null;
   rules_source_url: string | null;
   decision: "CANDIDATE_YES" | "CANDIDATE_NO" | "ABSTAIN";
   side: string | null;

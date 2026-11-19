@@ -90,7 +90,7 @@ describe("<TodayPage>", () => {
     expect(within(scan).queryByText("Old idea")).not.toBeInTheDocument();
     expect(within(scan).getByText("Guaranteed if rules hold")).toBeInTheDocument();
     expect(within(scan).getByText("Scanner profit after fees")).toBeInTheDocument();
-    expect(within(scan).getByRole("link", { name: "Open in scanner" })).toHaveAttribute("href", "#/terminal?tab=scanner");
+    expect(within(scan).getByRole("link", { name: "Research" })).toHaveAttribute("href", "#/research/opp/o1");
 
     const sig = await section("Model signals");
     expect(await within(sig).findByText("+2.1¢ per contract")).toBeInTheDocument();

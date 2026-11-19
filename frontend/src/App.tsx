@@ -30,6 +30,7 @@ import { ExploreSwitch } from "./components/shell/ExploreSwitch";
 import { LeftRail } from "./components/shell/LeftRail";
 import { Topbar } from "./components/shell/Topbar";
 import { formatUtc } from "./components/format";
+import { ResearchWorkspace } from "./components/research/ResearchWorkspace";
 import { TodayPage } from "./components/today/TodayPage";
 import { useDataRefresh } from "./components/useDataRefresh";
 import { GlossaryProvider } from "./glossary/GlossaryContext";
@@ -99,7 +100,8 @@ export default function App() {
   useEffect(() => { if (route.tab) setTermTab(route.tab); }, [route.tab]);
   useEffect(() => { sessionStorage.setItem("krt.termTab", termTab); }, [termTab]);
   // The Docket follows you across the research pages (audit Phase 3).
-  const showDocket = route.page === "today" || route.page === "games" || route.page === "markets";
+  const showDocket = route.page === "today" || route.page === "games" || route.page === "markets"
+    || route.page === "research";
   const pickTab = (t: TermTab) => {
     setTermTab(t);
     // Keep the address shareable without adding a history entry per tab click.
@@ -124,8 +126,10 @@ export default function App() {
       <LeftRail section={sectionOf(route.page)} />
       <div className="work">
 
-      <ErrorBoundary resetKey={route.page}>
-      {route.page === "today" ? (
+      <ErrorBoundary resetKey={`${route.page}:${route.research?.kind ?? ""}:${route.research?.id ?? ""}`}>
+      {route.page === "research" && route.research ? (
+        <main id="main"><ResearchWorkspace kind={route.research.kind} id={route.research.id} /></main>
+      ) : route.page === "today" ? (
         <main id="main"><TodayPage /></main>
       ) : route.page === "learn" ? (
         <main id="main"><GlossaryPage focusTerm={route.term} /></main>
