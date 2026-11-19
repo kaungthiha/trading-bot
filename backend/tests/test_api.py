@@ -7,6 +7,12 @@ WRITE_ROUTES = {
     ("/api/execution/intents/{intent_id}/reconcile", "post"),  # read-only lookup
     ("/api/execution/kill-switch", "post"),  # engage only
     ("/api/opportunities/{opportunity_id}/journal", "post"),  # record YOUR manual trades
+    ("/api/jobs/{name}/run", "post"),  # UI buttons: refresh / FRED / scan
+    ("/api/jobs/auto-scan", "post"),  # UI auto-scan toggle
+    ("/api/games/review", "post"),  # optional paid AI second opinion (CSRF + daily cap)
+    ("/api/history/coach", "post"),  # local AI coach (CSRF header; Ollama on loopback)
+    ("/api/history/open/review", "post"),  # local AI read of open positions (CSRF)
+    ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
 }
 
 

@@ -105,7 +105,8 @@ def test_exclusive_no_set_guaranteed() -> None:
 
 
 def test_exclusive_yes_requires_catch_all_and_is_conditional() -> None:
-    cheap = [tob("A", "0.20", "0.22", title="Alice"), tob("B", "0.20", "0.22", title="Bob")]
+    cheap = [tob("A", "0.20", "0.22", title="Alice"), tob("B", "0.20", "0.22", title="Bob"),
+             tob("C", "0.20", "0.22", title="Cara")]
     ev = EventBook("X", "Who?", True, cheap)
     assert detect_exclusive(ev, SCHED, RULES) == []  # no catch-all -> not exhaustive -> skip
     other = tob("O", "0.20", "0.22", title="Someone else / Other")
@@ -358,3 +359,60 @@ def test_deadline_events_need_a_none_outcome_not_just_other() -> None:
     elect = [tob(n, "0.15", "0.19", title=n, rules=f"If {n} wins the election, Yes.")
              for n in ("A", "B", "Other")]
     assert detect_exclusive(EventBook("E", "Election", True, elect), SCHED, RULES)
+
+
+def test_two_outcome_events_allow_buy_both_as_conditional() -> None:
+    from app.scanner.detectors import detect_exclusive as de
+
+    game = EventBook("KXNBAGAME-26NOV18UTALAL", "Utah vs LA", True,
+                     [tob("UTA", "0.38", "0.40", title="Utah"),
+                      tob("LAL", "0.43", "0.45", title="Los Angeles L")])  # 0.85 < 1
+    (o,) = de(game, SCHED, RULES)
+    assert o.kind == "EXCL_YES" and not o.guaranteed
+    assert any("postponement" in c for c in o.checklist)
+
+
+def test_near_misses_and_coverage_explain_empty_scans() -> None:
+    from app.scanner.detectors import coverage, near_misses
+
+    game = EventBook("KXNBAGAME-26NOV18UTALAL", "Utah vs LA", True,
+                     [tob("UTA", "0.21", "0.22", title="Utah"),
+                      tob("LAL", "0.78", "0.79", title="Los Angeles L")], category="Sports")
+    cpi = EventBook("KXCPI-26NOV", "CPI", False, [rung("CPI", "100", "0.60", "0.62"),
+                                                  rung("CPI", "110", "0.40", "0.42")],
+                    category="Economics")
+    nm = near_misses([game, cpi])
+    assert nm[0].event_ticker == "KXNBAGAME-26NOV18UTALAL"  # 0.22 + 0.79 = 1.01: gap -0.01
+    assert nm[0].gap == D("-0.01") and nm[0].category == "Sports"
+    cov = coverage([game, cpi])
+    assert {c["name"]: c["markets"] for c in cov["categories"]} == {"Sports": 2, "Economics": 2}
+    assert {s["name"] for s in cov["top_series"]} == {"KXNBAGAME", "KXCPI"}
+
+
+def test_scan_records_coverage_for_the_ui(factory, ssettings: Settings) -> None:  # type: ignore[no-untyped-def]
+    run_scan(factory, ssettings, kalshi({"/events": EVENTS, **BOOKS}), FrozenClock(NOW),
+             schedules=[SCHED])
+    app = create_app(ssettings, FrozenClock(NOW))
+    with TestClient(app, base_url="http://127.0.0.1") as c:
+        last = c.get("/api/scanner/status").json()["last_scan"]
+        assert last["coverage"]["top_series"][0]["name"] == "KXTEST"
+        assert last["near_misses"] and last["near_misses"][0]["kind"] == "LADDER"
+    app.state.engine.dispose()
+
+
+def test_two_candidate_elections_are_not_exhaustive() -> None:
+    # Live false positives 2026-11-18: KXGOVNOM-VTR-28, KXADELAIDEMAYOR-27APR07, ...
+    race = EventBook("KXADELAIDEMAYOR-27APR07", "Adelaide Lord Mayor election winner?", True,
+                     [tob("A", "0.39", "0.41", title="Jane Lomax-Smith"),
+                      tob("B", "0.21", "0.23", title="Henry Davis")])
+    assert detect_exclusive(race, SCHED, RULES) == []
+    from app.scanner.detectors import near_misses
+    assert all(n.kind != "EXCL_YES" for n in near_misses([race]))
+
+
+def test_near_misses_skip_non_exhaustive_yes_sets() -> None:
+    from app.scanner.detectors import near_misses
+
+    state = EventBook("KXSTATE51-29", "51st state?", True,
+                      [tob(n, "0.01", "0.02", title=n) for n in ("Greenland", "Canada", "DC")])
+    assert [n.kind for n in near_misses([state])] == ["EXCL_NO"]  # YES set not eligible

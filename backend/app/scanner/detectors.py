@@ -55,6 +55,11 @@ class EventBook:
     title: str
     mutually_exclusive: bool
     markets: Sequence[TopOfBook]
+    category: str = "Uncategorized"
+
+    @property
+    def series(self) -> str:
+        return self.event_ticker.split("-", 1)[0]
 
 
 @dataclass(frozen=True)
@@ -163,6 +168,25 @@ DEADLINE = re.compile(r"\b(before|by)\b[^.]{0,40}\d{4}", re.IGNORECASE)
 _NUM = re.compile(r"-?\d+(?:[.,]\d+)*")
 
 
+def is_game(ev: EventBook) -> bool:
+    """Head-to-head game/match series (e.g. KXNBAGAME, KXATPMATCH): one side must win."""
+    return ev.series.endswith(("GAME", "MATCH"))
+
+
+def excl_yes_eligible(ev: EventBook, ms: Sequence[TopOfBook]) -> bool:
+    """Can 'buy YES on every listed outcome' plausibly be exhaustive?
+    - two-outcome GAMES/MATCHES: yes (postponement rules still need a human check);
+    - otherwise an explicit catch-all outcome is required, and when the rules carry a
+      deadline only a None-type outcome counts ("Other" doesn't cover "nobody in time").
+    Live lessons (2026-11-18): elections listing two candidates are NOT exhaustive; "first
+    AI to hit 1550 before Jan 1, 2027" listed "Other" but no "None"."""
+    if len(ms) == 2 and is_game(ev):
+        return True
+    has_deadline = any(m.rules and DEADLINE.search(m.rules) for m in ms)
+    pattern = NONE_OUTCOME if has_deadline else CATCH_ALL
+    return any(pattern.search(m.title) for m in ms)
+
+
 def ladder_key(m: TopOfBook) -> str | None:
     """Markets are rungs of ONE ladder only if their rules are identical apart from numbers
     (an event can hold several ladders, e.g. each team's total). No rules -> not laddered."""
@@ -236,13 +260,8 @@ def detect_exclusive(ev: EventBook, schedule: FeeSchedule,
                 out.append(opp)
     # Without an explicit catch-all outcome the list is almost never exhaustive: the "gap"
     # is just the probability of the unlisted result (e.g. "no new state"). Skip those.
-    if rules.require_catch_all:
-        has_deadline = any(m.rules and DEADLINE.search(m.rules) for m in ms)
-        # With a deadline, "Other" does not cover "nobody does it in time": need a None-type
-        # outcome. (Live case: "first AI to hit 1550 before Jan 1, 2027" listed only "Other".)
-        pattern = NONE_OUTCOME if has_deadline else CATCH_ALL
-        if not any(pattern.search(m.title) for m in ms):
-            return out
+    if rules.require_catch_all and not excl_yes_eligible(ev, ms):
+        return out
     if all(m.yes_ask is not None and m.yes_ask_size > 0 for m in ms):
         if sum((m.yes_ask for m in ms), Decimal(0)) < ONE:  # type: ignore[misc]
             legs = [LegQuote(m.ticker, m.title, "YES", m.yes_ask, m.yes_ask_size)  # type: ignore[arg-type]
@@ -253,6 +272,7 @@ def detect_exclusive(ev: EventBook, schedule: FeeSchedule,
                 "YES on every outcome pays $1 per set IF one listed outcome must win.",
                 ["CONDITIONAL: verify the list is EXHAUSTIVE. If no listed outcome could win "
                  "(an 'other' result, cancellation, or a missing candidate), every leg loses.",
+                 "For games: read what happens on postponement, cancellation, or a tie.",
                  "Check whether Kalshi could add outcomes later, or settle to an unlisted one.",
                  f"All {len(ms)} legs must be bought; stop if any leg can't fill."])
             if opp:
@@ -267,3 +287,68 @@ def scan_events(events: Sequence[EventBook], schedule: FeeSchedule,
         found.extend(detect_ladder(ev, schedule, rules))
         found.extend(detect_exclusive(ev, schedule, rules))
     return sorted(found, key=lambda o: (not o.guaranteed, -o.profit))
+
+
+# --- Coverage & near misses (for transparency; not opportunities) ---------------------------
+
+
+@dataclass(frozen=True)
+class NearMiss:
+    kind: str
+    event_ticker: str
+    title: str
+    category: str
+    raw_cost_per_set: Decimal  # before fees, at best prices
+    payoff_per_set: Decimal
+    gap: Decimal  # payoff - cost (positive = gap before fees; fees decide the rest)
+    detail: str
+
+
+def near_misses(events: Sequence[EventBook], limit: int = 15) -> list[NearMiss]:
+    """Structures closest to a mispricing, BEFORE fees, so you can see what the scanner
+    evaluated even when nothing qualifies."""
+    out: list[NearMiss] = []
+    for ev in events:
+        ms = [m for m in ev.markets if _tradable(m)]
+        groups: dict[str, list[TopOfBook]] = {}
+        for m in ms:
+            k = ladder_key(m)
+            if (k and m.floor_strike is not None
+                    and m.strike_type in ("greater", "greater_or_equal")):
+                groups.setdefault(k, []).append(m)
+        for members in groups.values():
+            rungs = sorted(members, key=lambda m: m.floor_strike)  # type: ignore[arg-type,return-value]
+            for lo, hi in zip(rungs, rungs[1:], strict=False):  # adjacent rungs only
+                if (lo.yes_ask is not None and hi.no_ask is not None
+                        and hi.floor_strike != lo.floor_strike):
+                    cost = lo.yes_ask + hi.no_ask
+                    out.append(NearMiss("LADDER", ev.event_ticker, ev.title, ev.category, cost,
+                                        ONE, ONE - cost, f"YES {lo.title} + NO {hi.title}"))
+        if ev.mutually_exclusive and len(ms) >= 2 and len(ms) == len(ev.markets):
+            n = Decimal(len(ms))
+            if all(m.no_ask is not None for m in ms):
+                cost = sum((m.no_ask for m in ms), Decimal(0))  # type: ignore[misc]
+                out.append(NearMiss("EXCL_NO", ev.event_ticker, ev.title, ev.category, cost,
+                                    n - ONE, n - ONE - cost, f"NO on all {len(ms)} outcomes"))
+            if all(m.yes_ask is not None for m in ms) and excl_yes_eligible(ev, ms):
+                cost = sum((m.yes_ask for m in ms), Decimal(0))  # type: ignore[misc]
+                out.append(NearMiss("EXCL_YES", ev.event_ticker, ev.title, ev.category, cost,
+                                    ONE, ONE - cost, f"YES on all {len(ms)} outcomes"))
+    best: dict[str, NearMiss] = {}  # one entry per event so a single event can't flood it
+    for nm in sorted(out, key=lambda x: -x.gap):
+        best.setdefault(nm.event_ticker, nm)
+    return sorted(best.values(), key=lambda x: -x.gap)[:limit]
+
+
+def coverage(events: Sequence[EventBook], top_series: int = 12) -> dict:
+    by_cat: dict[str, list[int]] = {}
+    by_series: dict[str, list[int]] = {}
+    for ev in events:
+        for bucket, key in ((by_cat, ev.category or "Uncategorized"), (by_series, ev.series)):
+            c = bucket.setdefault(key, [0, 0])
+            c[0] += 1
+            c[1] += len(ev.markets)
+    cats = sorted(by_cat.items(), key=lambda kv: -kv[1][1])
+    series = sorted(by_series.items(), key=lambda kv: -kv[1][1])[:top_series]
+    return {"categories": [{"name": k, "events": v[0], "markets": v[1]} for k, v in cats],
+            "top_series": [{"name": k, "events": v[0], "markets": v[1]} for k, v in series]}

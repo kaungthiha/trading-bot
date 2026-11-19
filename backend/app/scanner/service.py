@@ -20,11 +20,20 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.adapters.base import AdapterError
 from app.adapters.kalshi_public import KalshiPublicClient
+from app.catalog.combos import refresh_combo_eligibility
+from app.catalog.store import CatalogWriter, refresh_series
 from app.core.clock import Clock
 from app.core.config import Settings
 from app.db.models import AuditEvent, IngestionRun, JournalEntry
 from app.db.models import Opportunity as OpportunityRow
-from app.scanner.detectors import Opportunity, SizingRules, scan_events
+from app.history.positions import safe_record_marks
+from app.scanner.detectors import (
+    Opportunity,
+    SizingRules,
+    coverage,
+    near_misses,
+    scan_events,
+)
 from app.scanner.detectors_resize import resize
 from app.scanner.kalshi_scan import confirm_legs, fetch_open_events
 from app.signals.fees import FeeSchedule, load_schedules, select_schedule
@@ -98,6 +107,8 @@ class ScanResult:
     new_cards: list[str] = field(default_factory=list)
     budget_note: str | None = None
     error: str | None = None
+    coverage: dict = field(default_factory=dict)
+    near_misses: list[dict] = field(default_factory=list)
 
 
 Notifier = Callable[[str, str], None]
@@ -125,12 +136,26 @@ def run_scan(factory: sessionmaker[Session], settings: Settings, client: KalshiP
     try:
         if schedule is None or not schedule.verified:
             raise AdapterError("No verified fee schedule; refusing to size trades")
-        events, truncated = fetch_open_events(client)
+        catalog = CatalogWriter(factory, now)
+        events, truncated = fetch_open_events(client, on_page=catalog.write_page)
+        catalog.finish(complete=not truncated)
+        safe_record_marks(factory, now, "scan")  # price trail for your open positions
+        try:
+            refresh_series(factory, client, now)
+        except AdapterError as e:  # titles/fee multipliers are a nice-to-have
+            log.warning("series refresh failed: %s", e)
+        try:
+            refresh_combo_eligibility(factory, client, now)
+        except AdapterError as e:  # combo eligibility is a nice-to-have too
+            log.warning("combo eligibility refresh failed: %s", e)
         if truncated:
             errors.append({"scope": "scanner", "code": "TRUNCATED",
                            "message": "Page limit reached; some open events were not scanned"})
         result.events = len(events)
         result.markets = sum(len(e.markets) for e in events)
+        result.coverage = coverage(events)
+        result.near_misses = [{k: str(v) if isinstance(v, Decimal) else v
+                               for k, v in asdict(nm).items()} for nm in near_misses(events)]
         if budget.paused or (budget.available is not None and budget.available <= 0):
             found: list[Opportunity] = []
         else:
@@ -182,7 +207,9 @@ def run_scan(factory: sessionmaker[Session], settings: Settings, client: KalshiP
                                  "candidates": result.candidates,
                                  "confirmed": result.confirmed,
                                  "new_cards": len(result.new_cards),
-                                 "budget_note": budget.note})))
+                                 "budget_note": budget.note,
+                                 "coverage": result.coverage,
+                                 "near_misses": result.near_misses})))
             s.commit()
         result.status = "success" if not errors else "partial"
     except AdapterError as e:

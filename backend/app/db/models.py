@@ -464,3 +464,174 @@ class AuditEvent(Base):
     object_type: Mapped[str] = mapped_column(String(64))
     object_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+# --- Market catalog (milestone: browse every open Kalshi market) ---------------------------
+# A refreshable CACHE of the latest public snapshot, not a record: rows are upserted on each
+# full scan and rows not seen in a complete scan are deleted. Nothing here is append-only.
+
+
+class CatalogSeries(Base):
+    __tablename__ = "catalog_series"
+
+    ticker: Mapped[str] = mapped_column(String(128), primary_key=True)
+    title: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(64), index=True)
+    frequency: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fee_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fee_multiplier: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class CatalogEvent(Base):
+    __tablename__ = "catalog_events"
+
+    event_ticker: Mapped[str] = mapped_column(String(128), primary_key=True)
+    series_ticker: Mapped[str] = mapped_column(String(128), index=True)
+    category: Mapped[str] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(Text)
+    sub_title: Mapped[str] = mapped_column(Text, default="")
+    competition: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    mutually_exclusive: Mapped[bool] = mapped_column(Boolean)
+    market_count: Mapped[int] = mapped_column()
+    # Floats are for RANKING only (sorting by activity); prices stay exact decimals.
+    volume: Mapped[float] = mapped_column()
+    volume_24h: Mapped[float] = mapped_column(index=True)
+    open_interest: Mapped[float] = mapped_column()
+    close_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
+    occurs_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    rules_sample: Mapped[str] = mapped_column(Text, default="")
+    refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+
+
+class CatalogMarket(Base):
+    __tablename__ = "catalog_markets"
+
+    ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    event_ticker: Mapped[str] = mapped_column(String(128), index=True)
+    title: Mapped[str] = mapped_column(Text)
+    yes_sub_title: Mapped[str] = mapped_column(Text, default="")
+    no_sub_title: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32))
+    yes_bid: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    yes_ask: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    no_bid: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    no_ask: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    yes_bid_size: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    yes_ask_size: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    last_price: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    previous_price: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    volume: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    volume_24h: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    open_interest: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    close_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    strike_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    floor_strike: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    cap_strike: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    group_key: Mapped[str] = mapped_column(Text, default="")  # custom_strike (team/player)
+    refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+
+
+# --- Your Kalshi account history (read-only sync) ------------------------------------------
+# Synced from Kalshi's authenticated READ endpoints and upserted by Kalshi's own ids.
+# Personal financial data: it stays in the local database (and its backups) only.
+
+
+class AccountFill(Base):
+    __tablename__ = "account_fills"
+
+    fill_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(160), index=True)
+    order_id: Mapped[str] = mapped_column(String(64), default="")
+    side: Mapped[str] = mapped_column(String(4))  # contract traded: yes | no
+    action: Mapped[str] = mapped_column(String(4))  # buy | sell
+    is_taker: Mapped[bool] = mapped_column(Boolean)
+    count: Mapped[Decimal] = mapped_column(DecimalString())
+    price: Mapped[Decimal] = mapped_column(DecimalString())  # per contract, for `side`
+    yes_price: Mapped[Decimal] = mapped_column(DecimalString())
+    fee: Mapped[Decimal] = mapped_column(DecimalString())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    source: Mapped[str] = mapped_column(String(16))  # live | historical
+
+
+class AccountSettlement(Base):
+    __tablename__ = "account_settlements"
+
+    ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    event_ticker: Mapped[str] = mapped_column(String(128), index=True)
+    market_result: Mapped[str] = mapped_column(String(8))  # yes | no | scalar | ''
+    yes_count: Mapped[Decimal] = mapped_column(DecimalString())
+    yes_cost: Mapped[Decimal] = mapped_column(DecimalString())
+    no_count: Mapped[Decimal] = mapped_column(DecimalString())
+    no_cost: Mapped[Decimal] = mapped_column(DecimalString())
+    revenue: Mapped[Decimal] = mapped_column(DecimalString())  # dollars (API sends cents)
+    fee: Mapped[Decimal] = mapped_column(DecimalString())
+    settled_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+
+
+class AccountPosition(Base):
+    __tablename__ = "account_positions"
+
+    ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    position: Mapped[Decimal] = mapped_column(DecimalString())  # + YES, - NO
+    exposure: Mapped[Decimal] = mapped_column(DecimalString())
+    realized_pnl: Mapped[Decimal] = mapped_column(DecimalString())
+    fees_paid: Mapped[Decimal] = mapped_column(DecimalString())
+    total_traded: Mapped[Decimal] = mapped_column(DecimalString())
+    last_updated: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    source: Mapped[str] = mapped_column(String(16))  # live | historical
+
+
+class AccountSync(Base):
+    __tablename__ = "account_syncs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    status: Mapped[str] = mapped_column(String(16))
+    fills: Mapped[int] = mapped_column(default=0)
+    settlements: Mapped[int] = mapped_column(default=0)
+    positions: Mapped[int] = mapped_column(default=0)
+    balance: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    portfolio_value: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    message: Mapped[str] = mapped_column(Text, default="")
+
+
+class PositionMark(Base):
+    """An open position's market price at one moment (every account sync and every scan).
+    Kept forever locally: the trail behind 'did my entries beat the closing price?'."""
+
+    __tablename__ = "position_marks"
+
+    ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), primary_key=True, index=True)
+    side: Mapped[str] = mapped_column(String(3))
+    contracts: Mapped[Decimal] = mapped_column(DecimalString())
+    cost: Mapped[Decimal] = mapped_column(DecimalString())
+    yes_bid: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    yes_ask: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    mid: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    source: Mapped[str] = mapped_column(String(8))
+
+
+class ComboLeg(Base):
+    """One leg of a combo market you traded (from the combo's mve_selected_legs)."""
+
+    __tablename__ = "combo_legs"
+
+    combo_ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    leg_ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    event_ticker: Mapped[str] = mapped_column(String(128))
+    side: Mapped[str] = mapped_column(String(3))
+    title: Mapped[str] = mapped_column(String(300))
+    result: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class CatalogComboEvent(Base):
+    """Events Kalshi lets you combine into a combo (multivariate) market, by collection."""
+
+    __tablename__ = "catalog_combo_events"
+
+    event_ticker: Mapped[str] = mapped_column(String(128), primary_key=True)
+    collections: Mapped[str] = mapped_column(Text)  # comma-separated collection tickers
+    refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)

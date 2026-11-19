@@ -106,17 +106,32 @@ function mockFetch() {
   });
 }
 
+async function openWatchlist(user = userEvent.setup()) {
+  await user.click(await screen.findByRole("tab", { name: "Watchlist" }));
+  return user;
+}
+
 describe("<App>", () => {
   beforeEach(() => {
     calls.length = 0;
+    sessionStorage.clear();
     vi.stubGlobal("fetch", mockFetch());
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  it("opens on the scanner, with the paper-mode banner always visible", async () => {
+    render(<App />);
+    expect(await screen.findByText("PAPER MODE")).toBeInTheDocument();
+    expect(screen.getByText(/Live execution: disabled/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Scanner" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Terminal", level: 2 })).toBeInTheDocument();
+  });
 
   it("renders paper-mode banner and mock market list with stale indicator", async () => {
     render(<App />);
     expect(await screen.findByText("PAPER MODE")).toBeInTheDocument();
     expect(screen.getByText(/Live execution: disabled/)).toBeInTheDocument();
+    await openWatchlist();
     const table = await screen.findByRole("table");
     expect(within(table).getAllByText("MOCK")).toHaveLength(2);
     expect(within(table).getByText("STALE")).toBeInTheDocument();
@@ -124,8 +139,8 @@ describe("<App>", () => {
   });
 
   it("shows market detail with derived asks, empty side, and rules", async () => {
-    const user = userEvent.setup();
     render(<App />);
+    const user = await openWatchlist();
     await user.click(await screen.findByRole("button", { name: "[MOCK] CPI above 3.0%?" }));
     const article = await screen.findByRole("article");
     expect(within(article).getByText("YES ask (derived)").nextSibling).toHaveTextContent("$0.45");
@@ -137,6 +152,7 @@ describe("<App>", () => {
 
   it("shows last ingestion run and category options", async () => {
     render(<App />);
+    await openWatchlist();
     expect(await screen.findByText(/Last ingestion:/)).toHaveTextContent("success via fixture, 2 markets");
     const category = screen.getByLabelText("Category");
     await screen.findByRole("option", { name: "technology" });
@@ -148,8 +164,8 @@ describe("<App>", () => {
   });
 
   it("refetches markets with status, category and debounced search filters", async () => {
-    const user = userEvent.setup();
     render(<App />);
+    const user = await openWatchlist();
     await screen.findByRole("table");
     await user.selectOptions(screen.getByLabelText("Status"), "active");
     await waitFor(() => expect(calls).toContain("/api/markets?limit=200&status=active"));

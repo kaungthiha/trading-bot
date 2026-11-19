@@ -141,6 +141,25 @@ class Settings(BaseSettings):
     scanner_confirm_top: int = Field(default=20, ge=1, le=200)
     alerts_desktop: bool = True  # Windows toast when a new card appears (worker only)
 
+    # --- Games page: outside evidence for combo legs (read-only) ------------------------
+    # ESPN's public box scores/injuries (no key). Set false to make the app never call ESPN.
+    sports_evidence_enabled: bool = True
+    espn_min_request_interval_seconds: float = Field(default=0.3, ge=0.1)
+    # Optional headline search (https://brave.com/search/api/). Empty = off; the Games page
+    # then shows search links instead. Sent only as a request header, never logged.
+    brave_search_api_key: SecretStr | None = None
+    # AI second opinion / coach. "ollama" = a model running on THIS machine (free, private,
+    # loopback only); "openai" = paid API (needs a key). Runs only when you click a button.
+    llm_provider: str = Field(default="ollama", pattern=r"^(ollama|openai)$")
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = Field(default="gemma4:12b", pattern=r"^[A-Za-z0-9._:/-]{1,80}$")
+    ollama_num_ctx: int = Field(default=16384, ge=2048, le=131072)
+    llm_timeout_seconds: float = Field(default=240, gt=5, le=900)
+    # Optional paid alternative. Sent only in the Authorization header.
+    openai_api_key: SecretStr | None = None
+    openai_model: str = Field(default="gpt-4.1-mini", pattern=r"^[A-Za-z0-9._:-]{1,80}$")
+    llm_max_reviews_per_day: int = Field(default=40, ge=0, le=1000)
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
@@ -180,6 +199,8 @@ class Settings(BaseSettings):
         "census_api_key",
         "sec_user_agent",
         "nyt_api_key",
+        "brave_search_api_key",
+        "openai_api_key",
         mode="before",
     )
     @classmethod
@@ -258,6 +279,19 @@ class Settings(BaseSettings):
         if not ip.is_loopback:
             raise ValueError(f"api_host must be a loopback address, got {v!r}")
         return v
+
+    @field_validator("ollama_base_url")
+    @classmethod
+    def _ollama_is_local(cls, v: str) -> str:
+        # The local model must be local: never send your data to a remote "Ollama".
+        from urllib.parse import urlparse
+
+        u = urlparse(v)
+        host = (u.hostname or "").lower()
+        if u.scheme != "http" or host not in ("127.0.0.1", "localhost", "::1") \
+                or u.path not in ("", "/") or u.query or u.username:
+            raise ValueError("ollama_base_url must be http://127.0.0.1:<port> (loopback only)")
+        return v.rstrip("/")
 
     @field_validator("cors_origins")
     @classmethod

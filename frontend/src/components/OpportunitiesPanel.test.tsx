@@ -60,7 +60,7 @@ describe("<OpportunitiesPanel>", () => {
     const c = within(art);
     expect(c.getByText("GUARANTEED (if rules hold)")).toBeInTheDocument();
     expect(c.getByText("$0.4000")).toBeInTheDocument();
-    expect(c.getByText("$0.65")).toBeInTheDocument();
+    expect(art.querySelector(".thesis-profit")).toHaveTextContent("$0.65 profit");
     expect(screen.getByText(/193685 markets/)).toBeInTheDocument();
     expect(screen.getByText(/\$10\.00 guaranteed \/ \$2\.50 conditional/)).toBeInTheDocument();
     expect(screen.getByText(/Suggestions only/)).toBeInTheDocument();

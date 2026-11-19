@@ -39,7 +39,8 @@ from app.domain.models import (
 
 _TICKER = r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
 _ALLOWED_PATHS = re.compile(
-    rf"^/(?:markets(?:/{_TICKER}(?:/orderbook)?)?|events(?:/{_TICKER})?|series(?:/{_TICKER})?)$"
+    rf"^/(?:markets(?:/{_TICKER}(?:/orderbook)?)?|events(?:/{_TICKER})?|series(?:/{_TICKER})?"
+    r"|multivariate_event_collections)$"
 )
 _FORBIDDEN_HEADERS = {"authorization", "kalshi-access-key", "kalshi-access-signature",
                       "kalshi-access-timestamp", "cookie"}

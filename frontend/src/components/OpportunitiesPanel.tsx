@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api/client";
 import type { OpportunityCard, ScannerStatus, Scorecard } from "../api/types";
 import { formatPrice, formatUtc } from "./format";
+import { EmptyState } from "./Hairline";
+import { useDataRefresh } from "./useDataRefresh";
 
 function errText(e: unknown): string {
   return e instanceof ApiError ? e.message : "Request failed";
@@ -69,7 +71,7 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
   const open = card.status === "OPEN";
 
   return (
-    <article className={`thesis-card ${card.guaranteed ? "guaranteed" : "conditional"}`}
+    <article className={`thesis-card ${card.guaranteed ? "guaranteed" : "conditional"}${open ? "" : " expired"}`}
       aria-labelledby={`opp-${card.id}`}>
       <header>
         <h4 id={`opp-${card.id}`}>{card.title}</h4>
@@ -77,11 +79,12 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
           {card.guaranteed ? "GUARANTEED (if rules hold)" : "CONDITIONAL"}
         </span>
       </header>
+      <p className="thesis-profit"><b>{formatPrice(card.profit)}</b> <span className="muted small">profit · {card.return_pct}% on {formatPrice(card.cost)}</span></p>
       <p className="ticker">
         {card.kind} · {card.event_ticker} · detected {formatUtc(card.detected_at)} · status{" "}
         <strong>{card.status}</strong>
       </p>
-      <p>{card.claim}</p>
+      <p className="small">{card.claim}</p>
       <table className="market-table">
         <thead>
           <tr>
@@ -115,8 +118,8 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
         {formatPrice(card.min_payoff)} · profit <strong>{formatPrice(card.profit)}</strong> (
         {card.return_pct}%) · cap {card.budget_cap ? formatPrice(card.budget_cap) : "n/a"}
       </p>
-      <fieldset className="checklist-box small">
-        <legend>Verify before trading</legend>
+      <details className="checklist-box small">
+        <summary>Verify before trading · {checked.filter(Boolean).length}/{checked.length} checked</summary>
         {card.checklist.map((c, i) => (
           <label key={c} className="check-item">
             <input type="checkbox" checked={checked[i]} disabled={!open}
@@ -124,7 +127,7 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
             {c}
           </label>
         ))}
-      </fieldset>
+      </details>
       {open && (
         <p className="small">
           <button type="button" disabled={!allChecked} onClick={() => setExecuting(true)}>
@@ -142,6 +145,60 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
   );
 }
 
+function ScanCoverage({ scan }: { scan: NonNullable<ScannerStatus["last_scan"]> }) {
+  const cov = scan.coverage!;
+  return (
+    <details className="small coverage">
+      <summary>
+        What the last scan looked at ({scan.events.toLocaleString()} events,{" "}
+        {scan.markets.toLocaleString()} markets) and how close anything came
+      </summary>
+      <div className="coverage-grid">
+        <table className="market-table">
+          <caption>By category</caption>
+          <thead><tr><th scope="col">Category</th><th scope="col">Events</th><th scope="col">Markets</th></tr></thead>
+          <tbody>
+            {cov.categories.slice(0, 10).map((c) => (
+              <tr key={c.name}><td>{c.name}</td><td>{c.events}</td><td>{c.markets}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <table className="market-table">
+          <caption>Largest series</caption>
+          <thead><tr><th scope="col">Series</th><th scope="col">Events</th><th scope="col">Markets</th></tr></thead>
+          <tbody>
+            {cov.top_series.map((c) => (
+              <tr key={c.name}><td className="ticker">{c.name}</td><td>{c.events}</td><td>{c.markets}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {scan.near_misses && scan.near_misses.length > 0 && (
+        <table className="market-table">
+          <caption>Closest to a mispricing. Gap = payout minus cost, before fees: every leg pays its own fee (about 1¢ a contract), so a positive gap across many legs is usually still a loss</caption>
+          <thead>
+            <tr>
+              <th scope="col">Event</th><th scope="col">Structure</th>
+              <th scope="col">Cost / set</th><th scope="col">Pays</th><th scope="col">Gap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scan.near_misses.map((n) => (
+              <tr key={n.event_ticker}>
+                <td>{n.title}<div className="ticker">{n.event_ticker} · {n.category}</div></td>
+                <td className="small">{n.kind}: {n.detail}</td>
+                <td>{formatPrice(n.raw_cost_per_set)}</td>
+                <td>{formatPrice(n.payoff_per_set)}</td>
+                <td>{n.gap}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </details>
+  );
+}
+
 export function OpportunitiesPanel() {
   const [cards, setCards] = useState<OpportunityCard[] | null>(null);
   const [status, setStatus] = useState<ScannerStatus | null>(null);
@@ -153,28 +210,26 @@ export function OpportunitiesPanel() {
     api.scorecard().then(setScore, () => setScore(null));
   }, []);
   useEffect(refresh, [refresh]);
+  useDataRefresh(refresh);
 
   return (
     <div className="opportunities">
-      <p className="disclaimer">
-        Suggestions only. Each card is a mispricing the scanner found in Kalshi&apos;s public
-        order books, re-checked against live books. Verify the checklist, then trade on Kalshi
-        yourself. Real money: only what you are prepared to lose.
+      <p className="disclaimer" title="Each card is a mispricing the scanner found in Kalshi's public order books, re-checked against live books.">
+        Suggestions only: verify the checklist, then trade on Kalshi yourself, with money you can lose.
       </p>
       {status && (
-        <p className="small">
-          Budget {status.budget ? formatPrice(status.budget) : "not set"} · available{" "}
-          {status.available ? formatPrice(status.available) : "—"} · per-idea caps{" "}
-          {formatPrice(status.caps.guaranteed)} guaranteed / {formatPrice(status.caps.conditional)} conditional
-          {status.note && <span className="badge stale">{status.note}</span>}
+        <div className="stat-chips">
+          <div className="stat-chip"><span className="tile-label">Budget</span><b>{status.budget ? formatPrice(status.budget) : "not set"}</b></div>
+          <div className="stat-chip"><span className="tile-label">Available</span><b>{status.available ? formatPrice(status.available) : "—"}</b></div>
+          <div className="stat-chip" title="Largest stake per idea"><span className="tile-label">Per-idea cap</span>
+            <b className="small">{formatPrice(status.caps.guaranteed)} guaranteed / {formatPrice(status.caps.conditional)} conditional</b></div>
           {status.last_scan && (
-            <>
-              {" "}· last scan {formatUtc(status.last_scan.at)}: {status.last_scan.events} events,{" "}
-              {status.last_scan.markets} markets, {status.last_scan.candidates} candidates,{" "}
-              {status.last_scan.confirmed} confirmed
-            </>
+            <div className="stat-chip" title={`${status.last_scan.events} events, ${status.last_scan.candidates} candidates, ${status.last_scan.confirmed} confirmed`}>
+              <span className="tile-label">Last scan {formatUtc(status.last_scan.at)}</span>
+              <b className="small">{status.last_scan.markets} markets · {status.last_scan.confirmed} confirmed</b></div>
           )}
-        </p>
+          {status.note && <span className="badge stale">{status.note}</span>}
+        </div>
       )}
       {score && (score.all.executed > 0 || score.skipped > 0) && (
         <p className="small">
@@ -183,14 +238,13 @@ export function OpportunitiesPanel() {
           {score.skipped} skipped
         </p>
       )}
+      {status?.last_scan?.coverage && <ScanCoverage scan={status.last_scan} />}
       {cards === null ? (
         <p>Loading…</p>
       ) : cards.length === 0 ? (
-        <p className="muted small">
-          No ideas yet. Run <code>python -m app.cli scan</code>, or keep the worker running with
-          live Kalshi data enabled (see the README &ldquo;Opportunity scanner&rdquo;). Most scans
-          find nothing, and that is normal: genuine gaps are rare and brief.
-        </p>
+        <EmptyState figure="sieve" title="No ideas right now">
+          Most scans find nothing, and that is normal: genuine gaps are rare and brief. Press Scan now, or turn on auto-scan.
+        </EmptyState>
       ) : (
         <div className="thesis-grid">
           {cards.map((c) => (

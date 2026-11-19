@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import type { FeeScheduleInfo, Signal } from "../api/types";
@@ -6,6 +6,7 @@ import { LineageView } from "./LineageView";
 import { MetricLabel } from "./MetricLabel";
 import { Term } from "./Term";
 import { formatPrice, formatUtc } from "./format";
+import { useDataRefresh } from "./useDataRefresh";
 
 const pct = (p: number | null | undefined) => (p == null ? "—" : `${(p * 100).toFixed(1)}%`);
 
@@ -117,10 +118,12 @@ export function SignalsPanel() {
   const [fees, setFees] = useState<FeeScheduleInfo[]>([]);
   const [onlyCandidates, setOnlyCandidates] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.signals().then(setSignals, () => setSignals([]));
     api.feeSchedules().then(setFees, () => setFees([]));
   }, []);
+  useEffect(load, [load]);
+  useDataRefresh(load);
 
   if (signals === null) return <p>Loading signals…</p>;
   // Warn only when no verified schedule exists (older unverified versions are kept so past

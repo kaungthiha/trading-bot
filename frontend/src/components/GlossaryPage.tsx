@@ -8,6 +8,7 @@ import {
   type TermCategory,
   type TermId,
 } from "../glossary/terms";
+import { Figure } from "./Hairline";
 import { Term } from "./Term";
 
 export function GlossaryPage({ focusTerm }: { focusTerm?: string | null }) {
@@ -27,13 +28,13 @@ export function GlossaryPage({ focusTerm }: { focusTerm?: string | null }) {
 
   return (
     <section className="panel glossary" aria-labelledby="glossary-h">
-      <h2 id="glossary-h" ref={headingRef} tabIndex={-1}>
-        Glossary
-      </h2>
-      <p className="small muted">
-        {ALL_TERMS.length} terms. Definitions are educational, not trade recommendations. The
-        same definitions power every tooltip in the app.
-      </p>
+      <div className="page-head">
+        <Figure name="stack" size={84} />
+        <div>
+          <h2 id="glossary-h" ref={headingRef} tabIndex={-1}>Glossary</h2>
+          <p>{ALL_TERMS.length} terms behind every dotted word in the app. Educational, not advice.</p>
+        </div>
+      </div>
 
       <section aria-labelledby="examples-h" className="examples">
         <h3 id="examples-h">Try it</h3>

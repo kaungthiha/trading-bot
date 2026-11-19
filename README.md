@@ -43,6 +43,51 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 In the app, the **Getting started** checklist tells you the next command to run until setup
 is complete. Stop any server with Ctrl+C.
 
+**Everyday use:** `.\scripts\dev.ps1` (re)starts the backend and frontend in their own windows.
+Add `-Worker` to also start the worker, or use `-Stop` to stop everything. In the app, the
+buttons at the top replace the CLI:
+- **Refresh data**: Kalshi markets on the watchlist, then mapping proposals, then signals.
+- **Refresh FRED**: new CPI vintages, then a model re-evaluation. Needs `KRT_FRED_API_KEY`.
+- **Scan now**: every open Kalshi market for mispricings.
+- **Auto-scan**: scans every few minutes. It is disabled while the separate worker runs.
+
+Under the opportunity list, "What the last scan looked at" shows coverage by category and
+series, and the events that came closest to a mispricing.
+
+**Markets page (`#/markets`):** every open Kalshi event and market from the last scan, about
+21k events and 186k markets. Each scan saves this snapshot, so browsing makes no extra API
+calls. Browse by category and series, search, and open an event to see:
+- every market's bid, ask, implied probability, spread, 24h change, volume and open interest;
+- for "exactly one wins" sets: how much the prices add up to (the overround) and normalized
+  odds;
+- for ladders (totals, spreads, player props): the implied distribution, with median,
+  quartiles, and strikes priced off the smooth curve or out of order. Spread ladders for the
+  two teams are merged into one margin distribution;
+- **EV**: enter your own probability. It shows the all-in cost with the verified fee (and the
+  series' fee multiplier), the break-even chance, expected value, and a quarter-Kelly size
+  capped at 5% of your budget. It can also fetch the current orderbook and full rules from
+  Kalshi;
+- **Combo builder**: add YES or NO legs to price a parlay as if the legs were independent.
+  It warns about legs from the same game or event, where that assumption is wrong.
+
+Prices are a snapshot from the last scan, so check the live book before trading. The catalog
+is a cache: closed markets drop out on the next complete scan.
+
+**Combos on Kalshi.** Kalshi builds combo (multivariate) markets on request, and market
+makers price them privately, so there is no public combo orderbook. The app gives you:
+- **Eligibility:** each scan reads Kalshi's combo collections, and events that can be legs
+  show "combo-eligible on Kalshi". The combo builder says whether Kalshi can build your exact
+  combination.
+- **Quote check:** type the quote Kalshi gives you into the builder to see the markup over
+  the independent fair value. It flags legs from the same game, where that fair value is
+  wrong.
+- **"Do combos pay?" study (Markets page):** reads recently settled combos and compares their
+  last traded price with how often they actually hit, by leg count and by price. The combo
+  builder shows the result for your leg count. Refresh it with the button there; it takes
+  about a minute.
+
+**P&L over time (My trades):** cumulative realized P&L and P&L by day, with a table view.
+
 **Troubleshooting**
 
 | Symptom | Fix |
@@ -400,6 +445,150 @@ Manual equivalents (from `backend/`): `.venv\Scripts\python -m pytest`,
 `.venv\Scripts\python -m app.cli migrate|downgrade [rev]|seed-mock`.
 From `frontend/`: `npm test`, `npm run typecheck`, `npm run build`, `npm run check:bundle`,
 `npm run glossary:export`.
+
+## Games page: build a same-game combo and check it
+**Games** puts one game on one screen: winner, spread, totals, team totals, halves and
+quarters, and a grid of every player's props. Each cell in the grid shows where the market
+puts that stat's 50/50 point (its median line). Tap a price to add it to the **slip**, which
+is shared with the Markets page and kept across reloads.
+
+For the legs in the slip:
+- **Fair price** is the market's prices multiplied together, as if the legs were independent.
+- **Per-leg check.** NBA/WNBA legs are checked against ESPN box scores: last 5 and last 10
+  games, this season, last season, and a shrunk estimate with an 80% range. The pill says
+  whether the price fits that history ("fits history"), looks too high ("history: less
+  likely") or looks too low ("history: likelier"). Tap a leg to see its last 10 games
+  against the line.
+- **History-adjusted price.** For legs on the same team, it counts how often they all landed
+  in the same past game, compared with what independence predicts. That ratio scales the
+  fair price, which captures the correlation a plain multiplied price ignores.
+- **Quote check.** Type the price Kalshi quotes you to see the markup over fair.
+
+Limits: box scores don't know tonight's matchup, minutes or injuries. The injury strip and
+news links are there for that. Quarter and half markets have no box-score check yet.
+Headlines in the app need an optional Brave Search key (`KRT_BRAVE_SEARCH_API_KEY` in `.env`);
+without one you get search links. `KRT_SPORTS_EVIDENCE_ENABLED=false` stops all ESPN calls.
+
+**Slip check (no AI).** Enter your **stake** and Kalshi's **quote**. The slip then shows:
+- a verdict (reasonable / stretch / avoid) with short reasons;
+- a **walk-away price**: the most the combo is worth with a 10% edge left after fees;
+- what your stake buys: contracts, cost, payout, expected value, your cap and quarter-Kelly;
+- **cheaper ways**: each leg as a single, flagged as value when box scores beat the price,
+  with a **limit price** and its savings in price and fees (makers pay no fee on most sports
+  series), or "only worth it at ≤X¢"; and which leg to drop.
+
+Kalshi's combo quotes are take-it-or-leave-it, so limit orders apply to single legs only.
+
+**Ideas tab (per NBA/WNBA game).** A screen of the whole game, not a pick list:
+- **Singles:** every liquid full-game leg (10–90% priced, up to 90 of them) is checked
+  against box scores, on both YES and NO. A leg is listed only when its history estimate
+  beats Kalshi's **all-in price** (ask + taker fee) by 2+ points. Each one shows a limit
+  price and how many contracts your cap buys. **Strong** means history's whole 80% range
+  is above the price; **lean** means the edge is real but the range overlaps it. One line per
+  ladder; injured (out/doubtful) players are skipped.
+- **Role-change guard:** if the market prices 3+ of one player's props against his history,
+  all the same way, it probably knows about a lineup or minutes change that box scores
+  don't show yet. Those legs are demoted and marked.
+- **Small combos:** 2–3 legs taken only from the singles. Each combo takes at most one of
+  winner/spread, since a 6+ point win already is a win. The ratio compares history with
+  the market price, with the same same-team correlation applied to both. Each combo comes
+  with a walk-away quote.
+- **Cheaper entries:** from Kalshi's order book alone. If you already want a leg with a
+  wide spread, rest a limit order instead of paying the ask plus the fee. **Kalshi data on
+  its own can't tell you which side is likelier**, because the price is the market's
+  estimate. It can only tell you how to get in cheaper. Direction needs history.
+- **Ask the local model to pick (or pass):** it may choose at most 3 ids from the list.
+  Picks on one team count as one exposure. Stakes are clipped to your cap, with 3 caps in
+  total. Passing is allowed. It can't add bets that aren't on the list.
+
+**Local AI (Ollama): second opinion and Coach.** The app uses a model running on your own
+machine (default `gemma4:12b`). It is free and private, and the app only connects to
+loopback (`KRT_OLLAMA_BASE_URL` must be `http://127.0.0.1:<port>`).
+- **Get a second opinion (AI)** on the slip. The model gets the slip check above, the
+  box-score stats, the together-count, injuries and Brave headlines (labelled S1, S2, …). It
+  returns a verdict, a for/against read on each leg with cited sources, risks, and things to
+  check before betting.
+- **Get coaching** on My trades → Overview. The model reads your P&L, behavior, combo
+  history, rule-based playbook and open positions. It writes a summary, leaks, strengths
+  (each tied to a number), 3–5 rules for your next $50, and notes on open positions.
+- **AI read of these positions** on My trades → Open. For each open position the model gets
+  the price trail vs entry, the box-score check, injuries, combo legs and headlines. It
+  returns a stance (on track / watch / reconsider), a two-sentence read, a "reassess if…"
+  plan, and portfolio-level risks. It judges each position at today's price, not at what
+  you paid.
+
+How it's kept honest and safe:
+- The model is told to use only the facts it's given; its own memory of players and rosters
+  is stale.
+- Its reply must match a JSON schema and is validated before display. Tickers it invents are
+  dropped. Headlines are passed as untrusted data.
+- Each run is a button click, and needs the app's CSRF header so another website can't
+  trigger it. Identical requests are cached (slip 15 min, ideas
+  10 min, open read 15 min, coach 30 min).
+- Thinking mode is turned off (`think: false`). Otherwise thinking models spend their whole
+  budget on hidden reasoning and return nothing.
+- Settings: `KRT_OLLAMA_MODEL`, `KRT_OLLAMA_NUM_CTX` (default 16384),
+  `KRT_LLM_TIMEOUT_SECONDS`.
+
+Paid alternative: `KRT_LLM_PROVIDER=openai` with `KRT_OPENAI_API_KEY`. This uses a daily cap
+(`KRT_LLM_MAX_REVIEWS_PER_DAY`). The coach, the open-positions read and the ideas picks
+stay local-only, because they see your account data.
+
+Treat the output as a checklist generator, not a forecast: it can be confidently wrong.
+
+## Your trade history (My trades page, read-only)
+Syncs your own Kalshi account so you can see your P&L and how you trade. Nothing is executed.
+1. On Kalshi: Account → Profile → API Keys → create a key. Choose **read-only** if offered.
+   Save the private key file; Kalshi shows it only once.
+2. Put the file **outside this folder**, e.g. `C:\Users\you\.kalshi\krt-read.pem`.
+3. In `.env`, set `KRT_KALSHI_API_KEY_ID=<key id>` and
+   `KRT_KALSHI_PRIVATE_KEY_PATH=C:\Users\you\.kalshi\krt-read.pem`, then restart
+   (`scripts\dev.cmd`).
+4. Open **My trades** and click **Sync from Kalshi**.
+
+What it does:
+- It reads fills (live and archived), settlements, positions and your balance, and nothing
+  else. The client implements GET only, to six allow-listed endpoints, over HTTPS to Kalshi's
+  hosts. It does not follow redirects and has no order code at all. Data stays in the local
+  database (and its backups).
+- It computes realized P&L from your fills and settlement payouts, net of fees, and checks it
+  against Kalshi's own per-market realized P&L ("N of M match").
+- It shows how you trade (longshot vs favorite share, taker share, fees vs amount spent,
+  stake sizes against your budget), how your picks did vs the price you paid (with standard
+  errors), and P&L by market type and series. Open positions are marked to the last scan's
+  mid.
+- Its suggestions come from your own record and link to open markets on the Markets page.
+  Each one says why it's listed. They are not predictions.
+
+The page has four tabs:
+- **Overview:** headline numbers, the P&L chart, and your **playbook**. The playbook is a
+  short list of rules drawn from your record, such as "Keep combos to 2–3 legs: 1 win in 18
+  combos of 4+ legs". Each rule shows its evidence and how far to trust it. The **Coach**
+  (local AI) turns your record into a short plan.
+- **Open:** every open position, with:
+  - price now versus what you paid, and a price trail;
+  - time to close, and what it pays if right;
+  - for NBA/WNBA game legs, the same box-score check as the Games slip, plus injuries;
+  - flags such as "down 20 pts since entry: would you buy it at today's price?", over 10%
+    of budget, closes soon, or several positions riding on one game.
+
+  Open combos are split into their legs. Each leg shows whether it won, lost or is still
+  open, and the combo gets a live value.
+- **Behavior:**
+  - how your combos lived and died: legs per combo, wins by size, how often you lost by
+    exactly one leg, and which leg types broke them;
+  - entry quality;
+  - won vs price paid;
+  - P&L by market type and series.
+- **Ledger:** closed markets and fills.
+
+**Stored locally, kept forever:**
+- **Position marks:** each open position's price at every sync and scan (table
+  `position_marks`). Over time these give "entry vs close": did you buy cheaper than where
+  the market ended up? That says more about skill than a small sample of wins.
+- **Combo legs:** the legs of every combo you traded (table `combo_legs`), taken from
+  Kalshi's public data during sync. A finished leg is fetched once and never again. The
+  first sync after upgrading makes a few hundred public calls (about a minute).
 
 ## Secrets and API keys
 - Copy `.env.example` to `.env` and fill in keys **only when a later milestone needs them**.

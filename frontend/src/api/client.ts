@@ -1,5 +1,22 @@
 import type {
   ApiErrorBody,
+  BookSnapshot,
+  CatalogCategory,
+  CatalogEventDetail,
+  CatalogEventList,
+  CatalogSeries,
+  CatalogSort,
+  CatalogStatus,
+  ComboResult,
+  ComboStudy,
+  GameIdeas,
+  IdeasAi,
+  OpenReview,
+  ExpectedValue,
+  HistoryFill,
+  HistoryReport,
+  HistoryStatus,
+  Side,
   CollectionGap,
   CpiForecast,
   Diagnostics,
@@ -9,6 +26,8 @@ import type {
   EvidenceSource,
   FeeScheduleInfo,
   Health,
+  JobName,
+  JobsSnapshot,
   IngestionRun,
   MarketDetail,
   MarketFilters,
@@ -22,11 +41,30 @@ import type {
   PaperSettlement,
   ReplayReport,
   ScannerStatus,
+  EvidenceResult,
+  GameDetail,
+  GameInjuries,
+  GameList,
+  NewsResult,
+  OpenAnalysis,
+  ReviewResult,
+  ReviewStatus,
+  LlmStatus,
+  CoachResult,
+  SlipCheck,
   Scorecard,
   SetupStatus,
   Signal,
   SignalLineage,
 } from "./types";
+
+/** Query string from defined, non-empty values. */
+function qs(params: Record<string, string | undefined>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) u.set(k, v);
+  const s = u.toString();
+  return s ? `?${s}` : "";
+}
 
 export class ApiError extends Error {
   constructor(
@@ -90,6 +128,53 @@ function newClientOrderId(): string {
 
 export const api = {
   setupStatus: () => getJson<SetupStatus>("/api/setup-status"),
+  historyStatus: () => getJson<HistoryStatus>("/api/history/status"),
+  historyReport: () => getJson<HistoryReport>("/api/history/report"),
+  coachStatus: () => getJson<LlmStatus>("/api/history/coach/status"),
+  coach: () => postJson<CoachResult>("/api/history/coach", {}, "review"),
+  historyOpen: () => getJson<OpenAnalysis>("/api/history/open"),
+  openReview: () => postJson<OpenReview>("/api/history/open/review", {}, "review"),
+  historyFills: (limit = 100) => getJson<{ items: HistoryFill[] }>(`/api/history/fills?limit=${limit}`),
+  catalogStatus: () => getJson<CatalogStatus>("/api/catalog/status"),
+  catalogCategories: () => getJson<{ items: CatalogCategory[] }>("/api/catalog/categories"),
+  catalogSeries: (category?: string, q?: string) =>
+    getJson<{ items: CatalogSeries[] }>(`/api/catalog/series${qs({ category, q })}`),
+  catalogEvents: (p: { category?: string; series?: string; q?: string; sort?: CatalogSort; offset?: number }) =>
+    getJson<CatalogEventList>(`/api/catalog/events${qs({ ...p, offset: p.offset ? String(p.offset) : undefined, limit: "50" })}`),
+  catalogEvent: (ticker: string) =>
+    getJson<CatalogEventDetail>(`/api/catalog/events/${encodeURIComponent(ticker)}`),
+  catalogEv: (ticker: string, p: { side: Side; prob: string; contracts: number; price?: string }) =>
+    getJson<ExpectedValue>(`/api/catalog/markets/${encodeURIComponent(ticker)}/ev${qs({
+      side: p.side, prob: p.prob, contracts: String(p.contracts), price: p.price || undefined })}`),
+  catalogCombo: (legs: { ticker: string; side: Side }[]) =>
+    getJson<ComboResult>(`/api/catalog/combo${qs({ legs: legs.map((l) => `${l.ticker}:${l.side}`).join(",") })}`),
+  catalogComboStudy: () => getJson<{ study: ComboStudy | null }>("/api/catalog/combo-study"),
+  games: (league?: string) => getJson<GameList>(`/api/games${qs({ league })}`),
+  game: (prefix: string, key: string, protectedProps = false) =>
+    getJson<GameDetail>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}${qs({
+      protected: protectedProps ? "true" : undefined })}`),
+  gameInjuries: (prefix: string, key: string) =>
+    getJson<GameInjuries>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/injuries`),
+  legEvidence: (legs: { ticker: string; side: Side }[]) =>
+    getJson<EvidenceResult>(`/api/games/evidence${qs({ legs: legs.map((l) => `${l.ticker}:${l.side}`).join(",") })}`),
+  slipCheck: (legs: { ticker: string; side: Side }[], stake?: number, quote?: number) =>
+    getJson<SlipCheck>(`/api/games/check${qs({ legs: legs.map((l) => `${l.ticker}:${l.side}`).join(","),
+      stake: stake ? stake.toFixed(2) : undefined, quote: quote ? quote.toFixed(2) : undefined })}`),
+  news: (q: string) => getJson<NewsResult>(`/api/games/news${qs({ q })}`),
+  ideas: (prefix: string, key: string) =>
+    getJson<GameIdeas>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/ideas`),
+  ideasAi: (prefix: string, key: string) =>
+    postJson<IdeasAi>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/ideas/ai`, {}, "review"),
+  reviewStatus: () => getJson<ReviewStatus>("/api/games/review/status"),
+  review: (legs: { ticker: string; side: Side }[], quoteCents?: number) =>
+    postJson<ReviewResult>("/api/games/review", {
+      legs: legs.map((l) => ({ ticker: l.ticker, side: l.side })),
+      quote_cents: quoteCents ?? null }, "review"),
+  catalogBook: (ticker: string) =>
+    getJson<BookSnapshot>(`/api/catalog/markets/${encodeURIComponent(ticker)}/book`),
+  jobs: () => getJson<JobsSnapshot>("/api/jobs"),
+  runJob: (name: JobName) => postJson<JobsSnapshot>(`/api/jobs/${name}/run`, {}, "ops"),
+  setAutoScan: (enabled: boolean) => postJson<JobsSnapshot>("/api/jobs/auto-scan", { enabled }, "ops"),
   opportunities: () => getJson<OpportunityCard[]>("/api/opportunities?limit=50"),
   scannerStatus: () => getJson<ScannerStatus>("/api/scanner/status"),
   scorecard: () => getJson<Scorecard>("/api/scorecard"),

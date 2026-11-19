@@ -505,8 +505,12 @@ export interface OpportunityCard {
 
 export interface ScannerStatus {
   interval_seconds: number;
-  last_scan: { at: string; events: number; markets: number; candidates: number;
-               confirmed: number; new_cards: number } | null;
+  last_scan: {
+    at: string; events: number; markets: number; candidates: number; confirmed: number;
+    new_cards: number;
+    coverage?: { categories: CoverageRow[]; top_series: CoverageRow[] };
+    near_misses?: NearMiss[];
+  } | null;
   budget: DecimalString | null;
   available: DecimalString | null;
   caps: { guaranteed: DecimalString; conditional: DecimalString };
@@ -529,6 +533,360 @@ export interface Scorecard {
   skipped: number;
 }
 
+export interface CoverageRow { name: string; events: number; markets: number }
+
+export interface NearMiss {
+  kind: string;
+  event_ticker: string;
+  title: string;
+  category: string;
+  raw_cost_per_set: DecimalString;
+  payoff_per_set: DecimalString;
+  gap: DecimalString;
+  detail: string;
+}
+
+export type JobName = "refresh" | "evidence" | "scan" | "history" | "combos";
+
+export interface JobState {
+  name: JobName;
+  running: boolean;
+  last_started: string | null;
+  last_finished: string | null;
+  last_status: "success" | "partial" | "failed" | null;
+  last_message: string | null;
+}
+
+export interface JobsSnapshot {
+  jobs: Record<JobName, JobState>;
+  auto_scan: { enabled: boolean; interval_seconds: number; next_run_at: string | null };
+  worker_running: boolean;
+  watchlist: string[];
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
+}
+
+// --- Market catalog (Markets page) ---------------------------------------------------------
+
+export interface CatalogStatus { refreshed_at: string | null; events: number; markets: number; series: number }
+export interface CatalogCategory { name: string; events: number; markets: number; volume_24h: number }
+export interface CatalogSeries { ticker: string; title: string; events: number; markets: number; volume_24h: number }
+
+export interface CatalogEvent {
+  event_ticker: string;
+  series_ticker: string;
+  category: string;
+  title: string;
+  sub_title: string;
+  competition: string | null;
+  mutually_exclusive: boolean;
+  market_count: number;
+  volume_24h: number;
+  open_interest: number;
+  close_at: string | null;
+  occurs_at: string | null;
+  refreshed_at: string;
+}
+
+export interface CatalogEventList { items: CatalogEvent[]; total: number; limit: number; offset: number }
+export type CatalogSort = "volume_24h" | "open_interest" | "volume" | "closing";
+
+export interface CatalogMarket {
+  ticker: string;
+  title: string;
+  yes_sub_title: string;
+  no_sub_title: string;
+  status: string;
+  yes_bid: DecimalString | null;
+  yes_ask: DecimalString | null;
+  no_bid: DecimalString | null;
+  no_ask: DecimalString | null;
+  yes_bid_size: DecimalString | null;
+  yes_ask_size: DecimalString | null;
+  last_price: DecimalString | null;
+  change_24h: DecimalString | null;
+  volume_24h: DecimalString | null;
+  open_interest: DecimalString | null;
+  implied: number | null;
+  implied_quality: "mid" | "tail" | "none";
+  spread: number | null;
+  floor_strike: DecimalString | null;
+  strike_type: string | null;
+  close_at: string | null;
+}
+
+export interface LadderBucket { label: string; lo: number | null; hi: number | null; p: number }
+export interface LadderPoint {
+  ticker: string; strike: number; label: string; implied: number; fitted: number;
+  residual: number; quality: string; spread: number | null; off_curve: boolean;
+}
+export interface LadderStats {
+  label: string; strikes: number;
+  median: number | null; p10: number | null; p25: number | null; p75: number | null; p90: number | null;
+  mean: number; sd: number; tail_mass: number; mean_reliable: boolean;
+  monotonicity_violations: number; buckets: LadderBucket[]; points: LadderPoint[];
+}
+export interface ExclusiveStats {
+  outcomes: number; priced: number; sum_yes_ask: DecimalString | null; sum_yes_bid: DecimalString;
+  sum_implied: number; overround: number | null; normalized: Record<string, number>;
+}
+
+export interface CatalogEventDetail extends CatalogEvent {
+  series_title: string;
+  combo_collections: string[];
+  game?: { prefix: string; game_key: string } | null;
+  rules_sample: string;
+  fee: { schedule: string | null; multiplier: string; fee_type: string | null };
+  markets: CatalogMarket[];
+  stats: { exclusive: ExclusiveStats | null; ladders: LadderStats[] };
+}
+
+export type Side = "yes" | "no";
+
+export interface ExpectedValue {
+  ticker: string; side: Side; price: DecimalString; price_source: string; snapshot_at: string;
+  contracts: number; probability: DecimalString; notional: DecimalString; fee: DecimalString;
+  total_cost: DecimalString; max_payout: DecimalString; expected_payout: DecimalString;
+  expected_value: DecimalString; ev_per_dollar: DecimalString | null;
+  breakeven_probability: DecimalString; kelly_fraction: DecimalString;
+  depth_at_price: DecimalString | null; depth_warning: boolean; fee_schedule_version: string;
+  budget?: DecimalString; quarter_kelly_stake?: DecimalString; cap_stake?: DecimalString;
+  suggested_contracts?: number;
+}
+
+export interface ComboLeg { ticker: string; side: Side; label: string; event: string }
+export interface ComboResult {
+  legs: { ticker: string; label: string; side: Side; event: string; probability: number | null; quality: string }[];
+  independent_probability: number | null; fair_price: number | null; fair_multiple: number | null;
+  warnings: string[];
+  kalshi?: { eligible: boolean; collections: string[]; ineligible_events: string[];
+             history: (ComboStudyBucket & { bucket: string }) | null };
+}
+
+export interface ComboStudyBucket {
+  n: number; avg_price: number; hit_rate: number; edge: number; se: number; return_per_dollar: number | null;
+}
+export interface ComboStudy {
+  overall: ComboStudyBucket | null;
+  by_legs: (ComboStudyBucket & { bucket: string })[];
+  by_price: (ComboStudyBucket & { bucket: string })[];
+  markets_scanned: number;
+  generated_at: string;
+}
+
+export interface BookSnapshot {
+  market: Record<string, string | null>;
+  yes_bids: { price: DecimalString; quantity: DecimalString }[];
+  no_bids: { price: DecimalString; quantity: DecimalString }[];
+}
+
+// --- My trades (account history) ----------------------------------------------------------
+
+export interface HistoryStatus { configured: boolean; kalshi_env: string }
+export interface WinStat { n: number; won: number; win_rate: number; avg_price: number; edge: number; se: number | null; small_sample: boolean }
+export interface HistoryMark { side: Side; contracts: string; mid: string | null; value: DecimalString | null; cost: DecimalString; unrealized: DecimalString | null }
+export interface HistoryMarket {
+  ticker: string; series: string; series_title: string; category: string; type: string;
+  fills: number; staked: DecimalString; fees: DecimalString; sides: Side[]; result: string | null;
+  status: "settled" | "closed" | "open"; pnl: DecimalString | null; kalshi_realized: DecimalString | null;
+  position: string | null; mark: HistoryMark | null; first_trade_at: string | null;
+}
+export interface HistoryGroup { name: string; series: string; markets: number; staked: DecimalString; pnl: DecimalString; roi: number | null }
+export interface HistoryReport {
+  last_sync: { at: string; status: string; message: string } | null;
+  summary: {
+    balance: DecimalString | null; portfolio_value: DecimalString | null; realized_pnl: DecimalString;
+    unrealized_pnl: DecimalString; fees: DecimalString; staked_closed: DecimalString; roi: number | null;
+    settled_markets: number; open_markets: number; win_rate: WinStat | null; budget: DecimalString | null;
+  };
+  reconciliation: { checked: number; net: number; gross: number };
+  timeline: { date: string; pnl: DecimalString; cumulative: DecimalString; markets: number; wins: number;
+              by_type: Record<string, DecimalString> }[];
+  behavior: {
+    fills: number; markets: number; active_days: number; avg_entry_price: DecimalString | null;
+    longshot_share: number | null; favorite_share: number | null; taker_share: number | null;
+    fee_share_of_notional: number | null; median_stake: number | null; max_stake: number | null;
+    max_stake_share_of_budget: number | null; combo_markets: number;
+    median_hours_before_settlement: Record<string, number>;
+  };
+  calibration: (WinStat & { range: string })[];
+  by_type: HistoryGroup[];
+  by_series: HistoryGroup[];
+  open_positions: HistoryMarket[];
+  markets: HistoryMarket[];
+  insights: { level: "good" | "warn" | "info"; text: string }[];
+  suggestions: { kind: string; title: string; why: string; events: { event_ticker: string; title: string; sub_title: string }[] }[];
+  entry_quality?: EntryQuality;
+  combo_breakdown?: ComboBreakdown | null;
+  playbook?: PlaybookRule[];
+}
+export interface EntryQuality {
+  clv: { n: number; avg_pts: number | null; beat_share: number | null };
+  early_exits: { n: number; in_profit: number };
+  held_to_settlement: { n: number; lost: number };
+}
+export interface ComboBreakdown {
+  combos: number; with_legs: number; avg_legs?: number;
+  by_size?: { legs: string; n: number; won: number }[];
+  lost?: number; lost_by_one?: number; breakers?: { type: string; legs: number }[];
+}
+export interface PlaybookRule { rule: string; why: string; confidence: "standard" | "medium" | "low" }
+export interface ComboLegState { ticker: string; title: string; side: Side; type: string;
+  status: "won" | "lost" | "open"; probability: number | null }
+export interface OpenPosition {
+  ticker: string; title: string; event_ticker: string | null; event_title: string | null; type: string;
+  side: Side; contracts: string; avg_cost: string | null; cost: string; mid: string | null;
+  value: string | null; unrealized: string | null; move_pts: number | null; max_payout: string;
+  close_at: string | null; hours_to_close: number | null;
+  game: { prefix: string; game_key: string } | null;
+  evidence: LegEvidence | null; evidence_note: string | null;
+  trail: { at: string; mid: number | null }[];
+  combo: { legs: ComboLegState[]; fair: number | null; won: number; lost: number; open: number } | null;
+  flags: { level: "good" | "warn" | "info"; text: string }[];
+}
+export interface OpenAnalysis {
+  positions: OpenPosition[];
+  portfolio: { count: number; cost: string; value: string; unrealized: string; max_payout: string;
+    budget_share: number | null; games: { game_key: string; title: string | null; tickers: string[]; cost: string; share: number | null }[] };
+  correlation: LegCorrelation[]; evidence_enabled: boolean; evidence_error: string | null; as_of: string;
+}
+export interface HistoryFill {
+  fill_id: string; ticker: string; side: Side; action: "buy" | "sell"; count: string; price: DecimalString;
+  fee: DecimalString; is_taker: boolean; created_at: string; type: string;
+}
+
+// --- Games page (one game per screen + evidence for combo legs) ---------------------------
+
+export interface GameTeam { code: string; name: string; win: number | null }
+export interface GameSummary {
+  game_key: string; league: string; prefix: string; title: string; sub_title: string;
+  occurs_at: string | null; close_at: string | null; teams: GameTeam[];
+  events: number; markets: number; volume_24h: number;
+}
+export interface GameList { items: GameSummary[]; leagues: { league: string; games: number }[] }
+export interface GameChip {
+  ticker: string; event_ticker: string; label: string; title: string; team: string | null;
+  implied: number | null; quality: string; yes_bid: number | null; yes_ask: number | null;
+  no_ask: number | null; spread: number | null; volume_24h: number; strike: number | null;
+}
+export interface GameGroup {
+  id: string; label: string; kind: "pick" | "ladder"; event_ticker: string; eligible: boolean;
+  series_title: string; median_label: string | null; markets: GameChip[];
+}
+export interface PlayerStatGroup {
+  event_ticker: string; eligible: boolean; series_title: string; label: string;
+  median: number | null; markets: GameChip[];
+}
+export interface GamePlayer { id: string; name: string; team: string | null; volume_24h: number;
+  stats: Record<string, PlayerStatGroup> }
+export interface GameDetail {
+  game_key: string; prefix: string; league: string; title: string; sub_title: string;
+  occurs_at: string | null; close_at: string | null; refreshed_at: string | null; teams: GameTeam[];
+  sections: { id: string; label: string; groups: GameGroup[] }[];
+  players: GamePlayer[]; stats: string[]; stat_labels: Record<string, string>;
+  protected_available: boolean; protected: boolean; evidence_supported: boolean;
+}
+export type Verdict = "agrees" | "market_higher" | "market_lower" | "thin" | "no_price";
+export interface LegEvidence {
+  ticker: string; side: Side; label: string; supported: boolean; reason?: string;
+  subject?: { type: "player" | "team"; name: string; team: string | null; espn_url: string | null };
+  kind?: string; line?: number | null; stat?: string | null;
+  injury?: { player: string; status: string; detail: string; date: string } | null;
+  windows?: { last5: [number, number]; last10: [number, number]; season: [number, number];
+              last_season: [number, number] };
+  estimate?: number; interval?: [number, number]; market?: number | null; verdict?: Verdict;
+  season_avg?: number | null;
+  recent?: { date: string; opponent: string; home: boolean; value: number | null; hit: boolean | null }[];
+}
+export interface LegCorrelation {
+  game_key: string; team: string; legs: string[]; games: number; together: number;
+  expected: number | null; lift: number | null;
+}
+export interface EvidenceResult {
+  legs: LegEvidence[]; correlation: LegCorrelation[];
+  independent_probability: number | null; adjusted_probability: number | null;
+}
+export interface GameInjuries {
+  supported: boolean;
+  teams: { code: string; name: string; items: { player: string; status: string; detail: string; date: string }[] }[];
+}
+export interface NewsResult {
+  configured: boolean;
+  items: { title: string; url: string; source: string; age: string; description: string }[];
+}
+
+export interface LlmStatus {
+  configured: boolean; provider: string; model: string; local: boolean; reachable: boolean | null;
+  installed?: string[];
+}
+export interface ReviewStatus extends LlmStatus { used_today: number; daily_cap: number | null; headlines: boolean }
+export interface CoachResult {
+  summary: string; strengths: string[]; leaks: string[]; rules_for_next_50: string[];
+  open_positions: { ticker: string; note: string }[]; questions: string[];
+  model: string; seconds?: number; generated_at: string; cached: boolean;
+}
+export interface Headline { id: string; title: string; source: string; age: string; url: string }
+export interface OpenReview {
+  summary: string;
+  positions: { ticker: string; stance: "on_track" | "watch" | "reconsider"; read: string; plan: string; sources: string[] }[];
+  portfolio: string[]; check: string[]; sources: Headline[];
+  model: string; seconds?: number; generated_at: string; cached: boolean;
+}
+
+export interface IdeaLimit { price: string; saves_per_100: string | null; maker_fee_per_100: string | null; behind_bid: boolean }
+export interface IdeaSingle {
+  id: string; ticker: string; side: Side; bet: string; ask: string | null; bid: string | null;
+  all_in?: string; history: string | null; mid: string | null; edge_pts?: number; interval: [number, number];
+  limit?: IdeaLimit; strength: "strong" | "lean"; event_ticker: string; eligible: boolean;
+  subject: string | null; windows: Record<"last5" | "last10" | "season" | "last_season", [number, number]> | null;
+  season_avg: number | null; line: number | null; injury: { status: string; detail: string } | null;
+  contracts_at_cap: number; caution: string | null; kind: string | null; family: string;
+}
+export interface IdeaCombo {
+  id: string; legs: string[]; tickers: string[]; bets: string[]; sides: Side[];
+  fair: number; history: number; lift: number | null; walk_away: string | null; ratio: number | null;
+  past: (ComboStudyBucket & { bucket: string }) | null;
+}
+export interface IdeaEntry {
+  ticker: string; side: Side; bet: string; ask: string; bid: string; limit: string;
+  saves_per_100: string | null; maker_fee_per_100: string | null; mid: string;
+}
+export interface GameIdeas {
+  game: { prefix: string; game_key: string; title: string; occurs_at: string | null };
+  singles: IdeaSingle[]; combos: IdeaCombo[]; entries: IdeaEntry[];
+  screened: number; skipped: { thin: number; injured: number; no_history: number; priced_right: number };
+  evidence_enabled: boolean; evidence_error: string | null;
+  cap: string; open_cost: string; budget: string | null; fees_verified: boolean; generated_at: string;
+}
+export interface IdeasAi {
+  summary: string;
+  picks: { id: string; how: "limit" | "take_ask" | "quote_at_or_below"; stake: number; why: string[]; risks: string[]; sources: string[] }[];
+  skip: { id: string; why: string }[]; sources: Headline[];
+  model: string | null; seconds?: number; generated_at: string; cached: boolean;
+}
+
+export interface ReviewResult {
+  summary: string; overall: "reasonable" | "stretch" | "avoid";
+  legs: { ticker: string; lean: "supports" | "against" | "unclear"; points: string[]; sources: string[] }[];
+  risks: string[]; check_before_betting: string[];
+  sources: { id: string; title: string; source: string; age: string; url: string }[];
+  model: string; generated_at: string; cached: boolean; seconds?: number;
+}
+
+export interface SlipCheck {
+  verdict: "reasonable" | "stretch" | "avoid" | "single";
+  reasons: { level: "good" | "warn" | "info"; text: string }[];
+  combo: { legs: number; fair: number | null; estimate: number | null; walk_away: string | null;
+           history: (ComboStudyBucket & { bucket: string }) | null };
+  sizing: { cap: string | null; budget: string | null; open_cost: string | null; cash: string | null;
+            stake: string | null; kelly_quarter?: string | null; contracts?: string; cost?: string;
+            pays?: string; expected?: string };
+  singles: { ticker: string; side: Side; label: string; ask: string | null; bid: string | null;
+             history: string | null; mid: string | null; all_in?: string; edge_pts?: number; value?: boolean;
+             limit?: { price: string; saves_per_100: string | null; maker_fee_per_100: string | null; behind_bid: boolean } }[];
+  trim: { drop: string; label: string; fair_after: number; legs_after: number;
+          history_after: (ComboStudyBucket & { bucket: string }) | null } | null;
+  fees_verified: boolean; evidence_used: boolean;
 }

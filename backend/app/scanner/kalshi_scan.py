@@ -4,7 +4,7 @@ are then re-confirmed against each leg's full orderbook before being shown."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -43,13 +43,16 @@ def parse_event(e: dict[str, Any]) -> EventBook:
             rules=m.get("rules_primary"),
         ))
     return EventBook(str(e.get("event_ticker")), str(e.get("title") or e.get("event_ticker")),
-                     bool(e.get("mutually_exclusive")), markets)
+                     bool(e.get("mutually_exclusive")), markets,
+                     category=str(e.get("category") or "Uncategorized"))
 
 
-def fetch_open_events(client: KalshiPublicClient,
-                      max_pages: int = 300) -> tuple[list[EventBook], bool]:
+def fetch_open_events(client: KalshiPublicClient, max_pages: int = 300,
+                      on_page: Callable[[list[dict[str, Any]]], None] | None = None
+                      ) -> tuple[list[EventBook], bool]:
     """All open events. Returns (events, truncated) -- truncated means the page limit was
-    hit with more results remaining, which the caller must report, not hide."""
+    hit with more results remaining, which the caller must report, not hide. `on_page`
+    receives each raw page (the market catalog is written from it)."""
     events: list[EventBook] = []
     cursor = None
     for _ in range(max_pages):
@@ -60,6 +63,8 @@ def fetch_open_events(client: KalshiPublicClient,
         page = body.get("events")
         if not isinstance(page, list):
             raise AdapterError("Missing 'events' array")
+        if on_page is not None:
+            on_page(page)
         events.extend(parse_event(e) for e in page if isinstance(e, dict))
         cursor = body.get("cursor") or None
         if not cursor:

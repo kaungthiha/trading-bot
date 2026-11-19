@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
+from app.api.catalog_routes import router as catalog_router
 from app.api.errors import install_error_handlers
 from app.api.evidence_routes import router as evidence_router
 from app.api.execution_routes import router as execution_router
+from app.api.games_routes import router as games_router
+from app.api.history_routes import router as history_router
+from app.api.jobs_routes import router as jobs_router
 from app.api.ops_routes import router as ops_router
 from app.api.paper_routes import router as paper_router
 from app.api.research_routes import router as research_router
@@ -21,11 +27,22 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import OriginGuardMiddleware, SecurityHeadersMiddleware
 from app.db.session import make_engine, make_session_factory
+from app.jobs import JobRunner
 
 
-def create_app(settings: Settings | None = None, clock: Clock | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, clock: Clock | None = None,
+               jobs: JobRunner | None = None) -> FastAPI:
     settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
+        yield
+        app.state.jobs.shutdown()
+        if getattr(app.state, "espn", None) is not None:
+            app.state.espn.close()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Kalshi Research Terminal (local)",
         version=__version__,
         # Interactive docs are handy locally but unnecessary attack surface elsewhere.
@@ -42,6 +59,8 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     from app.execution.gateway import MockExchange
 
     app.state.mock_exchange = MockExchange()
+    # Background jobs behind the UI buttons (refresh / FRED / scan / auto-scan).
+    app.state.jobs = jobs or JobRunner(settings, app.state.session_factory, app.state.clock)
 
     # Middleware runs outermost-last-added. Order: host check -> origin guard -> CORS.
     app.add_middleware(SecurityHeadersMiddleware)
@@ -64,6 +83,10 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(ops_router)
     app.include_router(execution_router)
     app.include_router(scanner_router)
+    app.include_router(jobs_router)
+    app.include_router(catalog_router)
+    app.include_router(history_router)
+    app.include_router(games_router)
     return app
 
 
