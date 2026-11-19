@@ -176,6 +176,22 @@ def build_jobs(settings: Settings, factory: sessionmaker[Session], clock: Clock)
                 run=kalshi,
             )
         )
+    if settings.market_data_source is MarketDataSource.KALSHI_PUBLIC:
+        from app.adapters.kalshi_public import KalshiPublicClient
+        from app.scanner.alerts import desktop_notify
+        from app.scanner.service import run_scan
+
+        def scanner() -> IngestionSummary:
+            with KalshiPublicClient.from_settings(settings) as client:
+                r = run_scan(factory, settings, client, clock,
+                             notifier=desktop_notify if settings.alerts_desktop else None)
+            return IngestionSummary(r.run_id, "scanner", r.status, len(r.new_cards), [])
+
+        jobs.append(Job(
+            name="scanner", interval=timedelta(seconds=settings.scanner_interval_seconds),
+            backfillable=False,
+            gap_reason="Scans did not run; short-lived mispricings in that window were missed.",
+            run=scanner))
     if settings.evidence_sources and settings.fred_api_key is None:
         log.warning("Evidence sources configured but KRT_FRED_API_KEY is not set; skipping")
     else:

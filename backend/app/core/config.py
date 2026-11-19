@@ -126,6 +126,21 @@ class Settings(BaseSettings):
     kalshi_demo_api_key_id: SecretStr | None = None
     kalshi_demo_private_key_path: Path | None = None
 
+    # --- Inefficiency scanner & experiment budget ---------------------------------------
+    # Your real-money experiment budget (you execute trades yourself). None = not set:
+    # thesis cards then show "budget not set" and are capped at scanner_unset_budget_cap.
+    experiment_budget_dollars: Decimal | None = Field(default=None, gt=0)
+    scanner_guaranteed_fraction: Decimal = Field(default=Decimal("0.20"), gt=0, le=1)
+    scanner_conditional_fraction: Decimal = Field(default=Decimal("0.05"), gt=0, le=1)
+    scanner_unset_budget_cap: Decimal = Field(default=Decimal("5"), gt=0)
+    scanner_min_profit_dollars: Decimal = Field(default=Decimal("0.10"), ge=0)
+    scanner_min_return: Decimal = Field(default=Decimal("0.02"), ge=0)
+    scanner_max_legs: int = Field(default=8, ge=2, le=40)
+    scanner_interval_seconds: int = Field(default=300, ge=60)
+    scanner_card_ttl_seconds: int = Field(default=180, ge=30)
+    scanner_confirm_top: int = Field(default=20, ge=1, le=200)
+    alerts_desktop: bool = True  # Windows toast when a new card appears (worker only)
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
@@ -158,6 +173,7 @@ class Settings(BaseSettings):
         "kalshi_demo_api_key_id",
         "kalshi_demo_private_key_path",
         "execution_approval_pin_hash",
+        "experiment_budget_dollars",
         "fred_api_key",
         "bls_api_key",
         "bea_api_key",

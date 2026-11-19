@@ -115,6 +115,9 @@ def main(argv: list[str] | None = None) -> int:
     ks.add_argument("--yes", action="store_true", help="Required to release")
     er = sub.add_parser("execution-reconcile", help="Read-only lookup for an UNKNOWN intent")
     er.add_argument("intent_id")
+    sub.add_parser("scan", help="Scan all open Kalshi events for mispricings (public data)")
+    sub.add_parser("journal-settle", help="Settle journaled trades on finalized Kalshi results")
+    sub.add_parser("scorecard", help="Real-money scorecard of executed thesis cards")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -167,7 +170,66 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd in ("set-approval-pin", "execution-status", "kill-switch",
                       "execution-reconcile"):
         return _execution_cmd(args, settings)
+    elif args.cmd in ("scan", "journal-settle", "scorecard"):
+        return _scanner_cmd(args, settings)
     return 0
+
+
+def _scanner_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    import json
+
+    from sqlalchemy import select
+
+    from app.adapters.kalshi_public import KalshiPublicClient
+    from app.db.models import JournalEntry
+    from app.db.models import Opportunity as OppRow
+    from app.scanner.service import run_scan, scorecard, settle_journal
+
+    engine = make_engine(settings.database_url)
+    clock = SystemClock()
+    factory = make_session_factory(engine)
+    try:
+        if args.cmd == "scan":
+            with KalshiPublicClient.from_settings(settings) as client:
+                r = run_scan(factory, settings, client, clock)
+            print(f"Scan {r.status}: {r.events} events / {r.markets} markets, "
+                  f"{r.candidates} candidates, {r.confirmed} confirmed, "
+                  f"{len(r.new_cards)} new card(s)")
+            if r.budget_note:
+                print(f"Budget: {r.budget_note}")
+            with factory() as s:
+                for cid in r.new_cards:
+                    o = s.get(OppRow, cid)
+                    tag = "GUARANTEED" if o.guaranteed else "CONDITIONAL"
+                    print(f"  [{tag}] {o.title}: cost ${o.cost} -> min ${o.min_payoff} "
+                          f"(profit ${o.profit}); review it in the UI")
+            print("Suggestions only: verify each card, then trade on Kalshi yourself.")
+            return 0 if r.status != "failed" else 1
+        with factory() as s:
+            if args.cmd == "journal-settle":
+                tickers = sorted({lg["ticker"] for e in s.scalars(select(JournalEntry).where(
+                    JournalEntry.action == "EXECUTED")) for lg in json.loads(e.legs_json)})
+                results: dict[str, str] = {}
+                with KalshiPublicClient.from_settings(settings) as client:
+                    for i in range(0, len(tickers), 50):
+                        body = client.get("/markets", {"tickers": ",".join(tickers[i:i + 50])})
+                        for m in body.get("markets") or []:
+                            if m.get("status") == "finalized" and m.get("result") in ("yes", "no"):
+                                results[m["ticker"]] = m["result"]
+                done = settle_journal(s, results, clock.now())
+                s.commit()
+                print(f"Settled {len(done)} trade(s); {len(results)}/{len(tickers)} legs final.")
+                return 0
+            card = scorecard(s, settings)
+            print(f"Budget ${card['budget']} | available ${card['available']} | open "
+                  f"${card['open_cost']} | realized P&L ${card['realized_pnl']}")
+            for k in ("guaranteed", "conditional"):
+                c = card[k]
+                print(f"  {k:11} executed {c['executed']} settled {c['settled']} "
+                      f"wins {c['wins']} P&L ${c['pnl']}")
+            return 0
+    finally:
+        engine.dispose()
 
 
 def _execution_cmd(args: argparse.Namespace, settings: Settings) -> int:

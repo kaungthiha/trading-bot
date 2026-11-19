@@ -33,6 +33,8 @@ TABLES = {
     "execution_events",
     "exchange_orders",
     "execution_controls",
+    "opportunities",
+    "journal_entries",
 }
 
 

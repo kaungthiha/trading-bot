@@ -18,7 +18,7 @@ from app.demo import build_demo
 from app.main import create_app
 from tests.conftest import FROZEN_NOW
 
-HEAD = "0007_execution"
+HEAD = "0008_scanner"
 
 
 def _count_markets(url: str) -> int:

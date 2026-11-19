@@ -410,6 +410,50 @@ class ExecutionControl(Base):
     reason: Mapped[str] = mapped_column(Text, default="")
 
 
+class Opportunity(Base):
+    """Immutable thesis card produced by the scanner (a suggestion, never an order)."""
+
+    __tablename__ = "opportunities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    detected_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    kind: Mapped[str] = mapped_column(String(16))
+    guaranteed: Mapped[bool] = mapped_column(Boolean)
+    confirmed: Mapped[bool] = mapped_column(Boolean)  # re-checked against live orderbooks
+    event_ticker: Mapped[str] = mapped_column(String(128), index=True)
+    title: Mapped[str] = mapped_column(Text)
+    legs_json: Mapped[str] = mapped_column(Text)
+    quantity: Mapped[Decimal] = mapped_column(DecimalString())
+    cost: Mapped[Decimal] = mapped_column(DecimalString())
+    fees: Mapped[Decimal] = mapped_column(DecimalString())
+    min_payoff: Mapped[Decimal] = mapped_column(DecimalString())
+    profit: Mapped[Decimal] = mapped_column(DecimalString())
+    return_pct: Mapped[Decimal] = mapped_column(DecimalString())
+    claim: Mapped[str] = mapped_column(Text)
+    checklist_json: Mapped[str] = mapped_column(Text)
+    budget_cap: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    fee_schedule_version: Mapped[str] = mapped_column(String(64))
+    fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+
+
+class JournalEntry(Base):
+    """Append-only record of what YOU did with a card (executed on Kalshi yourself, skipped,
+    or settled), used for the real-money scorecard."""
+
+    __tablename__ = "journal_entries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(
+        ForeignKey("opportunities.id", ondelete="RESTRICT"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(12))  # EXECUTED | SKIPPED | SETTLED | NOTE
+    legs_json: Mapped[str] = mapped_column(Text, default="[]")
+    cost: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    payoff: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

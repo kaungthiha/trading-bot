@@ -15,11 +15,14 @@ import type {
   MarketList,
   ModelCard,
   ModelEvaluation,
+  OpportunityCard,
   PaperAccount,
   PaperOrder,
   PaperOrderInput,
   PaperSettlement,
   ReplayReport,
+  ScannerStatus,
+  Scorecard,
   SetupStatus,
   Signal,
   SignalLineage,
@@ -87,6 +90,13 @@ function newClientOrderId(): string {
 
 export const api = {
   setupStatus: () => getJson<SetupStatus>("/api/setup-status"),
+  opportunities: () => getJson<OpportunityCard[]>("/api/opportunities?limit=50"),
+  scannerStatus: () => getJson<ScannerStatus>("/api/scanner/status"),
+  scorecard: () => getJson<Scorecard>("/api/scorecard"),
+  journal: (id: string, body: { action: "EXECUTED" | "SKIPPED" | "NOTE";
+    legs: { ticker: string; side: string; quantity: number; avg_price: string; fee: string }[];
+    note: string }) =>
+    postJson<OpportunityCard>(`/api/opportunities/${encodeURIComponent(id)}/journal`, body, "journal"),
   executionStatus: () => getJson<ExecutionStatus>("/api/execution/status"),
   executionIntents: () => getJson<ExecutionIntent[]>("/api/execution/intents"),
   proposeIntent: (body: { market_id: string; side: "YES" | "NO"; quantity: number; limit_price: string }) =>

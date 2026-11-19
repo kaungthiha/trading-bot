@@ -15,6 +15,7 @@ import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
 import { ModelsPanel } from "./components/ModelsPanel";
+import { OpportunitiesPanel } from "./components/OpportunitiesPanel";
 import { GettingStarted, HealthPanel } from "./components/OpsPanels";
 import { PaperPanel } from "./components/PaperPanel";
 import { SignalsPanel } from "./components/SignalsPanel";
@@ -139,6 +140,10 @@ export default function App() {
           {detail?.state === "loading" && <p>Loading…</p>}
           {detail?.state === "error" && <p role="alert">{detail.message}</p>}
           {detail?.state === "ok" && <MarketDetail market={detail.data} />}
+        </section>
+        <section aria-labelledby="opps-h" className="panel panel-wide">
+          <h2 id="opps-h">Opportunities (scanner)</h2>
+          <OpportunitiesPanel />
         </section>
         <section aria-labelledby="signals-h" className="panel panel-wide">
           <h2 id="signals-h">Signals</h2>

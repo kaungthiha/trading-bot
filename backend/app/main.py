@@ -14,6 +14,7 @@ from app.api.ops_routes import router as ops_router
 from app.api.paper_routes import router as paper_router
 from app.api.research_routes import router as research_router
 from app.api.routes import router
+from app.api.scanner_routes import router as scanner_router
 from app.api.signal_routes import router as signal_router
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings, get_settings
@@ -62,6 +63,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(paper_router)
     app.include_router(ops_router)
     app.include_router(execution_router)
+    app.include_router(scanner_router)
     return app
 
 

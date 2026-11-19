@@ -127,4 +127,4 @@ def test_build_jobs_respects_config(factory, settings: Settings) -> None:  # typ
                   fred_api_key="x" * 32, market_data_source="kalshi_public",
                   kalshi_series_watchlist=["KXFED"])
     names = [j.name for j in build_jobs(s2, factory, clock)]
-    assert names == ["kalshi_public", "fred:CPIAUCSL"]
+    assert names == ["kalshi_public", "scanner", "fred:CPIAUCSL"]

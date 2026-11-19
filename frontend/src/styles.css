@@ -74,6 +74,15 @@ code.reason { display: inline-block; margin: 0.1rem 0.25rem 0.1rem 0; }
 .danger-button:disabled { opacity: 0.55; cursor: default; }
 .danger-button:focus-visible { outline: 2px solid #0b57d0; outline-offset: 2px; }
 .payload { background: #f6f8fb; padding: 0.4rem 0.6rem; border-radius: 4px; overflow-x: auto; font-size: 0.78rem; }
+.thesis-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 0.75rem; }
+.thesis-card { border: 1px solid #d8dde3; border-left-width: 4px; border-radius: 6px; padding: 0.6rem 0.8rem; }
+.thesis-card.guaranteed { border-left-color: #0ca30c; }
+.thesis-card.conditional { border-left-color: #fab219; }
+.thesis-card header { display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
+.thesis-card h4 { margin: 0; font-size: 0.95rem; }
+.checklist-box { border: 1px solid #e6e9ed; border-radius: 4px; margin: 0.4rem 0; }
+.check-item { display: block; margin: 0.25rem 0; }
+.execute-form { background: #f6f8fb; padding: 0.4rem 0.6rem; border-radius: 4px; }
 .app-footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid #d8dde3; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; }

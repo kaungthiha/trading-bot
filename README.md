@@ -331,6 +331,53 @@ market reads are allowlisted. Demo behaviour isn't real-market evidence.
 (including the data-use questions in the research report) and your explicit authorisation. It
 can't be switched on with configuration.
 
+## Opportunity scanner: trade ideas you verify and place yourself
+The scanner reads **every open Kalshi event** (about 21,000 events and 190,000 markets in
+roughly 110 public API calls, no key). It looks for prices that are internally inconsistent,
+re-checks each candidate against the live order books, and turns survivors into **thesis
+cards**. It never trades. You check the card, place the trades on Kalshi yourself, and record
+what you did.
+
+```powershell
+cd backend
+.venv\Scripts\python -m app.cli scan             # one full scan now
+.venv\Scripts\python -m app.cli scorecard        # budget, open cost, realized P&L
+.venv\Scripts\python -m app.cli journal-settle   # settle journaled trades on FINALIZED results
+# continuous: KRT_MARKET_DATA_SOURCE=kalshi_public in .env, then .\scripts\start-worker.ps1
+#   (scans every 5 min; a Windows notification appears when a new card shows up)
+```
+
+| Detector | Trade | Why it should pay | Label |
+|---|---|---|---|
+| Ladder violation | YES on a lower strike + NO on a higher strike of the **same** ladder | pays ≥ $1 per set in every outcome | GUARANTEED (if rules hold) |
+| Exclusive set, NO side | NO on every outcome of a mutually exclusive event | at most one YES, so pays ≥ n − 1 | GUARANTEED (if rules hold) |
+| Exclusive set, YES side | YES on every outcome | pays $1 **only if one listed outcome must win** | CONDITIONAL |
+
+**Safeguards learned from live data**
+- **Same-ladder check.** Markets count as rungs of one ladder only if their rules text is
+  identical apart from the numbers. Kalshi events often hold several ladders, such as each
+  team's total. The first live run produced 29,000 false "arbitrages" before this check.
+- **Catch-all check.** Exclusive-YES ideas are shown only when the event lists a catch-all
+  outcome ("Other", "None", "Field"…). Otherwise the cheap total just reflects the unlisted
+  result, for example "no 51st state".
+- **Exact cost sizing.** Every leg's taker fee comes from the PDF-verified schedule and is
+  rounded up to the cent **per order**, so tiny orders on cheap contracts are rejected. Size is
+  limited to the depth at the best price, and candidates are re-confirmed against live books.
+- **Nothing hidden.** Ideas already reported in the last 30 minutes are skipped, and a
+  truncated scan is reported, never hidden.
+
+**Budget rules** (`KRT_EXPERIMENT_BUDGET_DOLLARS`, currently **$50** in your `.env`)
+- At most **20 %** per guaranteed idea ($10) and **5 %** per conditional idea ($2.50).
+- **Available budget** is the budget plus realized P&L minus money in open trades.
+- New cards **pause** after a 30 % realized loss.
+- The scorecard keeps guaranteed and conditional results separate, so you can see which kind
+  actually works.
+
+**What to expect.** Most scans find nothing, which is what a healthy market looks like. The
+live scans on 2026-11-18 found **no guaranteed gaps after fees** across 192,000 markets, and one
+conditional idea. The value is in watching continuously for brief gaps, not in a steady stream
+of trades.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -394,6 +441,7 @@ backend/
   app/worker.py   scheduled collector with gap detection and single-instance lock
   app/ops.py      backup / restore / reset;  app/demo.py  offline synthetic demo
   app/execution/  approval contract, preflight, mock exchange, demo-only signed gateway
+  app/scanner/    mispricing detectors, full-catalogue scan, thesis cards, journal, alerts
   requirements.lock  exact backend dependency versions (frontend: package-lock.json)
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
@@ -403,8 +451,8 @@ backend/
                   /api/research/cpi-mom/forecast, /api/model-runs, /api/signals,
                   /api/markets/{id}/signals, /api/mappings, /api/fee-schedules,
                   /api/paper/{account,orders,settlements,replay}, POST /api/paper/orders
-  alembic/        migrations 0001_initial … 0007_execution
-  tests/          272 tests incl. e2e workflow, perf budgets, adversarial execution (HTTP via mock transports; network is blocked)
+  alembic/        migrations 0001_initial … 0008_scanner
+  tests/          292 tests incl. e2e workflow, perf budgets, adversarial execution (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

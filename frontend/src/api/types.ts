@@ -468,6 +468,67 @@ export interface ExecutionIntent {
   events: { at: string; kind: string; detail: Record<string, unknown> }[];
 }
 
+export interface OpportunityLeg {
+  ticker: string;
+  title: string;
+  side: "YES" | "NO";
+  limit_price: DecimalString;
+  quantity: DecimalString;
+  cost: DecimalString;
+  fee: DecimalString;
+  available: DecimalString;
+}
+
+export interface OpportunityCard {
+  id: string;
+  detected_at: string;
+  expires_at: string;
+  status: "OPEN" | "EXPIRED" | "EXECUTED" | "SKIPPED";
+  kind: "LADDER" | "EXCL_NO" | "EXCL_YES";
+  guaranteed: boolean;
+  confirmed: boolean;
+  event_ticker: string;
+  title: string;
+  legs: OpportunityLeg[];
+  quantity: DecimalString;
+  cost: DecimalString;
+  fees: DecimalString;
+  min_payoff: DecimalString;
+  profit: DecimalString;
+  return_pct: DecimalString;
+  claim: string;
+  checklist: string[];
+  budget_cap: DecimalString | null;
+  fee_schedule_version: string;
+  journal: { at: string; action: string; note: string; cost: string | null; payoff: string | null }[];
+}
+
+export interface ScannerStatus {
+  interval_seconds: number;
+  last_scan: { at: string; events: number; markets: number; candidates: number;
+               confirmed: number; new_cards: number } | null;
+  budget: DecimalString | null;
+  available: DecimalString | null;
+  caps: { guaranteed: DecimalString; conditional: DecimalString };
+  paused: boolean;
+  note: string | null;
+}
+
+export interface ScorecardTotals { executed: number; settled: number; pnl: DecimalString; wins: number }
+
+export interface Scorecard {
+  budget: DecimalString | null;
+  available: DecimalString | null;
+  open_cost: DecimalString;
+  realized_pnl: DecimalString;
+  paused: boolean;
+  note: string | null;
+  all: ScorecardTotals;
+  guaranteed: ScorecardTotals;
+  conditional: ScorecardTotals;
+  skipped: number;
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

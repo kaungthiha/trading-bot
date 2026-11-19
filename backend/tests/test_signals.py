@@ -41,6 +41,7 @@ WRITE_ROUTES = {
     ("/api/execution/intents/{intent_id}/approve", "post"),  # PIN-gated approval
     ("/api/execution/intents/{intent_id}/reconcile", "post"),  # read-only lookup
     ("/api/execution/kill-switch", "post"),  # engage only
+    ("/api/opportunities/{opportunity_id}/journal", "post"),  # record YOUR manual trades
 }
 
 
