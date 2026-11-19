@@ -18,6 +18,8 @@ from app.demo import build_demo
 from app.main import create_app
 from tests.conftest import FROZEN_NOW
 
+HEAD = "0007_execution"
+
 
 def _count_markets(url: str) -> int:
     engine = make_engine(url)
@@ -31,11 +33,11 @@ def test_backup_restore_round_trip(seeded: Settings, tmp_path: Path) -> None:
     url, bdir, lock = seeded.database_url, tmp_path / "backups", tmp_path / "w.lock"
     before = _count_markets(url)
     b = ops.backup(url, bdir)
-    assert ops.validate_backup(b) == "0006_paper"
+    assert ops.validate_backup(b) == HEAD
     ops.reset(url, alembic_config, lock_path=lock, backup_dir=bdir)
     assert _count_markets(url) == 0
     safety, rev = ops.restore(url, b, alembic_config, lock_path=lock, backup_dir=bdir)
-    assert rev == "0006_paper" and safety is not None and safety.exists()
+    assert rev == HEAD and safety is not None and safety.exists()
     assert _count_markets(url) == before
     assert len(ops.list_backups(bdir)) == 3  # manual + pre-reset + pre-restore
 
@@ -92,7 +94,7 @@ def test_setup_status_and_diagnostics_on_fresh_db(seeded: Settings) -> None:
         assert status["fred_key"] == "todo" and status["fees"] == "ok"  # PDF-verified
         assert all(x["hint"] for x in st["steps"])
         d = c.get("/api/diagnostics").json()
-        assert d["schema_revision"] == "0006_paper" and d["database_bytes"] > 0
+        assert d["schema_revision"] == HEAD and d["database_bytes"] > 0
         assert d["quotes"]["markets_with_quotes"] == 4
         assert "api_key" not in str(d).lower() and "secret" not in str(d).lower()
         assert c.get("/api/lineage/signal/nope").status_code == 404

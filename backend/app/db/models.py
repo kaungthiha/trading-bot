@@ -322,6 +322,94 @@ class PaperLedgerEntry(Base):
     memo: Mapped[str] = mapped_column(Text, default="")
 
 
+class ExecutionIntent(Base):
+    """A proposed order. The exact exchange payload and its SHA-256 are fixed at creation;
+    an approval must quote that hash. ``status`` moves forward only (every transition is
+    also written to execution_events): PROPOSED -> APPROVED -> SUBMITTING -> FILLED |
+    PARTIAL | NOT_FILLED | REJECTED | UNKNOWN; or PROPOSED -> BLOCKED / EXPIRED."""
+
+    __tablename__ = "execution_intents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    env: Mapped[str] = mapped_column(String(8))
+    market_id: Mapped[str] = mapped_column(ForeignKey("markets.id", ondelete="RESTRICT"))
+    signal_id: Mapped[str | None] = mapped_column(
+        ForeignKey("signals.id", ondelete="RESTRICT"), nullable=True)
+    quote_id: Mapped[str] = mapped_column(ForeignKey("quote_snapshots.id", ondelete="RESTRICT"))
+    side: Mapped[str] = mapped_column(String(3))  # YES | NO (what we BUY)
+    quantity: Mapped[Decimal] = mapped_column(DecimalString())
+    limit_price: Mapped[Decimal] = mapped_column(DecimalString())  # price of OUR side
+    approved_ask: Mapped[Decimal] = mapped_column(DecimalString())  # snapshot executable ask
+    est_fee: Mapped[Decimal] = mapped_column(DecimalString())
+    max_cost: Mapped[Decimal] = mapped_column(DecimalString())  # worst case incl. fees
+    fee_schedule_version: Mapped[str] = mapped_column(String(64))
+    rules_hash: Mapped[str] = mapped_column(String(64))
+    client_order_id: Mapped[str] = mapped_column(String(64), unique=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    payload_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    status: Mapped[str] = mapped_column(String(12))
+    block_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class ExecutionApproval(Base):
+    """Single use: at most one approval per intent (unique constraint)."""
+
+    __tablename__ = "execution_approvals"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    intent_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_intents.id", ondelete="RESTRICT"), unique=True)
+    at: Mapped[datetime] = mapped_column(UTCDateTime())
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    actor: Mapped[str] = mapped_column(String(32))
+
+
+class ExecutionEvent(Base):
+    """Append-only audit trail of everything that happened to an intent."""
+
+    __tablename__ = "execution_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    intent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("execution_intents.id", ondelete="RESTRICT"), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    detail_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class ExchangeOrder(Base):
+    """What the exchange reported for an intent's single submission."""
+
+    __tablename__ = "exchange_orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    intent_id: Mapped[str] = mapped_column(
+        ForeignKey("execution_intents.id", ondelete="RESTRICT"), unique=True)
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    source: Mapped[str] = mapped_column(String(16))  # response | reconciliation
+    exchange_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    client_order_id: Mapped[str] = mapped_column(String(64))
+    fill_count: Mapped[Decimal] = mapped_column(DecimalString())
+    remaining_count: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    average_fill_price: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    average_fee_paid: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    raw_json: Mapped[str] = mapped_column(Text)
+
+
+class ExecutionControl(Base):
+    """Kill-switch log (append-only). Latest row wins; NO rows means ENGAGED."""
+
+    __tablename__ = "execution_controls"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    action: Mapped[str] = mapped_column(String(8))  # ENGAGE | RELEASE
+    actor: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str] = mapped_column(Text, default="")
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

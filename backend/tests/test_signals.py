@@ -35,6 +35,14 @@ from tests.research_fixtures import synthetic_vintages
 D = Decimal
 NOW = datetime(2024, 1, 20, 15, 0, tzinfo=UTC)
 
+WRITE_ROUTES = {
+    ("/api/paper/orders", "post"),  # simulated paper orders
+    ("/api/execution/intents", "post"),  # propose (mock/demo only)
+    ("/api/execution/intents/{intent_id}/approve", "post"),  # PIN-gated approval
+    ("/api/execution/intents/{intent_id}/reconcile", "post"),  # read-only lookup
+    ("/api/execution/kill-switch", "post"),  # engage only
+}
+
 
 def schedule(verified: bool = True) -> FeeSchedule:
     return FeeSchedule(
@@ -342,7 +350,7 @@ def test_signal_api_shapes(db, settings: Settings) -> None:  # type: ignore[no-u
         assert len(c.get(f"/api/markets/{mid}/signals").json()) == 1
         paths = c.get("/api/openapi.json").json()["paths"]
         writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
-        assert writes == {("/api/paper/orders", "post")}  # only simulated paper orders
+        assert writes == WRITE_ROUTES
     app.state.engine.dispose()
 
 

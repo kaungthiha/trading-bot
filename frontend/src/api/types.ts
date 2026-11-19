@@ -430,6 +430,44 @@ export interface SignalLineage {
   fee_schedule: { version: string; verified: boolean } | null;
 }
 
+export interface ExecutionStatus {
+  execution_enabled: boolean;
+  env: "mock" | "demo";
+  production: string;
+  kill_switch_engaged: boolean;
+  pin_configured: boolean;
+  demo_credentials_configured: boolean;
+  caps: Record<string, string | number>;
+}
+
+export interface ExecutionIntent {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  env: string;
+  market_ticker: string;
+  side: "YES" | "NO";
+  quantity: DecimalString;
+  limit_price: DecimalString;
+  approved_ask: DecimalString;
+  est_fee: DecimalString;
+  max_cost: DecimalString;
+  fee_schedule_version: string;
+  status: string;
+  block_reason: string | null;
+  summary: string;
+  payload: Record<string, unknown>;
+  payload_hash: string;
+  exchange_order: {
+    exchange_order_id: string | null;
+    source: string;
+    fill_count: string;
+    average_fill_price: string | null;
+    average_fee_paid: string | null;
+  } | null;
+  events: { at: string; kind: string; detail: Record<string, unknown> }[];
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

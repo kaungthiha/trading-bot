@@ -28,6 +28,11 @@ TABLES = {
     "paper_fills",
     "paper_settlements",
     "paper_ledger",
+    "execution_intents",
+    "execution_approvals",
+    "execution_events",
+    "exchange_orders",
+    "execution_controls",
 }
 
 

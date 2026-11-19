@@ -4,8 +4,9 @@ A local-only research and paper-trading terminal for Kalshi event contracts. It 
 place orders**. The full specification and milestone prompts live in
 [`kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/`](kalshi_research_terminal_fable_package_2026-11-18/kalshi_research_terminal_fable_package/README.md).
 
-**Status:** milestones 01–08 are complete. The spec's optional milestone 09 (live execution)
-has **not** been started; it needs a separate decision from you.
+**Status:** milestones 01–09 are complete. Milestone 09 adds **approval-gated execution for
+the mock exchange and Kalshi's DEMO environment only**. Production execution is not
+implemented, and it cannot be configured.
 - **Markets:** synthetic `MOCK-` fixture markets, or real markets from Kalshi's **public,
   unauthenticated** market-data API.
 - **Evidence:** FRED/ALFRED economic series with full vintage history, so you can see exactly
@@ -277,6 +278,59 @@ contacted.
 - **No clutter.** Terms are explained on table headers and at their first meaningful use. A test
   fails if any panel marks the same term more than twice.
 
+## Approval-gated execution (milestone 09): mock and Kalshi DEMO only
+**Production trading is not implemented.** The configuration has no production option, and the
+demo client refuses Kalshi's production hosts in code. Execution is **off** by default, and
+the kill switch starts **engaged**.
+
+```powershell
+# 1. In .env:  KRT_EXECUTION_ENABLED=true   (KRT_EXECUTION_ENV=mock is the default)
+cd backend
+.venv\Scripts\python -m app.cli set-approval-pin --write-env   # stores a salted scrypt hash, never the PIN
+.venv\Scripts\python -m app.cli kill-switch release --yes       # CLI only; engaging is one click in the UI
+.venv\Scripts\python -m app.cli execution-status
+# 2. Restart the backend; use the "Execution (approval-gated)" panel.
+```
+
+**What happens to every order**
+1. **Propose.** The exact exchange payload is fixed: an immediate-or-cancel limit order with
+   self-trade prevention. Its SHA-256 hash is stored along with a unique `client_order_id`, the
+   snapshot ask, the fee estimate from the **verified** schedule, and the worst-case cost.
+   Proposals are refused if the quote is older than 15 s, fees are unverified, the price is off
+   the grid, or any cap would be breached. The database blocks any later change to the terms.
+2. **Approve.** You approve that exact hash with your **PIN**. Five wrong PINs lock approvals
+   for 15 minutes. An approval works once (a unique constraint plus a conditional status update)
+   and expires after 60 s. A replayed or duplicate approval returns `ALREADY_USED`.
+3. **Preflight, immediately before sending.** Checks the kill switch and environment, the
+   market is still `active`, the **rules hash** is unchanged, a fresh executable ask (**any
+   worse price blocks the order**), all caps, the exchange balance, and the same verified fee
+   schedule.
+4. **Send exactly once.** The `SUBMITTING` state is saved first.
+   - **Accepted:** FILLED, PARTIAL or NOT_FILLED.
+   - **Definitive 4xx:** REJECTED.
+   - **Timeout, 5xx or duplicate ID:** UNKNOWN. A read-only lookup by `client_order_id`
+     follows. The order is **never resubmitted**; use `execution-reconcile <id>` or the UI to
+     look it up again later.
+5. **Audit.** Every step is an append-only `execution_events` row. Approvals, controls and
+   exchange orders are also append-only (database triggers).
+
+**Caps** (in `.env`): `KRT_EXECUTION_MAX_CONTRACTS_PER_ORDER` (10),
+`KRT_EXECUTION_MAX_COST_PER_ORDER` ($25), `KRT_EXECUTION_MAX_POSITION_CONTRACTS` (50, unknown
+outcomes count as filled), `KRT_EXECUTION_MAX_DAILY_COST` ($100), intent lifetime (60 s) and
+quote age (15 s).
+
+**Kalshi DEMO** (optional, mock funds): create a **demo** API key at https://demo.kalshi.co
+(demo and production keys are separate). Save the private key **outside** this repository;
+paths inside it are rejected. Set `KRT_KALSHI_DEMO_API_KEY_ID`,
+`KRT_KALSHI_DEMO_PRIVATE_KEY_PATH` and `KRT_EXECUTION_ENV=demo`, and ingest demo markets with
+`ingest --demo`. Requests are signed as documented (RSA-PSS SHA-256 or Ed25519 over
+`timestamp + METHOD + /trade-api/v2/path`). Only order creation, order lookup, balance and
+market reads are allowlisted. Demo behaviour isn't real-market evidence.
+
+**Moving to real money would be a separate project,** needing a fresh review of Kalshi's terms
+(including the data-use questions in the research report) and your explicit authorisation. It
+can't be switched on with configuration.
+
 ## Scheduled collection (worker)
 ```powershell
 .\scripts\start-worker.ps1   # or: cd backend; .venv\Scripts\python -m app.worker
@@ -314,7 +368,14 @@ From `frontend/`: `npm test`, `npm run typecheck`, `npm run build`, `npm run che
   with `KRT_TRADING_MODE` set to anything other than `paper`, or with `KRT_LIVE_EXECUTION_ENABLED=true`.
 - Requests with a Host header other than `127.0.0.1`/`localhost` are rejected (DNS-rebinding
   defense). Cross-origin non-GET requests are rejected. Security headers are set on every response.
-- No order or portfolio routes exist; a test asserts the API exposes only GET operations.
+- A test pins the exact set of state-changing routes:
+  - simulated paper orders;
+  - execution propose, approve (PIN), reconcile (read-only), and kill-switch **engage**.
+
+  Each requires a purpose-specific `X-KRT-Request` header in addition to the Origin allow-list.
+  There are no production exchange routes, and the kill switch has no "release" route.
+- Research, signals, paper trading, evidence and adapters are tested to never import the
+  execution package.
 - Tests block all non-loopback network connections.
 
 ## Layout
@@ -332,6 +393,7 @@ backend/
   app/paper/      fill simulator, broker/ledger/settlement service, signal replay
   app/worker.py   scheduled collector with gap detection and single-instance lock
   app/ops.py      backup / restore / reset;  app/demo.py  offline synthetic demo
+  app/execution/  approval contract, preflight, mock exchange, demo-only signed gateway
   requirements.lock  exact backend dependency versions (frontend: package-lock.json)
   app/api/        /api/health, /api/markets (filters: category, status, series_ticker, q),
                   /api/markets/{id}, /api/markets/{id}/quotes, /api/categories,
@@ -341,8 +403,8 @@ backend/
                   /api/research/cpi-mom/forecast, /api/model-runs, /api/signals,
                   /api/markets/{id}/signals, /api/mappings, /api/fee-schedules,
                   /api/paper/{account,orders,settlements,replay}, POST /api/paper/orders
-  alembic/        migrations 0001_initial … 0006_paper
-  tests/          202 tests incl. end-to-end workflow and performance budgets (HTTP via mock transports; network is blocked)
+  alembic/        migrations 0001_initial … 0007_execution
+  tests/          272 tests incl. e2e workflow, perf budgets, adversarial execution (HTTP via mock transports; network is blocked)
 frontend/
   src/api/        typed client (prices kept as exact decimal strings)
   src/glossary/   typed term registry (unknown IDs fail typecheck)

@@ -9,6 +9,7 @@ import type {
   MarketSummary,
 } from "./api/types";
 import { EvidencePanel } from "./components/EvidencePanel";
+import { ExecutionPanel } from "./components/ExecutionPanel";
 import { GlossaryPage } from "./components/GlossaryPage";
 import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
@@ -146,6 +147,10 @@ export default function App() {
         <section aria-labelledby="paper-h" className="panel panel-wide">
           <h2 id="paper-h">Paper trading</h2>
           <PaperPanel />
+        </section>
+        <section aria-labelledby="exec-h" className="panel panel-wide">
+          <h2 id="exec-h">Execution (approval-gated)</h2>
+          <ExecutionPanel />
         </section>
         <section aria-labelledby="models-h" className="panel panel-wide">
           <h2 id="models-h">Models</h2>

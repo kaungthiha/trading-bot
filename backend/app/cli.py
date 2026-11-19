@@ -105,6 +105,16 @@ def main(argv: list[str] | None = None) -> int:
     rz = sub.add_parser("reset", help="Back up, then start with an empty database")
     rz.add_argument("--yes", action="store_true")
     sub.add_parser("demo", help="Build the offline demo database (synthetic data)")
+    sp = sub.add_parser("set-approval-pin", help="Create the PIN hash required to approve orders")
+    sp.add_argument("--write-env", action="store_true",
+                    help="Write KRT_EXECUTION_APPROVAL_PIN_HASH into the repo's .env")
+    sub.add_parser("execution-status", help="Show execution mode, kill switch and caps")
+    ks = sub.add_parser("kill-switch", help="Engage or release the execution kill switch")
+    ks.add_argument("action", choices=["engage", "release"])
+    ks.add_argument("--reason", default="")
+    ks.add_argument("--yes", action="store_true", help="Required to release")
+    er = sub.add_parser("execution-reconcile", help="Read-only lookup for an UNKNOWN intent")
+    er.add_argument("intent_id")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -154,6 +164,87 @@ def main(argv: list[str] | None = None) -> int:
         return _paper_cmd(args, settings)
     elif args.cmd in ("backup", "list-backups", "restore", "reset", "demo"):
         return _ops_cmd(args, settings)
+    elif args.cmd in ("set-approval-pin", "execution-status", "kill-switch",
+                      "execution-reconcile"):
+        return _execution_cmd(args, settings)
+    return 0
+
+
+def _execution_cmd(args: argparse.Namespace, settings: Settings) -> int:
+    import getpass
+    import re
+
+    from app.core.config import REPO_ROOT
+    from app.execution.service import (
+        ExecutionError,
+        hash_pin,
+        kill_switch_engaged,
+        reconcile,
+        set_kill_switch,
+    )
+
+    if args.cmd == "set-approval-pin":
+        pin = getpass.getpass("New approval PIN (min 6 chars, not echoed): ")
+        if pin != getpass.getpass("Repeat PIN: "):
+            print("PINs do not match.")
+            return 1
+        try:
+            line = f"KRT_EXECUTION_APPROVAL_PIN_HASH={hash_pin(pin)}"
+        except ValueError as e:
+            print(e)
+            return 1
+        if args.write_env:
+            env = REPO_ROOT / ".env"
+            text = env.read_text(encoding="utf-8") if env.exists() else ""
+            if re.search(r"^KRT_EXECUTION_APPROVAL_PIN_HASH=.*$", text, flags=re.M):
+                text = re.sub(r"^KRT_EXECUTION_APPROVAL_PIN_HASH=.*$", line, text, flags=re.M)
+            else:
+                text = text.rstrip("\n") + ("\n" if text else "") + line + "\n"
+            env.write_text(text, encoding="utf-8")
+            print("Saved the PIN hash to .env (the PIN itself is not stored). Restart the backend.")
+        else:
+            print("Add this line to your .env (it is a salted hash, not the PIN):")
+            print(line)
+        return 0
+
+    engine = make_engine(settings.database_url)
+    clock = SystemClock()
+    try:
+        with make_session_factory(engine)() as s:
+            if args.cmd == "execution-status":
+                print(f"execution_enabled={settings.execution_enabled} "
+                      f"env={settings.execution_env.value} production=not implemented")
+                print(f"kill_switch={'ENGAGED' if kill_switch_engaged(s) else 'released'} "
+                      f"pin_configured={settings.execution_approval_pin_hash is not None}")
+                print(f"caps: {settings.execution_max_contracts_per_order} contracts/order, "
+                      f"${settings.execution_max_cost_per_order}/order, "
+                      f"{settings.execution_max_position_contracts} contracts/position, "
+                      f"${settings.execution_max_daily_cost}/day")
+                return 0
+            if args.cmd == "kill-switch":
+                if args.action == "release" and not args.yes:
+                    print("Releasing allows approved orders to be SENT to the "
+                          f"{settings.execution_env.value.upper()} environment. Re-run with "
+                          "--yes to confirm.")
+                    return 2
+                set_kill_switch(s, clock.now(), engage=args.action == "engage", actor="cli",
+                                reason=args.reason)
+                s.commit()
+                print(f"Kill switch {'ENGAGED' if args.action == 'engage' else 'released'}.")
+                return 0
+            if args.cmd == "execution-reconcile":
+                from app.execution.factory import build_gateway
+
+                try:
+                    gw = build_gateway(settings, s, None)
+                    intent = reconcile(s, args.intent_id, gw, clock.now())
+                except ExecutionError as e:
+                    print(f"Error: {e.code} {e.message}")
+                    return 1
+                print(f"{intent.id}: {intent.status}")
+                return 0
+    finally:
+        engine.dispose()
     return 0
 
 

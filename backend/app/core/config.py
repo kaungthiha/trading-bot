@@ -24,6 +24,14 @@ class TradingMode(StrEnum):
     PAPER = "paper"
 
 
+class ExecutionEnv(StrEnum):
+    """Where approval-gated orders may go. There is deliberately NO production member:
+    production execution is not implemented and cannot be configured."""
+
+    MOCK = "mock"  # in-process fake exchange (default)
+    DEMO = "demo"  # Kalshi demo environment (mock funds, separate credentials)
+
+
 class MarketDataSource(StrEnum):
     FIXTURE = "fixture"
     KALSHI_PUBLIC = "kalshi_public"
@@ -100,6 +108,24 @@ class Settings(BaseSettings):
     paper_default_scenario: str = "conservative"  # conservative | baseline | harsh
     paper_max_order_quantity: int = Field(default=1000, ge=1, le=100000)
 
+    # --- Approval-gated execution (milestone 09): mock/demo only ----------------------
+    # Off by default. Even when on, every order needs: kill switch released (CLI only),
+    # a fresh per-order approval with the PIN, and a passing preflight.
+    execution_enabled: bool = False
+    execution_env: ExecutionEnv = ExecutionEnv.MOCK
+    # scrypt hash created by `python -m app.cli set-approval-pin`; never store the PIN itself
+    execution_approval_pin_hash: SecretStr | None = None
+    execution_max_contracts_per_order: int = Field(default=10, ge=1, le=10_000)
+    execution_max_cost_per_order: Decimal = Field(default=Decimal("25"), gt=0)
+    execution_max_position_contracts: int = Field(default=50, ge=1)
+    execution_max_daily_cost: Decimal = Field(default=Decimal("100"), gt=0)
+    execution_intent_ttl_seconds: int = Field(default=60, ge=10, le=600)
+    execution_quote_max_age_seconds: int = Field(default=15, ge=1, le=300)
+    # Kalshi DEMO credentials only (create them at demo.kalshi.co). Keep the key file
+    # OUTSIDE this repository.
+    kalshi_demo_api_key_id: SecretStr | None = None
+    kalshi_demo_private_key_path: Path | None = None
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)
@@ -129,6 +155,9 @@ class Settings(BaseSettings):
     @field_validator(
         "kalshi_api_key_id",
         "kalshi_private_key_path",
+        "kalshi_demo_api_key_id",
+        "kalshi_demo_private_key_path",
+        "execution_approval_pin_hash",
         "fred_api_key",
         "bls_api_key",
         "bea_api_key",
@@ -163,6 +192,17 @@ class Settings(BaseSettings):
         if unknown:
             raise ValueError(f"Unregistered evidence source(s): {unknown}")
         return v
+
+    @field_validator("kalshi_demo_private_key_path", "kalshi_private_key_path")
+    @classmethod
+    def _key_outside_repo(cls, v: Path | None) -> Path | None:
+        if v is None:
+            return v
+        try:
+            v.resolve().relative_to(REPO_ROOT.resolve())
+        except ValueError:
+            return v
+        raise ValueError("Private key files must be stored OUTSIDE the repository")
 
     @field_validator("signal_model")
     @classmethod

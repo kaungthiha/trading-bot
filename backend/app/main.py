@@ -9,6 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app import __version__
 from app.api.errors import install_error_handlers
 from app.api.evidence_routes import router as evidence_router
+from app.api.execution_routes import router as execution_router
 from app.api.ops_routes import router as ops_router
 from app.api.paper_routes import router as paper_router
 from app.api.research_routes import router as research_router
@@ -36,6 +37,10 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
     app.state.clock = clock or SystemClock()
+    # Mock exchange state (balance/orders) lives for the process; used only in mock env.
+    from app.execution.gateway import MockExchange
+
+    app.state.mock_exchange = MockExchange()
 
     # Middleware runs outermost-last-added. Order: host check -> origin guard -> CORS.
     app.add_middleware(SecurityHeadersMiddleware)
@@ -56,6 +61,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None) -> 
     app.include_router(signal_router)
     app.include_router(paper_router)
     app.include_router(ops_router)
+    app.include_router(execution_router)
     return app
 
 

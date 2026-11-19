@@ -3,6 +3,8 @@ import type {
   CollectionGap,
   CpiForecast,
   Diagnostics,
+  ExecutionIntent,
+  ExecutionStatus,
   EvidenceAsOf,
   EvidenceSource,
   FeeScheduleInfo,
@@ -52,7 +54,7 @@ async function getJson<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, purpose = "paper"): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     credentials: "omit",
@@ -60,7 +62,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
       "Content-Type": "application/json",
       // CSRF defence: custom header forces a CORS preflight the backend denies cross-origin.
-      "X-KRT-Request": "paper",
+      "X-KRT-Request": purpose,
     },
     body: JSON.stringify(body),
   });
@@ -85,6 +87,17 @@ function newClientOrderId(): string {
 
 export const api = {
   setupStatus: () => getJson<SetupStatus>("/api/setup-status"),
+  executionStatus: () => getJson<ExecutionStatus>("/api/execution/status"),
+  executionIntents: () => getJson<ExecutionIntent[]>("/api/execution/intents"),
+  proposeIntent: (body: { market_id: string; side: "YES" | "NO"; quantity: number; limit_price: string }) =>
+    postJson<ExecutionIntent>("/api/execution/intents", body, "execution"),
+  approveIntent: (id: string, payload_hash: string, pin: string) =>
+    postJson<ExecutionIntent>(`/api/execution/intents/${encodeURIComponent(id)}/approve`,
+      { payload_hash, pin }, "execution"),
+  reconcileIntent: (id: string) =>
+    postJson<ExecutionIntent>(`/api/execution/intents/${encodeURIComponent(id)}/reconcile`, {}, "execution"),
+  engageKillSwitch: (reason: string) =>
+    postJson<{ kill_switch_engaged: boolean }>("/api/execution/kill-switch", { reason }, "execution"),
   diagnostics: () => getJson<Diagnostics>("/api/diagnostics"),
   signalLineage: (id: string) =>
     getJson<SignalLineage>(`/api/lineage/signal/${encodeURIComponent(id)}`),

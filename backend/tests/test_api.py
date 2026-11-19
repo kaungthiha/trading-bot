@@ -1,5 +1,13 @@
 from fastapi.testclient import TestClient
 
+WRITE_ROUTES = {
+    ("/api/paper/orders", "post"),  # simulated paper orders
+    ("/api/execution/intents", "post"),  # propose (mock/demo only)
+    ("/api/execution/intents/{intent_id}/approve", "post"),  # PIN-gated approval
+    ("/api/execution/intents/{intent_id}/reconcile", "post"),  # read-only lookup
+    ("/api/execution/kill-switch", "post"),  # engage only
+}
+
 
 def test_health(client: TestClient) -> None:
     r = client.get("/api/health")
@@ -94,7 +102,7 @@ def test_no_exchange_order_routes_and_only_paper_post(client: TestClient) -> Non
     assert not any("portfolio" in p for p in paths)
     writes = {(p, m) for p, ops in paths.items() for m in ops if m != "get"}
     # The only state-changing route SIMULATES orders locally (milestone 06).
-    assert writes == {("/api/paper/orders", "post")}
+    assert writes == WRITE_ROUTES
 
 
 def test_glossary_endpoint_serves_exported_registry(client: TestClient) -> None:
