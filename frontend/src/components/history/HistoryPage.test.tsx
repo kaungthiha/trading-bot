@@ -176,7 +176,10 @@ describe("<HistoryPage>", () => {
     expect(screen.getByText(/player prop 74%/)).toBeInTheDocument();
     expect(screen.getByText("1/2")).toBeInTheDocument(); // held to end, lost
     expect(screen.getByRole("link", { name: "Boston vs Philadelphia" }))
-      .toHaveAttribute("href", "#/markets?event=KXNBAGAME-26NOV22BOSPHI");
+      .toHaveAttribute("href", "#/research/event/KXNBAGAME-26NOV22BOSPHI");
+    // a 1-market group never shows a return rate (was "-100%")
+    expect(screen.getAllByRole("button", { name: "too few" }).length).toBeGreaterThan(0);
+    expect(screen.queryByText("-100%")).not.toBeInTheDocument();
   });
 
   it("syncs through the history job with the ops header and reloads", async () => {

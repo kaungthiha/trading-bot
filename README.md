@@ -487,6 +487,16 @@ probability), what you'd pay (the slip check), the AI second opinion, and **Save
 your decision and why, saved in this browser with the price at the time and listed on Today
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
+**From your history** (in the Docket and on event research pages) shows how trades like
+these went for you: the same series, the same market type, your Kalshi combos and combos with
+the same number of legs. One rule applies everywhere a record is summarised, including the
+Journal: under 10 closed trades you see counts and net P&L only, marked "too few to say";
+from 10 up, your return on money staked is tested against luck (stake-weighted, so one tiny
+long-shot win can't hide big losses), and only a record beyond two standard errors is called
+better or worse than luck. The Journal's tables show "too few" instead of an ROI for small
+groups, a "Last 7 days" tally, and insights and "lean in" suggestions that pass the same
+test.
+
 For the legs on the Docket:
 - **Fair price** is the market's prices multiplied together, as if the legs were independent.
 - **Per-leg check.** NBA/WNBA legs are checked against ESPN box scores: last 5 and last 10

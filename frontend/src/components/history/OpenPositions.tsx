@@ -5,6 +5,7 @@ import type { LlmStatus, OpenAnalysis, OpenPosition, OpenReview } from "../../ap
 import { CHART } from "../../styles/palette";
 import { offReason } from "../games/SecondOpinion";
 import { EmptyState, Figure } from "../Hairline";
+import { Tip } from "../design/Tip";
 
 type Read = OpenReview["positions"][number];
 const STANCE = { on_track: "on track", watch: "watch", reconsider: "reconsider" } as const;
@@ -72,7 +73,7 @@ function PositionCard({ p, read }: { p: OpenPosition; read?: Read }) {
       <div className="pos-row">
         <Sparkline trail={p.trail} entry={p.avg_cost == null ? null : Number(p.avg_cost)} />
         <span className="small muted">${p.cost} in · pays ${Number(p.max_payout).toFixed(2)} if right</span>
-        {ev?.verdict && <span className={`verdict ${VCLS[ev.verdict]}`} title="Box-score check for your side">{VERDICT[ev.verdict]}</span>}
+        {ev?.verdict && <Tip text="Box-score check for your side" className={`verdict ${VCLS[ev.verdict]}`}>{VERDICT[ev.verdict]}</Tip>}
         {ev?.windows && <span className="small muted">L10 {ev.windows.last10[0]}/{ev.windows.last10[1]}</span>}
         {p.combo && <span className="small">{p.combo.won}✓ {p.combo.lost}✗ {p.combo.open} open</span>}
       </div>

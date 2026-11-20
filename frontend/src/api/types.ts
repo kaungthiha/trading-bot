@@ -694,6 +694,13 @@ export interface HistoryMarket {
   status: "settled" | "closed" | "open"; pnl: DecimalString | null; kalshi_realized: DecimalString | null;
   position: string | null; mark: HistoryMark | null; first_trade_at: string | null;
 }
+export interface SimilarGroup {
+  kind: "series" | "type" | "combo" | "combo_size"; key: string; label: string; n: number; won: number;
+  pnl: DecimalString | null; staked: DecimalString | null; roi: number | null;
+  mean_return: number | null; se: number | null;
+  verdict: "none" | "too_few" | "noise" | "better" | "worse" | "record"; text: string;
+}
+export interface HistorySimilar { groups: SimilarGroup[]; min_sample: number; synced_at: string | null }
 export interface HistoryGroup { name: string; series: string; markets: number; staked: DecimalString; pnl: DecimalString; roi: number | null }
 export interface HistoryReport {
   last_sync: { at: string; status: string; message: string } | null;

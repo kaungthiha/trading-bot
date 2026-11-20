@@ -298,6 +298,65 @@ export const TERMS = {
       "Thresholds on the same CPI release resolve together. Why it matters: evaluation reports months (not predictions) as the effective sample size. What could mislead you: eight correlated bets look like diversification but are mostly one bet.",
     reviewedAt: REVIEWED, relatedTermIds: ["concentration", "exposure"],
   },
+  // --- Games, combos and your record (added 2026-11-19 with the Docket) -----------------
+  "fair-price": {
+    id: "fair-price", label: "Fair price", aliases: ["fair value", "independent fair price"],
+    category: "trading",
+    shortDefinition:
+      "What a contract or combo is worth at the market's own probabilities, before fees. For a combo, the legs' prices multiplied as if they were unrelated.",
+    example: "Two legs priced 50¢ each give a 25¢ fair combo price.",
+    deepExplanation:
+      "Fair price turns market prices into a single number you can compare with a quote. Why it matters: Kalshi prices combos privately, so the fair price is your yardstick for whether a quote is generous or marked up. What could mislead you: legs from the same game move together, so multiplying their prices understates or overstates the true chance; the Docket shows a history-adjusted figure when it can.",
+    formula: "combo fair price = p1 × p2 × … × pn", reviewedAt: "2026-11-19",
+    relatedTermIds: ["implied-probability", "correlation", "walk-away-price", "combo"],
+  },
+  "walk-away-price": {
+    id: "walk-away-price", label: "Walk-away price", aliases: ["walk away", "max price"],
+    category: "trading",
+    shortDefinition:
+      "The most you should pay. Above it, the expected value after fees turns negative, so you pass rather than haggle yourself into a bad price.",
+    example: "Walk away above 16¢: a 19¢ quote means skip it.",
+    deepExplanation:
+      "Deciding your limit before seeing the quote protects you from anchoring on whatever price you're offered. Why it matters: on small stakes, fees and markups are a large share of any edge. What could mislead you: the walk-away price is only as good as the probability behind it; a wrong estimate gives a confident but wrong limit.",
+    reviewedAt: "2026-11-19", relatedTermIds: ["fair-price", "expected-value", "fees"],
+  },
+  combo: {
+    id: "combo", label: "Combo", aliases: ["parlay", "multivariate market"], category: "contract",
+    shortDefinition:
+      "One contract that pays only if every leg wins. Kalshi builds and prices combos on request; there is no public order book for them.",
+    example: "Knicks win AND Towns 12+ rebounds: one miss and the whole combo loses.",
+    deepExplanation:
+      "A combo multiplies chances, so even likely legs add up to a long shot. Why it matters: combos are where markups hide, because each quote is private. What could mislead you: a run of near-misses feels like bad luck, but losing by one leg is the most common way a combo loses.",
+    reviewedAt: "2026-11-19", relatedTermIds: ["fair-price", "correlation"],
+  },
+  overround: {
+    id: "overround", label: "Overround", aliases: ["vig", "book margin"], category: "market",
+    shortDefinition:
+      "How far the prices of every outcome add up above 100%. The extra is what it costs to buy all outcomes, before fees.",
+    example: "Outcomes priced 52¢ + 51¢ add to 103%: a 3-point overround.",
+    deepExplanation:
+      "In a list where exactly one outcome wins, fair prices would sum to $1. Why it matters: the overround is a built-in cost on every side you take. What could mislead you: if the listed outcomes don't cover every possibility, prices can sum below 100% without being a free lunch.",
+    reviewedAt: "2026-11-19", relatedTermIds: ["implied-probability", "spread", "arbitrage"],
+  },
+  "closing-line-value": {
+    id: "closing-line-value", label: "Closing line value", aliases: ["CLV", "entry vs close"],
+    category: "quant",
+    shortDefinition:
+      "Your entry price compared with the last price before the market closed. Buying below where it closed is a sign of good entries, win or lose.",
+    example: "You paid 40¢ and it closed at 46¢: +6 points of closing line value.",
+    deepExplanation:
+      "Results are noisy; prices near the close have absorbed the most information. Why it matters: consistently beating the close is better evidence of skill than a short winning streak. What could mislead you: on thin markets the last price can be one stale trade.",
+    reviewedAt: "2026-11-19", relatedTermIds: ["calibration", "edge", "sample-size"],
+  },
+  "sample-size": {
+    id: "sample-size", label: "Sample size", aliases: ["small sample"], category: "quant",
+    shortDefinition:
+      "How many independent results a number rests on. With few, luck dominates, and a winning or losing streak says little about what comes next.",
+    example: "3 wins in 4 bets is far weaker evidence than 30 in 40.",
+    deepExplanation:
+      "Every record here is checked against what luck alone would produce. Why it matters: the app won't call anything a pattern under 10 closed trades, and calls larger records noise unless they beat luck clearly. What could mislead you: related bets (same game, same night) count as fewer independent results than they look.",
+    reviewedAt: "2026-11-19", relatedTermIds: ["uncertainty", "confidence-interval", "calibration"],
+  },
   // --- Risk -----------------------------------------------------------------------------
   exposure: {
     id: "exposure", label: "Exposure", aliases: ["risk exposure"], category: "risk",

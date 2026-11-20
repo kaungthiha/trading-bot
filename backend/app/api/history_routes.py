@@ -13,6 +13,7 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.history.analysis import fills_page, report
 from app.history.positions import open_analysis
+from app.history.similar import similar
 from app.sportsdata.espn import EspnSource
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.llm import LlmError, llm_status, local_reviewer
@@ -214,6 +215,28 @@ def open_review(session: SessionDep, settings: SettingsDep, clock: ClockDep, req
     out["generated_at"] = now.isoformat()
     request.app.state.open_review_cache = {"key": ck, "at": now, "out": out}
     return {**out, "cached": False}
+
+
+_TICKER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
+
+
+@router.get("/similar")
+def history_similar(session: SessionDep, settings: SettingsDep,
+                    legs: Annotated[str, Query(max_length=2000)] = "",
+                    series: Annotated[str, Query(max_length=1000)] = "") -> dict[str, Any]:
+    """How trades like these went for you (Docket, research pages). Read-only, local data.
+    legs = "TICKER:side,..." ; series = "SERIES,...". Groups under the sample threshold
+    carry counts only (see app.history.similar)."""
+    tickers = [p.split(":", 1)[0] for p in legs.split(",") if p][:12]
+    extra = [x for x in series.split(",") if x][:6]
+    if any(not _TICKER.match(t) for t in tickers + extra):
+        raise ApiError(422, ErrorCode.VALIDATION_ERROR, "Bad ticker")
+    rep = report(session, settings.experiment_budget_dollars)
+    rows = rep["markets"]
+    titles = {r["series"]: r["series_title"] for r in rows}
+    out = similar(rows, tickers, extra, (rep.get("combo_breakdown") or {}).get("by_size"), titles)
+    out["synced_at"] = (rep.get("last_sync") or {}).get("at")
+    return out
 
 
 @router.get("/fills")

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "../../api/client";
 import type { CoachResult, ComboBreakdown, HistoryFill, HistoryGroup, HistoryReport, HistoryStatus, LlmStatus, PlaybookRule } from "../../api/types";
@@ -7,6 +7,12 @@ import { offReason } from "../games/SecondOpinion";
 import { EmptyState, Figure, PageHead } from "../Hairline";
 import { OpenPositions, Tile } from "./OpenPositions";
 import { PnlCharts } from "./PnlCharts";
+import { href } from "../../router";
+import { Tip } from "../design/Tip";
+import { Term } from "../Term";
+
+/** Same threshold as the backend's history.similar: below it, no rate or ROI is shown. */
+const MIN_SAMPLE = 10;
 
 const pct = (x: number | null | undefined, d = 0) => (x == null ? "—" : `${(x * 100).toFixed(d)}%`);
 const money = (s: string | null | undefined) => {
@@ -77,7 +83,9 @@ export function HistoryPage() {
     <div className="history-page">
       <PageHead figure="plot" title="My trades" actions={
         <>
-          {rep?.last_sync && <span className="small muted" title={rep.last_sync.message}>synced {formatUtc(rep.last_sync.at)}</span>}
+          {rep?.last_sync && (rep.last_sync.message
+            ? <Tip text={rep.last_sync.message} className="small muted">synced {formatUtc(rep.last_sync.at)}</Tip>
+            : <span className="small muted">synced {formatUtc(rep.last_sync.at)}</span>)}
           <button type="button" className="primary-button" onClick={sync} disabled={syncing || !status?.configured}>
             {syncing ? "Syncing…" : "Sync from Kalshi"}
           </button>
@@ -112,13 +120,15 @@ export function HistoryPage() {
                     note={wr ? `${wr.n} settled${wr.small_sample ? " · small sample" : ""}` : undefined} />
                 </div>
                 {rc && rc.checked > 0 && (
-                  <p className={`small ${rc.net + rc.gross < rc.checked ? "warning-box" : "muted"}`}
-                    title={rc.net + rc.gross < rc.checked
+                  <p className={`small ${rc.net + rc.gross < rc.checked ? "warning-box" : "muted"}`}>
+                    <Tip text={rc.net + rc.gross < rc.checked
                       ? "Our P&L math vs Kalshi's per-market numbers. Mismatches usually mean fills older than Kalshi still serves, so those markets' P&L uses the settlement's cost basis."
                       : "Our P&L math matches Kalshi's per-market numbers"}>
-                    {rc.net + rc.gross < rc.checked ? "⚠" : "✓"} {rc.net + rc.gross} of {rc.checked} markets match Kalshi's P&L
+                      {rc.net + rc.gross < rc.checked ? "⚠" : "✓"} {rc.net + rc.gross} of {rc.checked} markets match Kalshi's P&L
+                    </Tip>
                   </p>
                 )}
+                <WhatChanged timeline={rep.timeline ?? []} />
                 <section className="panel" aria-labelledby="h-time">
                   <h3 id="h-time" className="kicker">P&L over time</h3>
                   <PnlCharts timeline={rep.timeline ?? []} />
@@ -160,7 +170,7 @@ export function HistoryPage() {
                     <Stat k="Median stake" v={rep.behavior.median_stake == null ? "—" : `$${rep.behavior.median_stake}`} />
                     <Stat k="Max stake" v={rep.behavior.max_stake == null ? "—" : `$${rep.behavior.max_stake}`} />
                     {rep.entry_quality && <>
-                      <Stat k="Entry vs close" v={rep.entry_quality.clv.avg_pts == null ? "builds over time" : `${rep.entry_quality.clv.avg_pts > 0 ? "+" : ""}${rep.entry_quality.clv.avg_pts} pts`}
+                      <Stat k={<Term id="closing-line-value">Entry vs close</Term>} v={rep.entry_quality.clv.avg_pts == null ? "builds over time" : `${rep.entry_quality.clv.avg_pts > 0 ? "+" : ""}${rep.entry_quality.clv.avg_pts} pts`}
                         tip="Your entry price vs the last price before the market closed (from stored marks). Positive = you bought cheaper than where it ended up." />
                       <Stat k="Held to end, lost" v={`${rep.entry_quality.held_to_settlement.lost}/${rep.entry_quality.held_to_settlement.n}`} />
                       <Stat k="Sold early, in profit" v={`${rep.entry_quality.early_exits.in_profit}/${rep.entry_quality.early_exits.n}`} />
@@ -177,9 +187,10 @@ export function HistoryPage() {
                         {rep.calibration.map((b) => (
                           <tr key={b.range}>
                             <td>{b.range}</td><td>{b.n}{b.small_sample && "*"}</td><td>{pct(b.win_rate)}</td>
-                            <td className={b.edge > 0 ? "ev-pos" : b.edge < 0 ? "ev-neg" : ""}
-                              title={`±${((b.se ?? 0) * 100).toFixed(1)} pts standard error`}>
-                              {b.edge > 0 ? "+" : ""}{(b.edge * 100).toFixed(1)} pts
+                            <td className={b.small_sample ? "" : b.edge > 0 ? "ev-pos" : b.edge < 0 ? "ev-neg" : ""}>
+                              <Tip text={`±${((b.se ?? 0) * 100).toFixed(1)} pts standard error${b.small_sample ? ". Small sample: within luck, not a trend." : ""}`}>
+                                {b.edge > 0 ? "+" : ""}{(b.edge * 100).toFixed(1)} pts
+                              </Tip>
                             </td>
                           </tr>
                         ))}
@@ -196,11 +207,12 @@ export function HistoryPage() {
                     <h3 id="h-sug" className="kicker">Where you've done well: open now</h3>
                     {rep.suggestions.filter((s) => s.events.length > 0).map((s) => (
                       <div key={s.title} className="small">
-                        <b title={s.why}>{s.title}</b>:{" "}
+                        <b>{s.title}</b>:{" "}
                         {s.events.map((e, i) => (
                           <span key={e.event_ticker}>{i > 0 && " · "}
-                            <a href={`#/markets?event=${encodeURIComponent(e.event_ticker)}`}>{e.title}</a></span>
+                            <a href={href.research("event", e.event_ticker)}>{e.title}</a></span>
                         ))}
+                        <span className="muted sug-why"> {s.why}</span>
                       </div>
                     ))}
                   </section>
@@ -256,8 +268,33 @@ export function HistoryPage() {
   );
 }
 
-function Stat({ k, v, tip }: { k: string; v: string; tip?: string }) {
-  return <div className="stat-chip" title={tip}><span className="tile-label">{k}</span><b>{v}</b></div>;
+function Stat({ k, v, tip }: { k: ReactNode; v: string; tip?: string }) {
+  return (
+    <div className="stat-chip">
+      <span className="tile-label">{tip ? <Tip text={tip}>{k}</Tip> : k}</span><b>{v}</b>
+    </div>
+  );
+}
+
+/** The last 7 days as a plain tally (no trend line: a week is far too few results). */
+export function WhatChanged({ timeline, now = Date.now() }: { timeline: HistoryReport["timeline"]; now?: number }) {
+  const since = new Date(now - 6 * 86_400_000).toISOString().slice(0, 10);
+  const week = timeline.filter((d) => d.date >= since);
+  const pnl = week.reduce((a, d) => a + Number(d.pnl), 0);
+  const markets = week.reduce((a, d) => a + d.markets, 0);
+  const wins = week.reduce((a, d) => a + d.wins, 0);
+  return (
+    <section className="panel what-changed" aria-labelledby="h-week">
+      <h3 id="h-week" className="kicker">Last 7 days</h3>
+      {markets === 0 ? <p className="small muted">Nothing settled or sold in the last 7 days.</p> : (
+        <p className="small">
+          <b className={pnl > 0 ? "ev-pos" : pnl < 0 ? "ev-neg" : ""}>{money(pnl.toFixed(2))}</b> net over{" "}
+          {markets} market{markets === 1 ? "" : "s"} closed, {wins} won.{" "}
+          <span className="muted">A tally, not a trend: {markets < MIN_SAMPLE ? "too few results to read anything into" : "a week is a short window"}.</span>
+        </p>
+      )}
+    </section>
+  );
 }
 
 const CONF = { standard: "rule of thumb", medium: "from your data", low: "early signal" } as const;
@@ -369,12 +406,16 @@ function GroupTable({ rows }: { rows: HistoryGroup[] }) {
     <table className="market-table">
       <thead><tr><th scope="col">Name</th><th scope="col">Mkts</th><th scope="col">P&L</th><th scope="col">ROI</th></tr></thead>
       <tbody>
-        {[...rows].reverse().map((r) => (
-          <tr key={r.name}>
-            <td>{r.name}</td><td>{r.markets}</td>
-            <td className={signClass(r.pnl)}>{money(r.pnl)}</td><td>{pct(r.roi)}</td>
-          </tr>
-        ))}
+        {[...rows].reverse().map((r) => {
+          const few = r.markets < MIN_SAMPLE;
+          return (
+            <tr key={r.name} className={few ? "few" : undefined}>
+              <td>{r.name}</td><td>{r.markets}</td>
+              <td className={few ? "" : signClass(r.pnl)}>{money(r.pnl)}</td>
+              <td>{few ? <Tip text={`Under ${MIN_SAMPLE} closed markets: too few for a return rate to mean anything.`}>too few</Tip> : pct(r.roi)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

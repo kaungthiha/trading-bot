@@ -76,3 +76,12 @@ details.dk-section[open] > summary::before { transform: rotate(90deg); }
   /* The handle already names the sheet. */
   .docket[data-open="true"] .docket-head h2, .docket[data-open="true"] .docket-head .count { display: none; }
 }
+/* From your history */
+.hist-groups { list-style: none; margin: 0 0 0.3rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.hist-groups li { display: flex; flex-direction: column; border-left: 2px solid var(--line-2); padding-left: 0.5rem; }
+.hist-groups li.muted { color: var(--muted); }
+.hist-groups li.hist-better { border-left-color: var(--blue); }
+.hist-groups li.hist-worse { border-left-color: var(--red); }
+.hist-label { font-size: 0.85rem; font-weight: 500; color: var(--ink); }
+details.dk-section.hist > summary { justify-content: flex-start; }
+details.dk-section.hist > summary .small { margin-left: auto; }

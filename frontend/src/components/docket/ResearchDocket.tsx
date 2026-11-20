@@ -13,8 +13,11 @@ import { useTween } from "../games/useTween";
 import { useNow } from "../shell/Topbar";
 import { MustHappen, MyEvidence, PriceImplies, risks, WhereWrong } from "./Breakdown";
 import "./docket.css";
+import { FromHistory } from "./FromHistory";
 import { SaveOrPass, SavedList } from "./SaveOrPass";
 import { useScanTime } from "./scanTime";
+import { Tip } from "../design/Tip";
+import { Term } from "../Term";
 
 const VERDICT: Record<Verdict, { text: string; cls: string; tip: string }> = {
   agrees: { text: "fits history", cls: "v-ok", tip: "The price sits inside the range past games suggest." },
@@ -139,7 +142,7 @@ export function ResearchDocket() {
                         onClick={() => setOpenLeg(isOpen ? null : l.ticker)} title={l.ticker}>
                         {l.label}
                       </button>
-                      <span className="leg-p" title="Market-implied chance for this side">
+                      <span className="leg-p">
                         {comboLoading ? "…" : pct(cl?.probability)}
                       </span>
                       <button type="button" className="x" aria-label={`Remove ${l.label}`}
@@ -147,10 +150,10 @@ export function ResearchDocket() {
                     </div>
                     <div className="leg-sub">
                       {evLoading && !e ? <span className="shimmer" aria-hidden="true" />
-                        : v ? <span className={`verdict ${v.cls}`} title={v.tip}>{v.text}</span>
-                        : e && !e.supported ? <span className="verdict v-thin" title={e.reason}>no check</span> : null}
+                        : v ? <Tip text={v.tip} className={`verdict ${v.cls}`}>{v.text}</Tip>
+                        : e && !e.supported ? <Tip text={e.reason ?? "No box-score check for this market"} className="verdict v-thin">no check</Tip> : null}
                       {e?.windows && <span className="muted small">L10 {e.windows.last10[0]}/{e.windows.last10[1]}</span>}
-                      {e?.injury && <span className="inj small" title={e.injury.detail}>{e.injury.status}</span>}
+                      {e?.injury && <Tip text={e.injury.detail || e.injury.status} className="inj small">{e.injury.status}</Tip>}
                     </div>
                     <div className={`drawer${isOpen ? " open" : ""}`}>
                       <div>{isOpen && <LegResearch ev={e} loading={evLoading} />}</div>
@@ -164,14 +167,14 @@ export function ResearchDocket() {
               {n >= 2 ? (
                 <>
                   <div className="big-num" aria-live="polite">
-                    <span className="label">Fair price</span>
+                    <span className="label"><Term id="fair-price">Fair price</Term></span>
                     <span className="value">{comboLoading ? <span className="shimmer" aria-label="Pricing…" />
                       : fairT == null ? "—" : `${(fairT * 100).toFixed(1)}¢`}</span>
                     {fair && !comboLoading ? <span className="muted small">pays {(1 / fair).toFixed(1)}×</span> : null}
                   </div>
                   {adjT != null && fair != null && Math.abs((adj ?? 0) - fair) >= 0.005 && (
                     <div className="big-num alt">
-                      <span className="label" title="Market prices × how often these legs actually landed together in past games">History-adjusted</span>
+                      <span className="label"><Tip text="Market prices × how often these legs actually landed together in past games">History-adjusted</Tip></span>
                       <span className="value">{(adjT * 100).toFixed(1)}¢</span>
                       <span className="muted small">{(adj ?? 0) > fair ? "legs move together" : "legs pull apart"}</span>
                     </div>
@@ -185,10 +188,11 @@ export function ResearchDocket() {
                     <p className="small">
                       {comboNow.kalshi.eligible
                         ? <span className="badge paper">Combinable on Kalshi</span>
-                        : <span className="badge stale" title={comboNow.kalshi.ineligible_events.join(", ")}>Not combinable on Kalshi</span>}
+                        : <span className="badge stale">Not combinable on Kalshi</span>}
                       {comboNow.kalshi.history?.return_per_dollar != null && (
-                        <span className="muted" title={`${comboNow.kalshi.history.n.toLocaleString()} settled ${comboNow.kalshi.history.bucket} combos`}>
+                        <span className="muted">
                           {" "}· past {comboNow.kalshi.history.bucket} combos paid ${comboNow.kalshi.history.return_per_dollar.toFixed(2)}/$1
+                          {" "}(all Kalshi users, {comboNow.kalshi.history.n.toLocaleString()} settled)
                         </span>
                       )}
                     </p>
@@ -203,6 +207,7 @@ export function ResearchDocket() {
             <WhereWrong items={riskItems} loading={evLoading || comboLoading} />
             <PriceImplies legs={legs} combo={comboNow} adjusted={adj} scanAt={scanAt} now={now} />
             <MyEvidence legs={legs} ev={evNow} loading={evLoading} error={ev?.key === key ? ev.err : null} />
+            <FromHistory legs={legs} />
             <section className="dk-section" aria-labelledby="dk-pay">
               <h3 id="dk-pay">What I would pay</h3>
               <SlipCheck legs={legs} quote={quote} onQuote={setQuote} refPrice={adj ?? fair} />

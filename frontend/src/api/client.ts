@@ -15,6 +15,7 @@ import type {
   ExpectedValue,
   HistoryFill,
   HistoryReport,
+  HistorySimilar,
   HistoryStatus,
   Side,
   CollectionGap,
@@ -133,6 +134,10 @@ export const api = {
   coachStatus: () => getJson<LlmStatus>("/api/history/coach/status"),
   coach: () => postJson<CoachResult>("/api/history/coach", {}, "review"),
   historyOpen: () => getJson<OpenAnalysis>("/api/history/open"),
+  historySimilar: (p: { legs?: { ticker: string; side: Side }[]; series?: string[] }) =>
+    getJson<HistorySimilar>(`/api/history/similar${qs({
+      legs: p.legs?.length ? p.legs.map((l) => `${l.ticker}:${l.side}`).join(",") : undefined,
+      series: p.series?.length ? p.series.join(",") : undefined })}`),
   openReview: () => postJson<OpenReview>("/api/history/open/review", {}, "review"),
   historyFills: (limit = 100) => getJson<{ items: HistoryFill[] }>(`/api/history/fills?limit=${limit}`),
   catalogStatus: () => getJson<CatalogStatus>("/api/catalog/status"),

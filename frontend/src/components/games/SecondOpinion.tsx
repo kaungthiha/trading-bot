@@ -64,7 +64,7 @@ export function SecondOpinion({ legs, quoteCents }: { legs: ComboLeg[]; quoteCen
           <ul className="review-legs small">
             {res.legs.map((l) => (
               <li key={l.ticker}>
-                <span className={`verdict ${LEAN[l.lean].cls}`} title={LEAN[l.lean].text}>{LEAN[l.lean].icon} {LEAN[l.lean].text}</span>{" "}
+                <span className={`verdict ${LEAN[l.lean].cls}`}>{LEAN[l.lean].icon} {LEAN[l.lean].text}</span>{" "}
                 <b>{label(l.ticker)}</b>
                 {l.points.length > 0 && <ul>{l.points.map((p) => <li key={p}>{p}</li>)}</ul>}
                 {l.sources.length > 0 && <span className="muted"> [{l.sources.join(", ")}]</span>}

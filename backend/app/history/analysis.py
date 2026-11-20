@@ -303,8 +303,8 @@ def report(s: Session, budget: Decimal | None) -> dict[str, Any]:
         "entry_quality": quality,
         "combo_breakdown": combos,
         "playbook": playbook(summary, behavior, buckets, by_type, quality, combos),
-        "insights": insights(summary, behavior, buckets, by_type, by_series),
-        "suggestions": suggestions(s, by_type, by_series, behavior, buckets),
+        "insights": insights(summary, behavior, buckets, by_type, by_series, done),
+        "suggestions": suggestions(s, by_type, by_series, behavior, buckets, done),
     }
 
 
@@ -313,7 +313,7 @@ def _pct(x: float) -> str:
 
 
 def insights(summary: dict, behavior: dict, buckets: list[dict], by_type: list[dict],
-             by_series: list[dict]) -> list[dict[str, str]]:
+             by_series: list[dict], done: list[dict] | None = None) -> list[dict[str, str]]:
     """Plain-language observations, each with its evidence. Thresholds are deliberately
     modest; small samples are flagged."""
     out: list[dict[str, str]] = []
@@ -327,7 +327,8 @@ def insights(summary: dict, behavior: dict, buckets: list[dict], by_type: list[d
                     "every number here as noisy until you have 30+."})
     if wr:
         verdict = "ahead of" if wr["edge"] > 0 else "behind"
-        out.append({"level": "good" if wr["edge"] > 0 else "warn",
+        clear = abs(wr["edge"]) > 2 * (wr["se"] or 1)  # only beyond noise earns a colour
+        out.append({"level": ("good" if wr["edge"] > 0 else "warn") if clear else "info",
                     "text": f"Your picks won {_pct(wr['win_rate'])} of the time at an average "
                     f"price of {wr['avg_price'] * 100:.0f}¢: {verdict} the market by "
                     f"{abs(wr['edge']) * 100:.1f} pts (±{(wr['se'] or 0) * 100:.1f} standard "
@@ -358,8 +359,17 @@ def insights(summary: dict, behavior: dict, buckets: list[dict], by_type: list[d
     worst = [t for t in by_type if Decimal(t["pnl"]) < 0 and t["markets"] >= 5]
     best = [t for t in reversed(by_type) if Decimal(t["pnl"]) > 0 and t["markets"] >= 5]
     if best:
-        out.append({"level": "good", "text": f"Best market type: {best[0]['name']} "
-                    f"(+${best[0]['pnl']} over {best[0]['markets']} markets)."})
+        from app.history.similar import assess  # local: similar imports this module
+
+        b = best[0]
+        if assess([r for r in (done or []) if r["type"] == b["name"]])["verdict"] == "better":
+            out.append({"level": "good", "text": f"Best market type: {b['name']} "
+                        f"(+${b['pnl']} over {b['markets']} markets), better than luck. "
+                        "A record, not a forecast."})
+        else:  # profitable, but a small or noisy record is not a strength
+            out.append({"level": "info", "text": f"Most profitable so far: {b['name']} "
+                        f"(+${b['pnl']} over {b['markets']} markets). Too few or too noisy "
+                        "to call it a strength yet."})
     if worst:
         out.append({"level": "warn", "text": f"Worst market type: {worst[0]['name']} "
                     f"(${worst[0]['pnl']} over {worst[0]['markets']} markets)."})
@@ -451,10 +461,18 @@ def playbook(summary: dict, behavior: dict, buckets: list[dict], by_type: list[d
 
 
 def suggestions(s: Session, by_type: list[dict], by_series: list[dict], behavior: dict,
-                buckets: list[dict]) -> list[dict[str, Any]]:
-    """Research leads grounded in your record. Not picks: each says why it's listed."""
+                buckets: list[dict], done: list[dict] | None = None) -> list[dict[str, Any]]:
+    """Research leads grounded in your record. Not picks: each says why it's listed.
+    "Lean in" needs a record that beats luck (history.similar.assess), never a few lucky hits."""
+    from app.history.similar import assess  # local: similar imports this module
+
     out: list[dict[str, Any]] = []
-    good_series = [x for x in reversed(by_series) if Decimal(x["pnl"]) > 0 and x["markets"] >= 3]
+    rows = done or []
+    def beats_luck(ser: str) -> bool:
+        return assess([r for r in rows if r["series"] == ser])["verdict"] == "better"
+
+    good_series = [x for x in reversed(by_series)
+                   if Decimal(x["pnl"]) > 0 and beats_luck(x["series"])]
     for g in good_series[:3]:
         evs = s.scalars(select(CatalogEvent).where(CatalogEvent.series_ticker == g["series"])
                         .order_by(CatalogEvent.volume_24h.desc()).limit(3)).all()

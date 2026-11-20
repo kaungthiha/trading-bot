@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../../api/client";
 import type { ComboLeg, SlipCheck as SlipCheckT } from "../../api/types";
+import { Term } from "../Term";
 
 const VERDICT = {
   reasonable: { cls: "v-ok", text: "Reasonable" },
@@ -66,7 +67,7 @@ export function SlipCheck({ legs, quote, onQuote, refPrice }: {
         <div className="check-body">
           <p className="check-head">
             <span className={`verdict big ${v.cls}`}>{v.text}</span>
-            {res.combo.walk_away && <span className="small">walk away above <b>{c(res.combo.walk_away)}</b></span>}
+            {res.combo.walk_away && <span className="small"><Term id="walk-away-price">walk away</Term> above <b>{c(res.combo.walk_away)}</b></span>}
           </p>
           <ul className="reasons">
             {res.reasons.slice(0, 4).map((r) => <li key={r.text} className={r.level}>{r.text}</li>)}

@@ -215,17 +215,17 @@ export function OpportunitiesPanel() {
 
   return (
     <div className="opportunities">
-      <p className="disclaimer" title="Each card is a mispricing the scanner found in Kalshi's public order books, re-checked against live books.">
+      <p className="disclaimer">
         Suggestions only: verify the checklist, then trade on Kalshi yourself, with money you can lose.
       </p>
       {status && (
         <div className="stat-chips">
           <div className="stat-chip"><span className="tile-label">Budget</span><b>{status.budget ? formatPrice(status.budget) : "not set"}</b></div>
           <div className="stat-chip"><span className="tile-label">Available</span><b>{status.available ? formatPrice(status.available) : "—"}</b></div>
-          <div className="stat-chip" title="Largest stake per idea"><span className="tile-label">Per-idea cap</span>
+          <div className="stat-chip"><span className="tile-label">Per-idea cap (largest stake per idea)</span>
             <b className="small">{formatPrice(status.caps.guaranteed)} guaranteed / {formatPrice(status.caps.conditional)} conditional</b></div>
           {status.last_scan && (
-            <div className="stat-chip" title={`${status.last_scan.events} events, ${status.last_scan.candidates} candidates, ${status.last_scan.confirmed} confirmed`}>
+            <div className="stat-chip">
               <span className="tile-label">Last scan {formatUtc(status.last_scan.at)}</span>
               <b className="small">{status.last_scan.markets} markets · {status.last_scan.confirmed} confirmed</b></div>
           )}

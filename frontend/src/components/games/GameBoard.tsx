@@ -5,6 +5,7 @@ import type { GameChip, GameDetail, GameGroup, GameInjuries, GamePlayer } from "
 import { ago, cents, gameTime, pct } from "./format";
 import { IdeasPanel } from "./IdeasPanel";
 import { slip, useSlip } from "./slip";
+import { Tip } from "../design/Tip";
 
 const NEAR = 7; // ladder chips shown before "show all"
 
@@ -39,8 +40,8 @@ function ChipRail({ group, tickers }: { group: GameGroup; tickers: Set<string> }
     <div className="rail-row">
       <div className="rail-head">
         <span className="rail-title">{group.label}</span>
-        {group.median_label && <span className="median-badge" title="Where the market's prices put the 50/50 point">
-          mkt {group.median_label}</span>}
+        {group.median_label && <Tip text="Where the market's prices put the 50/50 point" className="median-badge">
+          mkt {group.median_label}</Tip>}
       </div>
       <div className="rail">
         {shown.map((c) => (
@@ -91,9 +92,9 @@ function PlayerGrid({ game, tickers }: { game: GameDetail; tickers: Set<string> 
               onClick={() => setTeam(t.code)}>{t.code}</button>
           ))}
         </div>
-        <span className="small muted" title="The number in each cell is where the market's prices cross 50%: its median for that stat.">
+        <Tip text="The number in each cell is where the market's prices cross 50%: its median for that stat." className="small muted">
           cell = market's median line
-        </span>
+        </Tip>
       </div>
       <div className="grid-scroll">
         <table>
@@ -141,7 +142,7 @@ function InjuryStrip({ game }: { game: GameDetail }) {
   return (
     <div className="injury-strip" aria-label="Injury report (ESPN)">
       {items.length === 0 ? <span className="small muted">No injuries listed</span> : items.map((i) => (
-        <span key={`${i.code}-${i.player}`} className={`inj ${/out/i.test(i.status) ? "out" : ""}`} title={i.detail}>
+        <span key={`${i.code}-${i.player}`} className={`inj ${/out/i.test(i.status) ? "out" : ""}`}>
           {i.code} · {i.player} <em>{i.status}</em>
         </span>
       ))}
@@ -197,9 +198,10 @@ export function GameBoard({ prefix, gameKey, tick }: Props) {
             onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
         {game.protected_available && tab === "players" && (
-          <label className="small protected-toggle" title="Kalshi also lists 'Protected' versions of player props: separate markets with their own rules and prices.">
-            <input type="checkbox" checked={prot} onChange={(e) => setProt(e.target.checked)} /> Protected
-          </label>
+          <span className="small protected-toggle">
+            <label><input type="checkbox" checked={prot} onChange={(e) => setProt(e.target.checked)} /> Protected</label>{" "}
+            <Tip text="Kalshi also lists 'Protected' versions of player props: separate markets with their own rules and prices.">what's this?</Tip>
+          </span>
         )}
       </div>
       <div className="tab-panel" role="tabpanel" key={current?.id}>

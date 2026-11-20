@@ -166,3 +166,14 @@
 .games-layout { grid-template-columns: 220px minmax(0, 1fr); }
 @media (max-width: 1150px) { .games-layout { grid-template-columns: 190px minmax(0, 1fr); } }
 @media (max-width: 760px) { .games-layout { grid-template-columns: 1fr; } }
+
+/* --- Phase 5: tips, journal guards --------------------------------------------------- */
+.tip-wrap { position: relative; display: inline-block; }
+.tip { all: unset; cursor: help; border-bottom: 1px dotted currentColor; }
+.tip:focus-visible { outline: 1.5px solid var(--focus) !important; outline-offset: 2px; border-radius: 2px; }
+.tip-wrap .tooltip { white-space: normal; }
+.market-table tr.few td { color: var(--muted); }
+.what-changed { margin-bottom: 0.75rem; }
+.what-changed p { margin: 0; }
+.sug-why { display: block; margin: 0.1rem 0 0.4rem; }
+.market-table .tip { white-space: nowrap; }

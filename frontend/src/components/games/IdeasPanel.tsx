@@ -6,6 +6,7 @@ import { EmptyState, Figure } from "../Hairline";
 import { cents, pct } from "./format";
 import { offReason } from "./SecondOpinion";
 import { slip, useSlip } from "./slip";
+import { Tip } from "../design/Tip";
 
 const plain = (bet: string) => bet.replace(/^(YES|NO) · /, "");
 const num = (s: string | null | undefined) => (s == null ? null : Number(s));
@@ -15,9 +16,9 @@ function SingleRow({ x, inSlip }: { x: IdeaSingle; inSlip: boolean }) {
   const w = x.windows;
   return (
     <li className="idea">
-      <span className={`strength ${x.strength}`} title={x.strength === "strong"
+      <Tip className={`strength ${x.strength}`} text={x.strength === "strong"
         ? "History's whole 80% range is above the all-in price" : "History beats the price, but its range overlaps it"}>
-        {x.strength}</span>
+        {x.strength}</Tip>
       <div className="idea-main">
         <span className="idea-bet"><b className={`side-chip ${x.side}`}>{x.side.toUpperCase()}</b> {plain(x.bet)}</span>
         <span className="small muted">

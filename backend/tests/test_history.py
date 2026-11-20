@@ -229,6 +229,12 @@ def test_history_job_and_api(settings: Settings, tmp_path: Path) -> None:
         assert rep["summary"]["realized_pnl"] == "2.51"
         fills = c.get("/api/history/fills", params={"limit": 2}).json()["items"]
         assert len(fills) == 2 and fills[0]["fill_id"] == "f3"  # newest first
+        sim = c.get("/api/history/similar", params={"legs": f"{A}:yes,{B}:no"}).json()
+        kinds = {(g["kind"], g["key"]) for g in sim["groups"]}
+        assert ("series", "KXNBAGAME") in kinds and ("combo", "combo") in kinds
+        assert all(g["verdict"] in ("none", "too_few") for g in sim["groups"])  # tiny sample
+        assert all(g["roi"] is None for g in sim["groups"])
+        assert c.get("/api/history/similar", params={"legs": "../etc:yes"}).status_code == 422
         body = json.dumps(rep) + json.dumps(c.get("/api/health").json())
         assert "test-key-id" not in body
     engine.dispose()

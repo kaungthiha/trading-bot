@@ -5,6 +5,8 @@ import type { CatalogEventDetail, CatalogMarket, ComboLeg, LadderStats, Side } f
 import { formatPrice, formatUtc } from "../format";
 import { DistributionChart } from "./DistributionChart";
 import { EvCalculator } from "./EvCalculator";
+import { Tip } from "../design/Tip";
+import { Term } from "../Term";
 
 const pct = (p: number | null | undefined, d = 1) => (p == null ? "—" : `${(p * 100).toFixed(d)}%`);
 const qty = (s: string | null) => (s == null ? "—" : Math.round(Number(s)).toLocaleString());
@@ -61,13 +63,13 @@ export function EventView({ ticker, legs, onAddLeg, onBack }: Props) {
         {ev.open_interest.toLocaleString()} · closes {formatUtc(ev.close_at)} ·{" "}
         <span className="muted">prices from the scan at {formatUtc(ev.refreshed_at)}</span>
         {ev.fee.multiplier !== "1" && <> · <strong>fee multiplier {ev.fee.multiplier}×</strong></>}
-        {ev.combo_collections?.length > 0 && <> · <span className="badge paper" title={ev.combo_collections.join(", ")}>combo-eligible on Kalshi</span></>}
+        {ev.combo_collections?.length > 0 && <> · <Tip text={`Kalshi combo collections: ${ev.combo_collections.join(", ")}`} className="badge paper">combo-eligible on Kalshi</Tip></>}
       </p>
 
       {excl && (
         <div className="stat-box small">
           <strong>Exactly one outcome wins.</strong> Implied probabilities add up to{" "}
-          {pct(excl.sum_implied)}{excl.overround != null && <> (overround {(excl.overround * 100).toFixed(1)} pts)</>}.
+          {pct(excl.sum_implied)}{excl.overround != null && <> (<Term id="overround">overround</Term> {(excl.overround * 100).toFixed(1)} pts)</>}.
           {excl.sum_yes_ask && <> Buying YES on every outcome costs ${excl.sum_yes_ask} per $1 before fees.</>}{" "}
           The "Normalized" column rescales prices to sum to 100%, which only makes sense if the list
           covers every possible result.

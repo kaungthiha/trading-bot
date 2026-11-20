@@ -1,6 +1,7 @@
 import type { ComboLeg, ComboResult, EvidenceResult, LegEvidence } from "../../api/types";
 import { pct } from "../games/format";
 import { exact, rel } from "../today/time";
+import { Term } from "../Term";
 
 /** Plain-language side: YES = "this happens", NO = "this does not happen". */
 export function phrase(l: ComboLeg): string {
@@ -24,7 +25,7 @@ export function MustHappen({ legs }: { legs: ComboLeg[] }) {
       </ol>
       <p className="small muted">
         {legs.length === 1 ? "If it does, each contract pays $1."
-          : `All ${legs.length} must go your way for the combo to pay $1 per contract; one miss loses it all.`}
+          : <>All {legs.length} must go your way for the <Term id="combo">combo</Term> to pay $1 per contract; one miss loses it all.</>}
       </p>
     </section>
   );
@@ -91,7 +92,7 @@ export function PriceImplies({ legs, combo, adjusted, scanAt, now }: {
         </p>
       )}
       <p className="fine muted">
-        Market-implied = what Kalshi's mid price says.{" "}
+        <Term id="implied-probability">Market-implied</Term> = what Kalshi's mid price says.{" "}
         {scanAt ? <>Prices from the scan <time dateTime={scanAt} title={exact(scanAt)}>{rel(scanAt, now)}</time>.</>
           : scanAt === null ? "Prices have never been scanned." : null}
       </p>

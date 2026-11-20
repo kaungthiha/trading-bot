@@ -24,7 +24,7 @@ describe("<GlossaryPage>", () => {
     expect(screen.getByText("Expected value")).toBeInTheDocument();
     await user.clear(screen.getByLabelText("Search terms"));
     await user.selectOptions(screen.getByLabelText("Category"), "contract");
-    expect(screen.getByRole("status")).toHaveTextContent("3 terms shown");
+    expect(screen.getByRole("status")).toHaveTextContent("4 terms shown"); // + Combo (2026-11-19)
     await user.type(screen.getByLabelText("Search terms"), "zzzz");
     expect(screen.getByRole("status")).toHaveTextContent("0 terms shown");
   });

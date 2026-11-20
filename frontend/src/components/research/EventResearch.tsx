@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { ComboLeg, OpenPosition, OpportunityCard, Signal } from "../../api/types";
 import { href } from "../../router";
+import { FromHistory } from "../docket/FromHistory";
 import { docketTitle, useSaved } from "../docket/saved";
 import { slip, useSlip } from "../games/slip";
 import { EventView } from "../markets/EventView";
@@ -84,6 +85,10 @@ export function EventResearch({ ticker }: { ticker: string }) {
             )}
           </div>
         </div>
+      </Layer>
+
+      <Layer n={2} id="rs-l2h" title="From your history" open>
+        <FromHistory series={[ticker.split("-")[0]!]} as="section" />
       </Layer>
 
       <Layer n={2} id="rs-l2" title="Markets, prices and rules" open>
