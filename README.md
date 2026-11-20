@@ -487,6 +487,44 @@ probability), what you'd pay (the slip check), the AI second opinion, and **Save
 your decision and why, saved in this browser with the price at the time and listed on Today
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
+**Investigate this pick.** On an NBA single-game leg (Docket, the Ideas tab, an NBA event's
+market table, or an NBA leg on a scanner card) click *Investigate*. A drawer opens for that
+exact contract and side, without leaving the page or touching your slip. Nothing runs until you
+click **Run investigation**. Then you get:
+- a summary: two sentences, up to three sourced findings (at least one counterargument or open
+  question), a price lens and what's still unknown;
+- *View full research* (collapsed): what supports the pick, what could make you wrong, whether
+  the price is justified (fees, break-even, walk-away, rules excerpt), sources and method.
+
+What it uses:
+- **The app's own data:** the Kalshi quote, ESPN box scores and injury report, and the slip
+  check's fee maths. Box-score history is a frequency, not a probability. No edge is shown when
+  the quote is stale, the sample is small, or tonight's lineup isn't normal.
+- **News (optional, Brave News Search):** up to 3 targeted searches per run. Only headlines
+  and snippets are used; no article page is ever fetched. Results must name this game's teams
+  (or the prop's player). Articles about a past matchup or a different line are flagged and
+  never count as support. Syndicated copies count once.
+- **Your local model (optional, Ollama):** writes the summary from that evidence. Its output is
+  checked: unknown sources are removed, numbers not in the evidence are marked unverified, hype
+  and injected instructions are dropped. If Ollama is off, you get the app's own summary.
+
+Setup and spending caps:
+- **Brave:** set `KRT_BRAVE_SEARCH_API_KEY` in `.env` (a key from https://brave.com/search/api/;
+  at the time of writing $5 per 1,000 requests with $5 free credit a month, so check the
+  current price there).
+- **App-side caps** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (20),
+  `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (200), `KRT_RESEARCH_MAX_SEARCHES_PER_INVESTIGATION`
+  (3), `KRT_RESEARCH_MAX_SOURCES_PER_INVESTIGATION` (5), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6).
+  Every network attempt is written to a local ledger before it's sent, and the caps are
+  enforced atomically. Cache hits are free. Retries are off, because each attempt is billed.
+  The drawer shows this app's count; **your Brave balance isn't visible to the app**, so check
+  the Brave dashboard.
+- **Ollama:** the same local model as the other AI features (`KRT_LLM_PROVIDER=ollama`,
+  `KRT_OLLAMA_MODEL`). An investigation's summary is capped at 90 seconds, one at a time.
+
+Only clicking *Run investigation* or *Refresh research* can spend a search. Opening the
+drawer, expanding the full research and reloading never do. Nothing here places orders.
+
 **From your history** (in the Docket and on event research pages) shows how trades like
 these went for you: the same series, the same market type, your Kalshi combos and combos with
 the same number of legs. One rule applies everywhere a record is summarised, including the

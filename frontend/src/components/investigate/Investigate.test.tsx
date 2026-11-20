@@ -1,0 +1,287 @@
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ComboLeg, InvestigationHypothesis, LegEvidence } from "../../api/types";
+import { slip } from "../games/slip";
+import { fixtureInvestigation } from "./fixture";
+import { buildHypothesis, hypothesisKey, supportFor } from "./hypothesis";
+import { InvestigateButton } from "./InvestigateButton";
+import { clampSummary, InvestigationHost } from "./InvestigationDrawer";
+import { fixtureSource, investigation } from "./store";
+
+const WIN: ComboLeg = { ticker: "KXNBAGAME-26NOV19GSWMEM-GSW", side: "yes", label: "Golden State wins", event: "KXNBAGAME-26NOV19GSWMEM" };
+const SPREAD: ComboLeg = { ticker: "KXNBASPREAD-26NOV19GSWMEM-MEM4", side: "yes", label: "Memphis wins by over 4.5 points", event: "KXNBASPREAD-26NOV19GSWMEM" };
+const REB12: ComboLeg = { ticker: "KXNBAREB-26NOV19NYKMIN-NYKKTOWNS32-12", side: "yes", label: "Karl-Anthony Towns: 12+ rebounds", event: "KXNBAREB-26NOV19NYKMIN" };
+const REB10: ComboLeg = { ...REB12, ticker: "KXNBAREB-26NOV19NYKMIN-NYKKTOWNS32-10", label: "Karl-Anthony Towns: 10+ rebounds" };
+const towns: LegEvidence = { ticker: REB12.ticker, side: "yes", label: "Towns", supported: true, kind: "player_stat", line: 11.5,
+  subject: { type: "player", name: "Karl-Anthony Towns", team: "NYK", espn_url: null } };
+
+function Harness({ leg = WIN, ev }: { leg?: ComboLeg; ev?: LegEvidence }) {
+  return (
+    <>
+      <InvestigateButton leg={leg} ev={ev} scanAt="2026-11-19T21:00:00Z" />
+      <InvestigationHost />
+    </>
+  );
+}
+
+beforeEach(() => { investigation.reset(); slip.clear(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+describe("hypotheses are exact", () => {
+  it("YES and NO, and different lines, are different hypotheses with different statements", () => {
+    const yes = buildHypothesis(WIN, undefined, null);
+    const no = buildHypothesis({ ...WIN, side: "no" }, undefined, null);
+    expect(hypothesisKey(yes)).not.toBe(hypothesisKey(no));
+    expect(yes.statement).toBe("Golden State wins");
+    expect(no.statement).toMatch(/^NOT: Golden State wins/);
+    const r12 = buildHypothesis(REB12, towns, null);
+    const r10 = buildHypothesis(REB10, undefined, null);
+    expect(hypothesisKey(r12)).not.toBe(hypothesisKey(r10));
+    expect(r12).toMatchObject({ market_type: "player_prop", threshold: 11.5, subject: "Karl-Anthony Towns" });
+    expect(r10.threshold).toBe(10); // from the ticker when evidence isn't loaded
+  });
+
+  it("moneyline and spread on the same game are different market types", () => {
+    expect(buildHypothesis(WIN, undefined, null).market_type).toBe("moneyline");
+    const winEv: LegEvidence = { ticker: WIN.ticker, side: "yes", label: "GSW", supported: true, kind: "team_win", line: 0 };
+    expect(buildHypothesis(WIN, winEv, null).threshold).toBeNull(); // no "line 0" on a winner
+    const s = buildHypothesis(SPREAD, undefined, null);
+    expect(s.market_type).toBe("spread");
+    expect(s.threshold).toBe(4);
+  });
+
+  it("results follow the exact side and line", () => {
+    const a = fixtureInvestigation(buildHypothesis(WIN, undefined, null));
+    const b = fixtureInvestigation(buildHypothesis({ ...WIN, side: "no" }, undefined, null));
+    expect(a.summary.takeaway).toContain("for Golden State wins");
+    expect(b.summary.takeaway).toContain("for NOT Golden State wins");
+    expect(a.quote.ask).not.toBe(b.quote.ask);
+    expect(fixtureInvestigation(buildHypothesis(REB12, towns, null)).summary.takeaway).toContain("(line 11.5)");
+  });
+
+  it("unsupported markets explain why instead of offering the action", () => {
+    expect(supportFor({ ...WIN, ticker: "KXNHLGAME-26NOV19BOSNYR-BOS", event: "KXNHLGAME-26NOV19BOSNYR" }).ok).toBe(false);
+    expect(supportFor({ ticker: "KXNBAMVP-27-SGA", side: "yes", label: "SGA MVP", event: "KXNBAMVP-27" }).ok).toBe(false);
+    expect(supportFor({ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }).ok).toBe(false);
+    render(<Harness leg={{ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }} />);
+    expect(screen.queryByRole("button", { name: /^Investigate/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "can't investigate" })).toBeInTheDocument();
+  });
+});
+
+describe("summary limits", () => {
+  it("keeps at most 2 sentences and 3 findings whatever the source returns", () => {
+    const r = fixtureInvestigation(buildHypothesis(WIN, undefined, null));
+    expect(r.summary.findings).toHaveLength(4); // the fixture deliberately over-supplies
+    const c = clampSummary(r.summary);
+    expect(c.takeaway.split(/(?<=[.!?])\s+/)).toHaveLength(2);
+    expect(c.takeaway).not.toContain("never be shown");
+    expect(c.findings).toHaveLength(3);
+  });
+});
+
+describe("<InvestigationDrawer>", () => {
+  it("opens without touching the slip, shows the contract, and runs only on click", async () => {
+    const user = userEvent.setup();
+    slip.add(WIN);
+    const run = vi.spyOn(fixtureSource, "run");
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Investigate YES: Golden State wins" });
+    await user.click(trigger);
+    const dlg = screen.getByRole("dialog", { name: "Golden State wins" });
+    expect(screen.getByRole("heading", { name: "Golden State wins" })).toHaveFocus();
+    expect(within(dlg).getByText(/Preview with sample research/)).toBeInTheDocument();
+    expect(within(dlg).getByText("Game winner")).toBeInTheDocument();
+    expect(within(dlg).getByText("KXNBAGAME-26NOV19GSWMEM-GSW")).toBeInTheDocument();
+    expect(await within(dlg).findByText(/34¢ ask/)).toBeInTheDocument();
+    expect(within(dlg).getByText(/Uses up to 3 news searches \(16 of 20 left today/)).toBeInTheDocument();
+    expect(run).not.toHaveBeenCalled(); // opening is free
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(slip.get()).toEqual([WIN]);
+  });
+
+  it("shows the summary by default with the full research collapsed, and expanding costs nothing", async () => {
+    const user = userEvent.setup();
+    const run = vi.spyOn(fixtureSource, "run");
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    await user.click(await within(dlg).findByRole("button", { name: "Run investigation" }));
+    expect(within(dlg).getByRole("status")).toHaveTextContent("Investigating…");
+    const three = await within(dlg).findByRole("region", { name: "Three things that matter" });
+    expect(within(three).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(dlg).getByText(/^Sample takeaway: the evidence is mixed/).textContent).not.toContain("third sentence");
+    // missing model / edge states are explicit, never invented
+    const price = within(dlg).getByRole("region", { name: "Price lens" });
+    expect(price).toHaveTextContent("No calibrated model for this market");
+    expect(price).toHaveTextContent("Not enough evidence to estimate an edge");
+    expect(within(dlg).getByText("Still unknown:").parentElement).toHaveTextContent("Starting lineup not confirmed");
+    const full = within(dlg).getByText("View full research").closest("details")!;
+    expect(full).not.toHaveAttribute("open");
+    expect(run).toHaveBeenCalledTimes(1);
+    await user.click(within(dlg).getByText("View full research"));
+    expect(full).toHaveAttribute("open");
+    expect(within(full).getByRole("heading", { name: "What could make me wrong?" })).toBeInTheDocument();
+    expect(within(full).getByText(/same report as S2: not independent/)).toBeInTheDocument();
+    expect(run).toHaveBeenCalledTimes(1); // expansion reads the same canonical result
+    expect(investigation.get().runs).toBe(1);
+  });
+
+  it("source markers link out; a finding with an unknown source is marked unverified", async () => {
+    const user = userEvent.setup();
+    const base = fixtureSource.run;
+    vi.spyOn(fixtureSource, "run").mockImplementation(async (h: InvestigationHypothesis) => {
+      const r = await base(h);
+      r.summary.findings[0] = { ...r.summary.findings[0]!, source_ids: ["S9"] }; // invented id
+      return r;
+    });
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    await user.click(await screen.findByRole("button", { name: "Run investigation" }));
+    const three = await screen.findByRole("region", { name: "Three things that matter" });
+    expect(within(three).getByText("unverified")).toBeInTheDocument();
+    const mark = within(three).getByRole("link", { name: /Source 2: example.org/ });
+    expect(mark).toHaveAttribute("rel", "noopener noreferrer nofollow");
+  });
+
+  it("double clicks, re-renders and reopening never start a second job", async () => {
+    const user = userEvent.setup();
+    const run = vi.spyOn(fixtureSource, "run");
+    const { rerender } = render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const btn = await screen.findByRole("button", { name: "Run investigation" });
+    act(() => { btn.click(); });
+    act(() => { void investigation.run(investigation.get().open!); });
+    rerender(<Harness />);
+    await screen.findByRole("region", { name: "Three things that matter" });
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    expect(await screen.findByRole("region", { name: "Three things that matter" })).toBeInTheDocument();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains each degraded mode", async () => {
+    const user = userEvent.setup();
+    investigation.setScenario("ollama_offline");
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    await user.click(await screen.findByRole("button", { name: "Run investigation" }));
+    expect(await screen.findByText(/Box-score history only \(the local model is offline\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Local model offline: summary is box-score only/)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    investigation.reset();
+    investigation.setScenario("brave_unconfigured");
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    expect(await screen.findByText(/Brave Search isn't set up: the investigation will use box scores only/)).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    investigation.reset();
+    investigation.setScenario("budget_exhausted");
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    expect(await screen.findByText(/Today's search budget is used up/)).toBeInTheDocument();
+  });
+
+  it("Escape closes even when focus has left the drawer, and Run hands focus to the title", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    await user.click(await screen.findByRole("button", { name: "Run investigation" }));
+    await screen.findByRole("region", { name: "Three things that matter" });
+    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+    act(() => { (document.activeElement as HTMLElement).blur(); });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("traps Tab inside the drawer", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    await within(dlg).findByRole("button", { name: "Run investigation" });
+    for (let i = 0; i < 6; i++) {
+      await user.tab();
+      expect(dlg.contains(document.activeElement)).toBe(true);
+    }
+  });
+});
+
+describe("API source (Phase B)", () => {
+  const usage = { configured: false, used_today: 0, daily_cap: 20, used_month: 0, monthly_cap: 200, max_searches_per_investigation: 3 };
+  let calls: { url: string; method: string; headers: Record<string, string>; body: unknown }[];
+
+  function stub(pre: Record<string, unknown>, result: (h: InvestigationHypothesis) => unknown) {
+    calls = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = new URL(String(input), "http://127.0.0.1");
+      calls.push({ url: u.pathname + u.search, method: init?.method ?? "GET",
+        headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body ? JSON.parse(String(init.body)) : null });
+      if (u.pathname === "/api/research/preflight") return new Response(JSON.stringify(pre), { status: 200 });
+      const h = buildHypothesis(REB12, towns, null);
+      return new Response(JSON.stringify(result(h)), { status: 200 });
+    }));
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("runs with the CSRF header and the exact contract, and refreshes by id", async () => {
+    const { apiSource } = await import("./store");
+    stub({ quote: { ask: 0.66, side: "yes", observed_at: new Date().toISOString(), fresh: true, snapshot_ref: "c" },
+      model: "Box-score history (frequency, checked when you run it)", cached: false, unsupported: null, usage },
+    (h) => {
+      const r = fixtureInvestigation(h);
+      r.price_assessment = { ...r.price_assessment, model_p: 0.71, model_band: [0.58, 0.82],
+        model_name: "Box-score history (frequency, not calibrated)", raw_diff: 0.034, conservative_edge: null };
+      r.investigation_id = "inv-1";
+      return r;
+    });
+    investigation.useSource(apiSource);
+    const user = userEvent.setup();
+    render(<Harness leg={REB12} ev={towns} />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    expect(within(dlg).queryByText(/Preview with sample research/)).not.toBeInTheDocument();
+    expect(await within(dlg).findByText(/Box-score history \(frequency, checked when you run it\)/)).toBeInTheDocument();
+    await user.click(within(dlg).getByRole("button", { name: "Run investigation" }));
+    const price = await within(dlg).findByRole("region", { name: "Price lens" });
+    expect(price).toHaveTextContent("History71¢ (range 58¢–82¢)");
+    expect(price).toHaveTextContent("Box-score history (frequency, not calibrated)");
+    expect(price).toHaveTextContent("+3.4 pts raw, not an edge");
+    expect(price).toHaveTextContent("Not enough evidence to estimate an edge");
+    const post = calls.find((c) => c.method === "POST")!;
+    expect(post.url).toBe("/api/research/investigations");
+    expect(post.headers["X-KRT-Request"]).toBe("research");
+    expect(post.body).toEqual({ ticker: REB12.ticker, side: "yes", label: REB12.label });
+    await user.click(within(dlg).getByRole("button", { name: "Refresh research" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(2));
+    expect(calls.filter((c) => c.method === "POST")[1]!.url).toBe("/api/research/investigations/inv-1/refresh");
+  });
+
+  it("an unsupported answer from the server disables Run and says why", async () => {
+    const { apiSource } = await import("./store");
+    stub({ quote: { ask: 0.5, side: "yes", observed_at: null, fresh: false, snapshot_ref: null }, model: null,
+      cached: false, unsupported: "Only single-game markets can be investigated.", usage }, (h) => fixtureInvestigation(h));
+    investigation.useSource(apiSource);
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    expect(await screen.findByText("Only single-game markets can be investigated.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run investigation" })).toBeDisabled();
+    expect(screen.getByText("stale")).toBeInTheDocument();
+  });
+});
+
+
+describe("broader entry points (Phase E)", () => {
+  it("browsing surfaces show no action for unsupported markets, and Investigate for NBA games", () => {
+    const { container, rerender } = render(
+      <InvestigateButton quiet leg={{ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }} />);
+    expect(container).toBeEmptyDOMElement();
+    rerender(<InvestigateButton quiet leg={SPREAD} />);
+    expect(screen.getByRole("button", { name: "Investigate YES: Memphis wins by over 4.5 points" })).toBeInTheDocument();
+  });
+});

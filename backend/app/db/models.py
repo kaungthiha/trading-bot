@@ -635,3 +635,30 @@ class CatalogComboEvent(Base):
     event_ticker: Mapped[str] = mapped_column(String(128), primary_key=True)
     collections: Mapped[str] = mapped_column(Text)  # comma-separated collection tickers
     refreshed_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+
+
+class Investigation(Base):
+    """One on-demand pick investigation (research only). result_json is the canonical
+    app.investigate.schemas.Result; the summary and the full view both read it."""
+
+    __tablename__ = "investigations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    cache_key: Mapped[str] = mapped_column(String(400), index=True)
+    ticker: Mapped[str] = mapped_column(String(160), index=True)
+    side: Mapped[str] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    stale_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    result_json: Mapped[str] = mapped_column(Text)
+
+
+class SearchLedgerEntry(Base):
+    """One Brave Search network attempt (app-side spending caps; see investigate/ledger.py)."""
+
+    __tablename__ = "search_ledger"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    at: Mapped[str] = mapped_column(String(32), index=True)
+    purpose: Mapped[str] = mapped_column(String(16), index=True)
+    query_hash: Mapped[str] = mapped_column(String(64))

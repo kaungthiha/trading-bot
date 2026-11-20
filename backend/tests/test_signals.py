@@ -47,6 +47,8 @@ WRITE_ROUTES = {
     ("/api/games/review", "post"),  # optional paid AI second opinion (CSRF + daily cap)
     ("/api/history/coach", "post"),  # local AI coach (CSRF header; Ollama on loopback)
     ("/api/history/open/review", "post"),  # local AI read of open positions (CSRF)
+    ("/api/research/investigations", "post"),  # on-demand pick research (CSRF)
+    ("/api/research/investigations/{inv_id}/refresh", "post"),
     ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
 }
 

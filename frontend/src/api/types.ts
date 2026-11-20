@@ -898,3 +898,52 @@ export interface SlipCheck {
           history_after: (ComboStudyBucket & { bucket: string }) | null } | null;
   fees_verified: boolean; evidence_used: boolean;
 }
+
+// --- Pick investigation (canonical result; summary and full view read the same object) ----
+
+export type MarketKind = "moneyline" | "spread" | "total" | "team_total" | "player_prop" | "other";
+export interface InvestigationHypothesis {
+  ticker: string; event_ticker: string; side: Side; sport: string; league: string;
+  market_type: MarketKind; threshold: number | null; subject: string | null;
+  label: string; statement: string; snapshot_at: string | null; rules_url: string | null;
+}
+export interface InvestigationQuote {
+  ask: number | null; side: Side; observed_at: string | null; fresh: boolean; snapshot_ref: string | null;
+}
+export type ClaimKind = "factual" | "statistical" | "analyst_opinion" | "prediction" | "interpretation";
+export type Stance = "supports" | "opposes" | "neutral";
+export interface InvestigationFinding {
+  text: string; kind: ClaimKind; stance: Stance; source_ids: string[]; verified: boolean;
+}
+export interface InvestigationSource {
+  id: string; url: string; title: string; publisher: string; author: string | null;
+  published_at: string | null; retrieved_at: string; access: "headline" | "snippet" | "full_text" | "internal";
+  duplicate_of: string | null; line_match: "exact" | "different_line" | "past_matchup" | "unknown";
+}
+export interface InvestigationPrice {
+  ask: number | null; model_p: number | null; model_band: [number, number] | null; model_name: string | null;
+  raw_diff: number | null; conservative_edge: number | null; break_even: number | null;
+  walk_away: number | null; fee_per_contract: number | null; slippage_per_contract: number | null;
+  assumptions: string[]; abstain_reasons: string[];
+}
+export interface InvestigationResult {
+  investigation_id: string;
+  status: "running" | "done" | "partial" | "failed";
+  created_at: string; completed_at: string | null; stale_at: string | null;
+  hypothesis: InvestigationHypothesis;
+  quote: InvestigationQuote;
+  summary: { takeaway: string; findings: InvestigationFinding[]; gaps: string[];
+    stance: "supports" | "challenges" | "insufficient"; uncertainty: string };
+  price_assessment: InvestigationPrice;
+  details: { supports: InvestigationFinding[]; against: InvestigationFinding[]; methodology: string[]; data_gaps: string[];
+    rules_excerpt?: string | null };
+  sources: InvestigationSource[];
+  processing: { model: string | null; searches: number; cache: "hit" | "miss" | "none"; errors: string[]; partial_reasons: string[] };
+}
+export interface ResearchPreflight {
+  quote: InvestigationQuote; model: string | null; cached: boolean; unsupported: string | null; usage: ResearchUsage;
+}
+export interface ResearchUsage {
+  configured: boolean; used_today: number; daily_cap: number; used_month: number; monthly_cap: number;
+  max_searches_per_investigation: number;
+}

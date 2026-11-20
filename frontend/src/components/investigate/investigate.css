@@ -1,0 +1,75 @@
+/* Investigate this pick: a right-hand dossier over a light scrim (the page stays visible);
+   a full-width sheet on phones. Paper surface, hairlines, display type for the statement. */
+.inv-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(45, 41, 37, 0.16); }
+.inv {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--line-strong);
+  padding: 1rem 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.7rem;
+  animation: inv-in 200ms ease-out;
+}
+@keyframes inv-in { from { transform: translateX(12px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .inv { animation: none; } }
+@media (max-width: 719px) { .inv { width: 100vw; border-left: none; padding: 0.85rem 1rem 1.25rem; } }
+
+.inv-head { position: relative; padding-right: 2.4rem; }
+.inv-head .kicker { margin: 0 0 0.2rem; }
+.inv-head h2 { margin: 0; font-family: var(--font-display); font-optical-sizing: auto; font-size: 1.45rem;
+  font-weight: 480; line-height: 1.18; letter-spacing: -0.015em; outline: none; }
+.inv-close { position: absolute; top: 0; right: 0; width: 2rem; height: 2rem; border: 1px solid var(--field-line);
+  border-radius: 6px; background: var(--surface); color: var(--ink-2); font-size: 1.15rem; line-height: 1; cursor: pointer; }
+.inv-preview { margin: 0; font-size: 0.82rem; border: 1px dashed var(--amber-line); background: var(--amber-tint);
+  color: var(--amber-ink); border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; }
+
+.inv-contract, .inv-price { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0;
+  font-variant-numeric: tabular-nums; }
+.inv-contract { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0.55rem 0; }
+.inv-contract dt, .inv-price dt { color: var(--muted); }
+.inv-contract dd, .inv-price dd { margin: 0; }
+.inv-contract .badge { margin-left: 0.25rem; }
+
+.inv-run { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+.inv-run p { margin: 0; }
+.inv-running { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.inv-error p { margin: 0 0 0.35rem; }
+
+.inv-summary { display: flex; flex-direction: column; gap: 0.65rem; }
+.inv-takeaway { margin: 0; font-family: var(--font-display); font-optical-sizing: auto; font-size: 1.08rem;
+  line-height: 1.45; color: var(--ink); }
+.inv-note { margin: 0; color: var(--amber-ink); }
+.inv-block { border-top: 1px solid var(--line); padding-top: 0.5rem; }
+.inv-block h3, .inv-full h3 { margin: 0 0 0.35rem; font-size: 0.66rem; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); }
+.inv-findings { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
+.inv-findings li::marker { color: var(--muted); }
+.inv-stance { font-size: 0.64rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  border: 1px solid var(--line-2); border-radius: 4px; padding: 0 0.3rem; vertical-align: 1px; color: var(--ink-2); }
+.inv-stance.for { border-color: var(--blue-line); color: var(--blue-ink); }
+.inv-stance.against { border-color: var(--red-line); color: var(--red-ink); }
+.inv-mark { font-size: 0.72rem; text-decoration: none; color: var(--select); margin-left: 0.15rem; vertical-align: 2px; }
+.inv-mark:hover { text-decoration: underline; }
+.inv-unverified { font-size: 0.66rem; color: var(--amber-ink); border: 1px dashed var(--amber-line); border-radius: 4px;
+  padding: 0 0.25rem; margin-left: 0.25rem; }
+.inv-gap { margin: 0; font-size: 0.88rem; border-left: 2px solid var(--amber); padding-left: 0.55rem; }
+.inv-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+
+.inv-full { border-top: 1px solid var(--line); padding-top: 0.5rem; }
+.inv-full > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; list-style: none; display: flex; align-items: center; gap: 0.4rem; }
+.inv-full > summary::-webkit-details-marker { display: none; }
+.inv-full > summary::before { content: "▸"; font-size: 0.75rem; color: var(--muted); transition: transform 150ms; }
+.inv-full[open] > summary::before { transform: rotate(90deg); }
+.inv-full section { margin-top: 0.7rem; }
+.inv-full h4 { margin: 0.4rem 0 0.15rem; font-size: 0.8rem; }
+.inv-sources { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.86rem; }
+.inv-dup { color: var(--amber-ink); }
+.inv-foot { margin-top: auto; padding-top: 0.5rem; }
+
+/* Entry point in the Docket */
+.inv-trigger { font-size: 0.72rem; border: 1px solid var(--field-line); background: var(--surface); color: var(--ink-2);
+  border-radius: 999px; padding: 0.05rem 0.55rem; cursor: pointer; margin-left: auto; }
+.inv-trigger:hover { background: var(--soft); }
+.inv-unsupported { margin-left: auto; font-size: 0.7rem; color: var(--muted); }
+.inv-sub { display: block; }
+.inv-rules { white-space: pre-wrap; max-height: 12rem; overflow: auto; background: var(--soft); border-radius: var(--radius-sm); padding: 0.4rem 0.55rem; }
+.idea-actions { display: inline-flex; align-items: center; gap: 0.4rem; }
+.idea-actions .inv-trigger, .row-actions .inv-trigger, .thesis-card .inv-trigger { margin-left: 0; }
+.thesis-card .inv-trigger { margin-top: 0.2rem; }

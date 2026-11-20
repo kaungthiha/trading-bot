@@ -7,6 +7,7 @@ import { cents, pct } from "./format";
 import { offReason } from "./SecondOpinion";
 import { slip, useSlip } from "./slip";
 import { Tip } from "../design/Tip";
+import { InvestigateButton } from "../investigate/InvestigateButton";
 
 const plain = (bet: string) => bet.replace(/^(YES|NO) · /, "");
 const num = (s: string | null | undefined) => (s == null ? null : Number(s));
@@ -33,10 +34,13 @@ function SingleRow({ x, inSlip }: { x: IdeaSingle; inSlip: boolean }) {
         {x.limit ? <>limit {cents(num(x.limit.price))}</> : <>ask {cents(num(x.ask))}</>}
         <span className="muted"> · {x.contracts_at_cap} at cap</span>
       </span>
-      <button type="button" className="link-button small" aria-pressed={inSlip}
-        onClick={() => slip.toggle({ ticker: x.ticker, side: x.side, label: plain(x.bet), event: x.event_ticker })}>
-        {inSlip ? "On docket" : "Add"}
-      </button>
+      <span className="idea-actions">
+        <button type="button" className="link-button small" aria-pressed={inSlip}
+          onClick={() => slip.toggle({ ticker: x.ticker, side: x.side, label: plain(x.bet), event: x.event_ticker })}>
+          {inSlip ? "On docket" : "Add"}
+        </button>
+        <InvestigateButton quiet leg={{ ticker: x.ticker, side: x.side, label: plain(x.bet), event: x.event_ticker }} />
+      </span>
     </li>
   );
 }

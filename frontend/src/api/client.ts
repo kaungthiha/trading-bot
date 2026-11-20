@@ -57,6 +57,9 @@ import type {
   SetupStatus,
   Signal,
   SignalLineage,
+  InvestigationResult,
+  ResearchPreflight,
+  ResearchUsage,
 } from "./types";
 
 /** Query string from defined, non-empty values. */
@@ -234,6 +237,13 @@ export const api = {
   collectionGaps: () => getJson<{ items: CollectionGap[] }>("/api/collection-gaps?limit=20"),
   signals: () => getJson<Signal[]>("/api/signals?limit=50"),
   signal: (id: string) => getJson<Signal>(`/api/signals/${encodeURIComponent(id)}`),
+  researchPreflight: (ticker: string, side: Side) =>
+    getJson<ResearchPreflight>(`/api/research/preflight${qs({ ticker, side })}`),
+  researchUsage: () => getJson<ResearchUsage>("/api/research/usage"),
+  investigate: (ticker: string, side: Side, label?: string) =>
+    postJson<InvestigationResult>("/api/research/investigations", { ticker, side, label: label ?? null }, "research"),
+  refreshInvestigation: (id: string) =>
+    postJson<InvestigationResult>(`/api/research/investigations/${encodeURIComponent(id)}/refresh`, {}, "research"),
   feeSchedules: () => getJson<FeeScheduleInfo[]>("/api/fee-schedules"),
   models: () => getJson<ModelCard[]>("/api/models"),
   modelMetrics: () => getJson<ModelEvaluation[]>("/api/models/metrics"),

@@ -14,6 +14,7 @@ from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.history.analysis import fills_page, report
 from app.history.positions import open_analysis
 from app.history.similar import similar
+from app.investigate.ledger import record_hook
 from app.sportsdata.espn import EspnSource
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.llm import LlmError, llm_status, local_reviewer
@@ -196,7 +197,8 @@ def open_review(session: SessionDep, settings: SettingsDep, clock: ClockDep, req
     subjects = list(dict.fromkeys(
         (p.get("evidence") or {}).get("subject", {}).get("name")
         for p in opened["positions"] if (p.get("evidence") or {}).get("subject")))
-    heads = headlines(settings, subjects, prefix="H", per=2, limit=5)
+    heads = headlines(settings, subjects, prefix="H", per=2, limit=5,
+                      on_attempt=record_hook(request.app.state, "headlines"))
     facts, ids = open_facts(opened, heads, settings.experiment_budget_dollars)
     try:
         out = reviewer.open_review(facts, ids, {h["id"] for h in heads})

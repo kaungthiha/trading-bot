@@ -160,6 +160,16 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4.1-mini", pattern=r"^[A-Za-z0-9._:-]{1,80}$")
     llm_max_reviews_per_day: int = Field(default=40, ge=0, le=1000)
 
+    # --- Investigate this pick: app-side spending caps for news search (Brave) ----------
+    # These are THIS APP's ceilings, counted from its own request ledger. They are not your
+    # Brave balance or bill (the app can't see those). Only an explicit "Run investigation"
+    # or "Refresh research" click can spend a search; cache hits are free.
+    research_brave_daily_request_cap: int = Field(default=20, ge=0, le=1000)
+    research_brave_monthly_request_cap: int = Field(default=200, ge=0, le=20000)
+    research_max_searches_per_investigation: int = Field(default=3, ge=0, le=3)
+    research_max_sources_per_investigation: int = Field(default=5, ge=0, le=10)
+    research_search_cache_hours: float = Field(default=6, ge=0.25, le=168)
+
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)
     worker_evidence_interval_seconds: int = Field(default=6 * 3600, ge=300)

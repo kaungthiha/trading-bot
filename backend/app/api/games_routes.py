@@ -21,6 +21,7 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.catalog.slipcheck import check_slip
+from app.investigate.ledger import record_hook
 from app.sportsdata.espn import LEAGUES, EspnSource
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.ideas import build_ideas, ideas_facts
@@ -91,13 +92,14 @@ def leg_evidence(session: SessionDep, settings: SettingsDep, request: Request,
 
 
 @router.get("/news")
-def news(settings: SettingsDep, q: Annotated[str, Query(min_length=2, max_length=120)]
-         ) -> dict[str, Any]:
+def news(settings: SettingsDep, request: Request,
+         q: Annotated[str, Query(min_length=2, max_length=120)]) -> dict[str, Any]:
     key = settings.brave_search_api_key
     if key is None:
         return {"configured": False, "items": []}
     clean = re.sub(r"[^\w\s.'+-]", " ", q).strip()
-    client = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds)
+    client = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds,
+                        on_attempt=record_hook(request.app.state, "news"))
     try:
         return {"configured": True, "items": client.search(clean)}
     except AdapterError as e:
@@ -200,7 +202,7 @@ def review(body: ReviewIn, session: SessionDep, settings: SettingsDep, clock: Cl
                                                      "implied": None} for t, s in parsed]
     subjects = list(dict.fromkeys(lg["subject"]["name"] for lg in ev["legs"]
                                   if lg.get("supported") and lg.get("subject")))
-    heads = headlines(settings, subjects)
+    heads = headlines(settings, subjects, on_attempt=record_hook(request.app.state, "headlines"))
     by_ticker = {lg["ticker"]: lg for lg in ev["legs"]}
 
     def leg_facts(r: dict[str, Any]) -> dict[str, Any]:
@@ -325,7 +327,8 @@ def ideas_ai(prefix: Prefix, key: Key, session: SessionDep, settings: SettingsDe
     except LlmError as e:
         raise ApiError(409, ErrorCode.SOURCE_FAILURE, str(e)) from e
     subjects = list(dict.fromkeys(x["subject"] for x in base["singles"] if x.get("subject")))
-    heads = headlines(settings, subjects, prefix="H", per=2, limit=4)
+    heads = headlines(settings, subjects, prefix="H", per=2, limit=4,
+                      on_attempt=record_hook(request.app.state, "headlines"))
     ids = {x["id"] for x in base["singles"]} | {c["id"] for c in base["combos"]}
     try:
         out = reviewer.ideas(ideas_facts(base, heads), ids, {h["id"] for h in heads},

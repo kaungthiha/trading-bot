@@ -8,6 +8,7 @@ text: returned as plain strings, http(s) links only, and rendered as text by the
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -31,12 +32,25 @@ def demojibake(t: str) -> str:
         return t
 
 
+class _Metered(RetryingJsonClient):
+    """Calls `on_attempt` before EVERY network attempt (retries included: each is billed).
+    The callback may raise to stop the request before anything is sent."""
+
+    on_attempt: Callable[[], None] | None = None
+
+    def _check_request(self, request: httpx.Request) -> None:
+        if self.on_attempt is not None:
+            self.on_attempt()
+
+
 class NewsSearch:
     def __init__(self, api_key: str, *, transport: httpx.BaseTransport | None = None,
-                 timeout: float = 10.0) -> None:
-        self._http = RetryingJsonClient(BRAVE, allowed_bases={BRAVE}, path_pattern=BRAVE_PATHS,
-                                        transport=transport, timeout=timeout, max_retries=1,
-                                        min_interval=1.0)
+                 timeout: float = 10.0, max_retries: int = 1,
+                 on_attempt: Callable[[], None] | None = None) -> None:
+        self._http = _Metered(BRAVE, allowed_bases={BRAVE}, path_pattern=BRAVE_PATHS,
+                              transport=transport, timeout=timeout, max_retries=max_retries,
+                              min_interval=1.0)
+        self._http.on_attempt = on_attempt
         # Header, not query string: keeps the key out of URLs and any logged request line.
         self._http._http.headers["X-Subscription-Token"] = api_key
 
@@ -52,6 +66,7 @@ class NewsSearch:
             if urlparse(url).scheme not in ("http", "https"):
                 continue
             out.append({"title": demojibake(str(r.get("title") or ""))[:200],
+                        "page_age": str(r.get("page_age") or "")[:40],
                         "url": url[:500],
                         "source": str((r.get("meta_url") or {}).get("hostname") or "")[:80],
                         "age": str(r.get("age") or "")[:40],
@@ -61,14 +76,16 @@ class NewsSearch:
 
 
 def headlines(settings: Any, subjects: list[str], prefix: str = "S", per: int = 3,
-              limit: int = 5) -> list[dict[str, str]]:
+              limit: int = 5, on_attempt: Callable[[], None] | None = None
+              ) -> list[dict[str, str]]:
     """Recent headlines about each subject, with ids (S1, S2...) the model can cite.
     Empty when no Brave key is set. A failing subject is skipped, never fatal."""
-    key =settings.brave_search_api_key
+    key = settings.brave_search_api_key
     if key is None or not subjects:
         return []
     out: list[dict[str, str]] = []
-    client = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds)
+    client = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds,
+                        on_attempt=on_attempt)
     try:
         for name in subjects[:limit]:
             try:

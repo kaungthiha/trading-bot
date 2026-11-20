@@ -24,6 +24,7 @@ import { TodayPage } from "./components/today/TodayPage";
 import { useDataRefresh } from "./components/useDataRefresh";
 import { GlossaryProvider } from "./glossary/GlossaryContext";
 import { href, sectionOf, type TermTab, useHashRoute } from "./router";
+import { InvestigationHost } from "./components/investigate/InvestigationDrawer";
 
 // Pages and Tools panels you don't open first load on demand (keeps the first load small).
 const EvidencePanel = lazy(() => import("./components/EvidencePanel").then((m) => ({ default: m.EvidencePanel })));
@@ -258,6 +259,7 @@ export default function App() {
       </footer>
       </div>
       {showDocket && <ResearchDocket />}
+      <InvestigationHost />
     </div>
     </GlossaryProvider>
   );

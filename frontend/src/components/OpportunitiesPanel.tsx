@@ -6,6 +6,7 @@ import { formatPrice, formatUtc } from "./format";
 import { EmptyState } from "./Hairline";
 import { useDataRefresh } from "./useDataRefresh";
 import { href } from "../router";
+import { InvestigateButton } from "./investigate/InvestigateButton";
 
 function errText(e: unknown): string {
   return e instanceof ApiError ? e.message : "Request failed";
@@ -104,6 +105,8 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
               <td>
                 {l.title}
                 <div className="ticker">{l.ticker}</div>
+                <InvestigateButton quiet leg={{ ticker: l.ticker, side: l.side === "YES" ? "yes" : "no", label: l.title,
+                  event: card.event_ticker }} />
               </td>
               <td>{formatPrice(l.limit_price)}</td>
               <td>

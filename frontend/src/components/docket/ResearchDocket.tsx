@@ -18,6 +18,7 @@ import { SaveOrPass, SavedList } from "./SaveOrPass";
 import { useScanTime } from "./scanTime";
 import { Tip } from "../design/Tip";
 import { Term } from "../Term";
+import { InvestigateButton } from "../investigate/InvestigateButton";
 
 const VERDICT: Record<Verdict, { text: string; cls: string; tip: string }> = {
   agrees: { text: "fits history", cls: "v-ok", tip: "The price sits inside the range past games suggest." },
@@ -154,6 +155,7 @@ export function ResearchDocket() {
                         : e && !e.supported ? <Tip text={e.reason ?? "No box-score check for this market"} className="verdict v-thin">no check</Tip> : null}
                       {e?.windows && <span className="muted small">L10 {e.windows.last10[0]}/{e.windows.last10[1]}</span>}
                       {e?.injury && <Tip text={e.injury.detail || e.injury.status} className="inj small">{e.injury.status}</Tip>}
+                      <InvestigateButton leg={l} ev={e} scanAt={scanAt ?? null} />
                     </div>
                     <div className={`drawer${isOpen ? " open" : ""}`}>
                       <div>{isOpen && <LegResearch ev={e} loading={evLoading} />}</div>

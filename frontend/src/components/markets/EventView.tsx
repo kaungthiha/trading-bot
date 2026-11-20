@@ -7,6 +7,7 @@ import { DistributionChart } from "./DistributionChart";
 import { EvCalculator } from "./EvCalculator";
 import { Tip } from "../design/Tip";
 import { Term } from "../Term";
+import { InvestigateButton } from "../investigate/InvestigateButton";
 
 const pct = (p: number | null | undefined, d = 1) => (p == null ? "—" : `${(p * 100).toFixed(d)}%`);
 const qty = (s: string | null) => (s == null ? "—" : Math.round(Number(s)).toLocaleString());
@@ -126,6 +127,7 @@ export function EventView({ ticker, legs, onAddLeg, onBack }: Props) {
                       aria-label={`Add NO ${m.yes_sub_title || m.title} to combo`}>+NO</button>
                     <button type="button" aria-expanded={open === m.ticker}
                       onClick={() => setOpen(open === m.ticker ? null : m.ticker)}>EV</button>
+                    <InvestigateButton quiet leg={{ ticker: m.ticker, side: "yes", label: m.yes_sub_title || m.title, event: ev.event_ticker }} />
                   </td>
                 </tr>
                 {open === m.ticker && (

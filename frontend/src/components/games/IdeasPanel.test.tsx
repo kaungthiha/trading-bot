@@ -61,6 +61,8 @@ describe("<IdeasPanel>", () => {
     expect(within(row).getByText("strong")).toBeInTheDocument();
     expect(within(row).getByText("+41 pts")).toBeInTheDocument();
     expect(within(row).getByText(/limit 56¢/)).toBeInTheDocument();
+    // the exact single can be investigated straight from the row (Phase E entry point)
+    expect(within(row).getByRole("button", { name: /^Investigate NO: Karl-Anthony Towns reb 14\+|^Investigate YES: Karl-Anthony Towns reb 14\+/ })).toBeInTheDocument();
     expect(screen.getByText(/Screened 15 legs · 2 beat the price · cap \$2.50/)).toBeInTheDocument();
     expect(screen.getByText(/Day-To-Day/)).toBeInTheDocument();
     expect(screen.getByText("quote ≤ 55¢")).toBeInTheDocument();
