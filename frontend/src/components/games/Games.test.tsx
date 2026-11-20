@@ -49,8 +49,10 @@ const evLeg = (ticker: string, side: "yes" | "no", verdict: LegEvidence["verdict
 const calls: string[] = [];
 const sentHeaders: Record<string, string>[] = [];
 let reviewOn = false;
+let noInjuryReport = false;
 beforeEach(() => {
   slip.clear();
+  noInjuryReport = false;
   calls.length = 0;
   sentHeaders.length = 0;
   reviewOn = false;
@@ -68,6 +70,7 @@ beforeEach(() => {
           events: 49, markets: 1200, volume_24h: 5000 }], leagues: [{ league: "NBA", games: 1 }, { league: "NHL", games: 3 }] });
       case `/api/games/KXNBA/${KEY}`: return json(GAME);
       case `/api/games/KXNBA/${KEY}/injuries`:
+        if (noInjuryReport) return json({ supported: false, teams: [] });
         return json({ supported: true, teams: [{ code: "MIN", name: "Minnesota Timberwolves", items: [
           { player: "Jonathan Kuminga", status: "Day-To-Day", detail: "Shoulder", date: "2026-11-18" }] }] });
       case "/api/catalog/combo": {
@@ -139,6 +142,15 @@ describe("<GamesPage>", () => {
     expect(screen.getByText("mkt ≈ 216.4")).toBeInTheDocument();
     // ladders show the 7 strikes nearest 50% until expanded
     expect(screen.getByRole("button", { name: "+3" })).toBeInTheDocument();
+  });
+
+  it("says when a league has no injury report instead of implying a healthy roster", async () => {
+    noInjuryReport = true;
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(await screen.findByRole("button", { name: /NYK @ MIN/ }));
+    expect(await screen.findByText(/No injury report is published for this league/)).toBeInTheDocument();
+    expect(screen.queryByText("No injuries listed")).not.toBeInTheDocument();
   });
 
   it("builds a combo: legs, evidence verdicts, correlation, history-adjusted price and quote check", async () => {

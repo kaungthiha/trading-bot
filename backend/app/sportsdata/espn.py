@@ -23,14 +23,19 @@ from app.adapters.http import RetryingJsonClient
 
 WEB = "https://site.web.api.espn.com"
 SITE = "https://site.api.espn.com"
-_LEAGUE = r"(?:nba|wnba)"
+_LEAGUE = r"(?:nba|wnba|mens-college-basketball|womens-college-basketball)"
 WEB_PATHS = re.compile(
     rf"/apis/common/v3/(?:search|sports/basketball/{_LEAGUE}/athletes/\d{{1,12}}/gamelog)")
 SITE_PATHS = re.compile(
-    rf"/apis/site/v2/sports/basketball/{_LEAGUE}/(?:injuries|teams|teams/\d{{1,4}}/schedule)")
+    rf"/apis/site/v2/sports/basketball/{_LEAGUE}/(?:injuries|teams|teams/\d{{1,6}}/schedule)")
 
 # Kalshi league prefix -> ESPN league slug. Only leagues whose box scores we parse.
-LEAGUES = {"KXNBA": "nba", "KXWNBA": "wnba"}
+LEAGUES = {"KXNBA": "nba", "KXWNBA": "wnba", "KXNCAAMB": "mens-college-basketball",
+           "KXNCAAWB": "womens-college-basketball"}
+# ESPN publishes no injury report for college; those leagues are "lineup unknown".
+COLLEGE = {"mens-college-basketball", "womens-college-basketball"}
+LEAGUE_LABEL = {"nba": "NBA", "wnba": "WNBA", "mens-college-basketball": "NCAA men's",
+                "womens-college-basketball": "NCAA women's"}
 # Kalshi team codes that differ from ESPN abbreviations.
 ALIASES = {"nba": {"NYK": "NY", "GSW": "GS", "SAS": "SA", "NOP": "NO", "UTA": "UTAH",
                    "WAS": "WSH", "PHO": "PHX", "BRK": "BKN"}}
@@ -138,6 +143,51 @@ def parse_schedule(body: dict[str, Any], team_id: str, season: str) -> list[Game
     return rows
 
 
+def _norm(s: str) -> str:
+    """'Texas A&M-Corpus Christi' -> 'texas a and m corpus christi'; 'Wichita St.' and
+    'Wichita State' -> 'wichita state'; 'St. John's' -> 'st johns'."""
+    s = s.lower().replace("&", " and ").replace("'", "").replace("\u2019", "")
+    s = re.sub(r"[^a-z0-9]+", " ", s).strip()
+    s = re.sub(r"\bst$", "state", s)  # a trailing "St." is State; a leading one is Saint
+    return re.sub(r"\s+", " ", s)
+
+
+# Kalshi school names that ESPN spells differently (normalized on both sides). Checked
+# against every college game in the catalog on 2026-11-19.
+COLLEGE_NAMES = {
+    "university at albany": "ualbany",
+    "appalachian state": "app state",
+    "liu": "long island university",
+    "usc upstate": "south carolina upstate",
+    "southeastern louisiana": "se louisiana",
+    "new orleans": "lsu new orleans",
+    "tennessee martin": "ut martin",
+    "north carolina state": "nc state",
+}
+
+
+def college_team(ts: list[dict[str, str]], code: str, name: str | None
+                 ) -> dict[str, str] | None:
+    """College codes are too many and too irregular for an alias table, and an abbreviation
+    match alone can land on a different school. Match on the name Kalshi shows; the code only
+    breaks ties. No confident match -> None (the caller says it couldn't match)."""
+    if not name:
+        return None
+    want = _norm(name)
+    want = COLLEGE_NAMES.get(want, want)
+    hits = [t for t in ts
+            if want in {_norm(t.get(k, "")) for k in ("location", "short", "name")}]
+    if len(hits) > 1:
+        hits = [t for t in hits if t["abbr"].upper() == code.upper()]
+    if len(hits) == 1:
+        return hits[0]
+    # Fallback: same abbreviation AND the name's first word in ESPN's location.
+    first = want.split(" ")[0] if want else ""
+    abbr = [t for t in ts if t["abbr"].upper() == code.upper()
+            and first and first in _norm(t["location"]).split(" ")]
+    return abbr[0] if len(abbr) == 1 else None
+
+
 class EspnSource:
     """Thread-safe cached facade. `transport` lets tests replay fixtures."""
 
@@ -199,7 +249,9 @@ class EspnSource:
 
     def teams(self, league: str) -> list[dict[str, str]]:
         def fetch() -> list[dict[str, str]]:
-            body = self._site.get(f"/apis/site/v2/sports/basketball/{league}/teams")
+            # College lists 360+ teams; the default page is much shorter.
+            body = self._site.get(f"/apis/site/v2/sports/basketball/{league}/teams",
+                                  {"limit": 1000})
             out = []
             for sp in body.get("sports") or []:
                 for lg in sp.get("leagues") or []:
@@ -208,6 +260,7 @@ class EspnSource:
                         out.append({"id": str(t.get("id", "")),
                                     "abbr": str(t.get("abbreviation", "")),
                                     "location": str(t.get("location", "")),
+                                    "short": str(t.get("shortDisplayName", "")),
                                     "name": str(t.get("displayName", ""))})
             return out
         return self._cached(("teams", league), TTL_TEAMS, fetch)
@@ -215,6 +268,8 @@ class EspnSource:
     def team(self, league: str, code: str, name: str | None = None) -> dict[str, str] | None:
         """Kalshi code (+ display name like 'Los Angeles C') -> ESPN team."""
         ts = self.teams(league)
+        if league in COLLEGE:
+            return college_team(ts, code, name)
         want = ALIASES.get(league, {}).get(code, code)
         hit = next((t for t in ts if t["abbr"].upper() == want.upper()), None)
         if hit or not name:

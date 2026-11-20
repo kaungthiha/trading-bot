@@ -487,8 +487,9 @@ probability), what you'd pay (the slip check), the AI second opinion, and **Save
 your decision and why, saved in this browser with the price at the time and listed on Today
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
-**Investigate this pick.** On an NBA single-game leg (Docket, the Ideas tab, an NBA event's
-market table, or an NBA leg on a scanner card) click *Investigate*. A drawer opens for that
+**Investigate this pick.** On a single-game NBA, WNBA or college basketball (men's or women's)
+leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
+*Investigate*. A drawer opens for that
 exact contract and side, without leaving the page or touching your slip. Nothing runs until you
 click **Run investigation**. Then you get:
 - a summary: two sentences, up to three sourced findings (at least one counterargument or open
@@ -500,6 +501,12 @@ What it uses:
 - **The app's own data:** the Kalshi quote, ESPN box scores and injury report, and the slip
   check's fee maths. Box-score history is a frequency, not a probability. No edge is shown when
   the quote is stale, the sample is small, or tonight's lineup isn't normal.
+- **College basketball** (game winner, spread and total; halves aren't covered): teams are
+  matched by school name, since Kalshi's codes often differ from ESPN's. ESPN publishes no
+  college injury report, so the lineup is treated as unknown and **no edge is ever shown**. A
+  college team's history also comes from opponents of very different strength, and the result
+  says so. News searches name the sport, and articles about football or the other basketball
+  program are dropped.
 - **News (optional, Brave News Search):** up to 3 targeted searches per run. Only headlines
   and snippets are used; no article page is ever fetched. Results must name this game's teams
   (or the prop's player). Articles about a past matchup or a different line are flagged and
@@ -537,7 +544,7 @@ test.
 
 For the legs on the Docket:
 - **Fair price** is the market's prices multiplied together, as if the legs were independent.
-- **Per-leg check.** NBA/WNBA legs are checked against ESPN box scores: last 5 and last 10
+- **Per-leg check.** NBA, WNBA and college basketball legs are checked against ESPN box scores: last 5 and last 10
   games, this season, last season, and a shrunk estimate with an 80% range. The pill says
   whether the price fits that history ("fits history"), looks too high ("history: less
   likely") or looks too low ("history: likelier"). Tap a leg to see its last 10 games
@@ -562,7 +569,7 @@ without one you get search links. `KRT_SPORTS_EVIDENCE_ENABLED=false` stops all 
 
 Kalshi's combo quotes are take-it-or-leave-it, so limit orders apply to single legs only.
 
-**Ideas tab (per NBA/WNBA game).** A screen of the whole game, not a pick list:
+**Ideas tab (per basketball game).** A screen of the whole game, not a pick list:
 - **Singles:** every liquid full-game leg (10–90% priced, up to 90 of them) is checked
   against box scores, on both YES and NO. A leg is listed only when its history estimate
   beats Kalshi's **all-in price** (ask + taker fee) by 2+ points. Each one shows a limit

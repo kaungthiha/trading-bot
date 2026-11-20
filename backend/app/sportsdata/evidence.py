@@ -17,7 +17,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from app.adapters.base import AdapterError
-from app.sportsdata.espn import LEAGUES, EspnSource, GameRow
+from app.sportsdata.espn import COLLEGE, LEAGUES, EspnSource, GameRow
 
 PRIOR_GAMES = 10   # last season counts as this many games of prior belief
 JOINT_PRIOR = 15   # pull the observed together-rate toward independence by this many games
@@ -214,7 +214,8 @@ class EvidenceService:
             if spec is None or league is None:
                 out.append({**base, "supported": False,
                             "reason": "No box-score check for this market type yet"
-                            if league else "Evidence covers NBA/WNBA games only (for now)"})
+                            if league else
+                            "Evidence covers NBA, WNBA and college basketball games only"})
                 continue
             market = lg["implied"] if lg["side"] == "yes" or lg["implied"] is None \
                 else 1 - lg["implied"]
@@ -244,7 +245,9 @@ class EvidenceService:
                     subject = {"type": "team", "name": ref["name"], "team": code,
                                "espn_url": None}
                     team_code = code
-                if league not in injuries:
+                if league in COLLEGE:
+                    injuries[league] = []  # ESPN publishes no college injury report
+                elif league not in injuries:
                     try:
                         injuries[league] = self.source.injuries(league)
                     except AdapterError:

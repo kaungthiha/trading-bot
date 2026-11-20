@@ -92,9 +92,8 @@ ledger reads 0 research searches.
   GSW–MEM); other events show none (live: 0 on the "Best AI" event).
 - **Scanner cards:** a leg gets *Investigate* only when it's an NBA single-game market. Current
   cards are non-sports, so none show.
-- **NHL and NCAA basketball: not enabled.** ESPN box scores, injuries and team matching in this
-  app cover NBA/WNBA only, so there's nothing tested to stand on. Those markets explain the
-  limitation (Docket) or show no action (browsing).
+- **NHL: not enabled.** (Men's and women's college basketball and the WNBA were added
+  afterwards: see `COLLEGE.md`.)
 
 ## Phase F: quality
 - **Tests:**

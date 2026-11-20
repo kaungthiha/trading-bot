@@ -61,10 +61,28 @@ describe("hypotheses are exact", () => {
     expect(fixtureInvestigation(buildHypothesis(REB12, towns, null)).summary.takeaway).toContain("(line 11.5)");
   });
 
+  it("supports men's and women's college basketball game lines", () => {
+    const spread = { ticker: "KXNCAAMBSPREAD-26NOV19TARLUSC-USC28", side: "yes" as const,
+      label: "USC wins by over 27.5 points", event: "KXNCAAMBSPREAD-26NOV19TARLUSC" };
+    expect(supportFor(spread).ok).toBe(true);
+    const h = buildHypothesis(spread, undefined, null);
+    expect(h).toMatchObject({ league: "NCAA men's", market_type: "spread" });
+    const win = { ticker: "KXNCAAWBGAME-26NOV23VCUPROV-VCU", side: "no" as const, label: "VCU",
+      event: "KXNCAAWBGAME-26NOV23VCUPROV" };
+    expect(supportFor(win).ok).toBe(true);
+    expect(buildHypothesis(win, undefined, null)).toMatchObject({ league: "NCAA women's", market_type: "moneyline", threshold: null });
+    expect(supportFor({ ticker: "KXWNBAGAME-27MAY20LVANYL-LVA", side: "yes", label: "Aces",
+      event: "KXWNBAGAME-27MAY20LVANYL" }).ok).toBe(true);
+  });
+
   it("unsupported markets explain why instead of offering the action", () => {
     expect(supportFor({ ...WIN, ticker: "KXNHLGAME-26NOV19BOSNYR-BOS", event: "KXNHLGAME-26NOV19BOSNYR" }).ok).toBe(false);
     expect(supportFor({ ticker: "KXNBAMVP-27-SGA", side: "yes", label: "SGA MVP", event: "KXNBAMVP-27" }).ok).toBe(false);
     expect(supportFor({ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }).ok).toBe(false);
+    // College halves and season-long markets stay out; full-game college lines are in.
+    expect(supportFor({ ticker: "KXNCAAMB1HSPREAD-26NOV19TARLUSC-USC5", side: "yes", label: "1H",
+      event: "KXNCAAMB1HSPREAD-26NOV19TARLUSC" }).ok).toBe(false);
+    expect(supportFor({ ticker: "KXNCAAMBAPRANK-26-KU", side: "yes", label: "rank", event: "KXNCAAMBAPRANK-26" }).ok).toBe(false);
     render(<Harness leg={{ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }} />);
     expect(screen.queryByRole("button", { name: /^Investigate/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "can't investigate" })).toBeInTheDocument();

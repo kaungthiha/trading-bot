@@ -34,14 +34,16 @@ from app.db.models import CatalogEvent, CatalogMarket, Investigation
 from app.investigate import registry, synth
 from app.investigate import schemas as S
 from app.investigate.search import Gathered
-from app.sportsdata.espn import LEAGUES
+from app.sportsdata.espn import COLLEGE, LEAGUE_LABEL, LEAGUES
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.service import evidence_for
 
-POLICY_VERSION = "v3"  # bump when rules change (cache key). v2 roster check, v3 news search
+# Bump when rules change (cache key). v2 roster check, v3 news search, v4 college leagues.
+POLICY_VERSION = "v4"
 QUOTE_FRESH = timedelta(minutes=30)
 MIN_GAMES_FOR_EDGE = 15
-PROP = re.compile(r"(PTS|REB|AST|3PT|BLK|STL|PRA)")
+PROP = re.compile(r"(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)")
+PERIODS = ("1H", "2H", "1Q", "2Q", "3Q", "4Q")
 GAME_EVENT = re.compile(r"-\d{2}[A-Z]{3}\d{2}")
 KIND_FROM_EVIDENCE = {
     "team_win": "moneyline",
@@ -53,19 +55,27 @@ KIND_FROM_EVIDENCE = {
 
 
 OUT = ("out", "doubtful")
-ESPN_INJURIES = "https://www.espn.com/nba/injuries"
+
+
+def league_of(ticker: str) -> tuple[str, str] | None:
+    """(Kalshi prefix, ESPN league slug) for a supported ticker, longest prefix first."""
+    p = next((p for p in sorted(LEAGUES, key=len, reverse=True) if ticker.startswith(p)), None)
+    return None if p is None else (p, LEAGUES[p])
 
 
 def roster(session: Session, src: Any, event_ticker: str) -> list[dict[str, Any]]:
     """Tonight's injury report for both teams of the game (the Games strip's data):
-    [{code, name, out: [player], questionable: [player]}]. Empty if unavailable."""
-    prefix = next((p for p in LEAGUES if event_ticker.startswith(p)), None)
-    if src is None or prefix is None or "-" not in event_ticker:
+    [{code, name, out: [player], questionable: [player], known}]. Empty if unavailable.
+    College has no injury report: teams come back with known=False (names still feed the
+    news search), and an unknown lineup is never read as a healthy one."""
+    lg = league_of(event_ticker)
+    if src is None or lg is None or "-" not in event_ticker:
         return []
+    prefix, league = lg
     key = event_ticker.split("-", 1)[1]
     names = games.list_games_teams(session, prefix, key)
-    league = LEAGUES[prefix]
-    inj = src.injuries(league)
+    known = league not in COLLEGE
+    inj = src.injuries(league) if known else []
     out = []
     for code, name in names.items():
         ref = src.team(league, code, name)
@@ -76,6 +86,7 @@ def roster(session: Session, src: Any, event_ticker: str) -> list[dict[str, Any]
                 "name": ref["name"] if ref else name,
                 "out": [i["player"] for i in items if i["status"].lower() in OUT],
                 "questionable": [i["player"] for i in items if i["status"].lower() not in OUT],
+                "known": known,
             }
         )
     return out
@@ -98,23 +109,31 @@ class NotFound(LookupError):
 
 
 def market_kind(series: str) -> str:
+    """Kind from the series suffix after the league prefix. Halves and quarters (1H, 2Q...)
+    are 'other': full-game box scores can't check them."""
     s = series.upper()
-    if "SPREAD" in s:
-        return "spread"
-    if "TEAMTOTAL" in s:
+    lg = league_of(s)
+    rest = s[len(lg[0]) :] if lg else s
+    if rest.startswith(PERIODS):
+        return "other"
+    if rest.endswith("TEAMTOTAL"):
         return "team_total"
-    if "TOTAL" in s:
+    if rest.endswith("SPREAD"):
+        return "spread"
+    if rest.endswith("TOTAL"):
         return "total"
-    if PROP.search(re.sub(r"^KXW?NBA", "", s)):
-        return "player_prop"
-    if s.endswith("GAME"):
+    if rest == "GAME":
         return "moneyline"
+    if PROP.match(rest):
+        return "player_prop"
     return "other"
 
 
 def check_supported(ticker: str, event_ticker: str, series: str) -> None:
-    if not ticker.startswith("KXNBA"):
-        raise Unsupported("Investigation covers NBA game markets for now.")
+    if league_of(ticker) is None:
+        raise Unsupported(
+            "Investigation covers NBA, WNBA and college basketball game markets for now."
+        )
     if market_kind(series) == "other":
         raise Unsupported("Only game winner, spread, totals and player props can be investigated.")
     if not GAME_EVENT.search(event_ticker):
@@ -169,6 +188,9 @@ def build(
     e = session.get(CatalogEvent, m.event_ticker)
     series = e.series_ticker if e else ticker.split("-")[0]
     check_supported(ticker, m.event_ticker, series)
+    _, league = league_of(ticker)  # type: ignore[misc]
+    league_label = LEAGUE_LABEL.get(league, league)
+    college = league in COLLEGE
     errors: list[str] = []
 
     # --- box-score evidence (free, ESPN) -----------------------------------------------------
@@ -200,7 +222,7 @@ def build(
         event_ticker=m.event_ticker,
         side=side,
         sport="basketball",  # type: ignore[arg-type]
-        league="NBA",
+        league=league_label,
         market_type=kind,
         threshold=line,
         subject=subject,
@@ -273,8 +295,16 @@ def build(
             f"Tonight's lineup isn't normal ({roster_issue}); past games don't "
             "reflect it, so no edge is estimated."
         )
+    # No injury report means no idea who's playing: never treat that as a normal lineup.
+    lineup_unknown = college
+    if lineup_unknown:
+        abstain.append(
+            "There's no injury report for college games, so tonight's lineup is unknown and "
+            "no edge is estimated."
+        )
     edge_ok = (
         roster_issue is None
+        and not lineup_unknown
         and est is not None
         and interval
         and all_in is not None
@@ -327,7 +357,9 @@ def build(
     ]
     findings: list[S.Finding] = []
     if supported:
-        espn = ((ev or {}).get("subject") or {}).get("espn_url") or "https://www.espn.com/nba/"
+        espn = ((ev or {}).get("subject") or {}).get("espn_url") or (
+            f"https://www.espn.com/{league}/"
+        )
         sources.append(
             S.Source(
                 id="E1",
@@ -384,8 +416,13 @@ def build(
             )
         findings.append(
             S.Finding(
-                text=f"History covers {season_games} games this season and ignores "
-                "tonight's matchup, minutes and role.",
+                text=(
+                    f"History covers {season_games} games this season against opponents of "
+                    "very different strength, so it says little about tonight's matchup."
+                    if college
+                    else f"History covers {season_games} games this season and ignores "
+                    "tonight's matchup, minutes and role."
+                ),
                 kind="interpretation",
                 stance="neutral",
                 source_ids=[],
@@ -405,12 +442,22 @@ def build(
 
     # Roster findings go first: they decide whether history means anything tonight.
     roster_findings: list[S.Finding] = []
-    if teams:
+    if lineup_unknown:
+        roster_findings.append(
+            S.Finding(
+                text=synth.LINEUP_UNKNOWN,
+                kind="interpretation",
+                stance="neutral",
+                source_ids=[],
+                verified=True,
+            )
+        )
+    elif teams:
         sources.append(
             S.Source(
                 id="E2",
-                url=ESPN_INJURIES,
-                title="ESPN NBA injury report",
+                url=f"https://www.espn.com/{league}/injuries",
+                title=f"ESPN {league_label} injury report",
                 publisher="ESPN",
                 retrieved_at=now.isoformat(),
                 access="internal",
@@ -472,21 +519,24 @@ def build(
 
     # --- takeaway --------------------------------------------------------------------------------
     verdict = (ev or {}).get("verdict")
+    past = "Past games (against mixed opponents)" if college else "Past games"
     ask_c = f"{all_in * 100:.0f}¢ all-in" if all_in is not None else "current"
     if not supported:
         first = f"No box-score check is available for {phrase}, so only the market price is known."
     elif verdict == "thin":
         first = f"There are too few games on record to judge {phrase} from history."
     elif verdict == "market_lower":
-        first = f"Past games suggest {phrase} is likelier than the {ask_c} price implies."
+        first = f"{past} suggest {phrase} is likelier than the {ask_c} price implies."
     elif verdict == "market_higher":
-        first = f"Past games suggest {phrase} is less likely than the {ask_c} price implies."
+        first = f"{past} suggest {phrase} is less likely than the {ask_c} price implies."
     else:
-        first = f"Past games put {phrase} about where the {ask_c} price does."
+        first = f"{past} put {phrase} about where the {ask_c} price does."
     if roster_issue:
         second = (
             f"But tonight's lineup isn't normal ({roster_issue}), which past games don't reflect."
         )
+    elif lineup_unknown and (news is None or not news.sources):
+        second = "College games have no injury report, so check who's playing before relying on it."
     elif news is None or not news.attempted:
         second = "No news or analyst views were checked yet."
     elif news.sources:
@@ -510,6 +560,8 @@ def build(
         gaps = ["What the articles say isn't summarised yet: read the sources."]
     else:
         gaps = ["No relevant articles found; late lineup news may still be missing."]
+    if lineup_unknown:
+        gaps.insert(0, "Who's playing tonight (no college injury report exists).")
     if not quote.fresh:
         gaps.insert(0, "The price is stale: run a scan before deciding.")
 

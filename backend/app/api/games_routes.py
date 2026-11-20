@@ -22,7 +22,7 @@ from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.catalog.slipcheck import check_slip
 from app.investigate.ledger import record_hook
-from app.sportsdata.espn import LEAGUES, EspnSource
+from app.sportsdata.espn import COLLEGE, LEAGUES, EspnSource
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.ideas import build_ideas, ideas_facts
 from app.sportsdata.llm import LlmError, llm_status, local_reviewer, make_reviewer
@@ -347,7 +347,8 @@ def ideas_ai(prefix: Prefix, key: Key, session: SessionDep, settings: SettingsDe
 def injuries(prefix: Prefix, key: Key, session: SessionDep, settings: SettingsDep,
              request: Request) -> dict[str, Any]:
     league = LEAGUES.get(prefix)
-    if league is None:
+    # No college injury report exists; an empty list would read as "everyone healthy".
+    if league is None or league in COLLEGE:
         return {"supported": False, "teams": []}
     names = games.list_games_teams(session, prefix, key)
     if not names:

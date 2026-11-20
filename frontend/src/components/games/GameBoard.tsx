@@ -139,6 +139,14 @@ function InjuryStrip({ game }: { game: GameDetail }) {
   }, [game.prefix, game.game_key, game.evidence_supported]);
   const items = inj?.teams.flatMap((t) => t.items.map((i) => ({ ...i, code: t.code }))) ?? [];
   if (!inj) return null;
+  // College has no injury report: say so rather than "No injuries listed" (reads as healthy).
+  if (!inj.supported) {
+    return (
+      <div className="injury-strip" aria-label="Injury report (ESPN)">
+        <span className="small muted">No injury report is published for this league: check team news for who's playing.</span>
+      </div>
+    );
+  }
   return (
     <div className="injury-strip" aria-label="Injury report (ESPN)">
       {items.length === 0 ? <span className="small muted">No injuries listed</span> : items.map((i) => (

@@ -33,6 +33,11 @@ from app.investigate import schemas as S
 from app.sportsdata.llm import LlmError, _load
 
 SYNTH_TIMEOUT = 90.0
+# The college "who's playing is unknown" finding; like the players-out fact, it always stays.
+LINEUP_UNKNOWN = (
+    "No injury report is published for college games, so who plays tonight is unknown; "
+    "check team news before relying on past games."
+)
 _BUSY = threading.Semaphore(1)  # one local synthesis at a time
 
 SYSTEM = """You summarise research about ONE sports prediction-market pick for a cautious \
@@ -287,6 +292,9 @@ def apply(
     roster = next((f for f in det if "E2" in f.source_ids and f.stance == "opposes"), None)
     if roster and not any("E2" in f.source_ids for f in top):
         top.insert(0, roster)
+    unknown = next((f for f in det if f.text == LINEUP_UNKNOWN), None)
+    if unknown and unknown not in top:
+        top.insert(0, unknown)
     if not any(f.stance != "supports" for f in top):
         counter = next((f for f in det + r.details.against if f.stance != "supports"), None)
         if counter is not None:
@@ -308,7 +316,9 @@ def apply(
         for g in (_clean(x, 200) for x in (raw.get("gaps") or [])[:3] if isinstance(x, str))
         if g and not UNSAFE.search(g)
     ]
-    stale_gap = [g for g in r.summary.gaps if g.startswith("The price is stale")]
+    stale_gap = [
+        g for g in r.summary.gaps if g.startswith(("The price is stale", "Who's playing tonight"))
+    ]
     stance = (
         raw.get("stance")
         if raw.get("stance") in ("supports", "challenges", "insufficient")

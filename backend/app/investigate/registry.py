@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-REGISTRY_VERSION = "2026-11-20.1"
+REGISTRY_VERSION = "2026-11-20.2"
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,8 @@ class Publisher:
 REGISTRY: dict[str, Publisher] = {
     # Official league / team sources
     "nba.com": Publisher("NBA.com", "official", 1),
+    "wnba.com": Publisher("WNBA.com", "official", 1),
+    "ncaa.com": Publisher("NCAA.com", "official", 1),
     # News and injury reporting
     "espn.com": Publisher("ESPN", "news", 1),
     "apnews.com": Publisher("AP News", "news", 1),
@@ -48,6 +50,8 @@ REGISTRY: dict[str, Publisher] = {
     "nbcsports.com": Publisher("NBC Sports", "news", 2),
     "theathletic.com": Publisher("The Athletic", "news", 2, note="Paywalled: headline only."),
     "nytimes.com": Publisher("The New York Times", "news", 2, note="Paywalled: headline only."),
+    "foxsports.com": Publisher("FOX Sports", "news", 2),
+    "si.com": Publisher("Sports Illustrated", "news", 2),
     # Betting analysis (opinion: always classed as analyst opinion, never fact)
     "covers.com": Publisher("Covers", "betting_analysis", 3),
     "pickswise.com": Publisher("Pickswise", "betting_analysis", 3),

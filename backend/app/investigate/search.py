@@ -33,6 +33,31 @@ PLAUSIBLE = {
     "spread": (0.5, 30),
     "player_prop": (0.5, 75),
 }
+# Scoring differs by league: a 135.5 college total is ordinary, a 45.5 college spread happens.
+PLAUSIBLE_BY_LEAGUE = {
+    "WNBA": {**PLAUSIBLE, "total": (120, 210), "team_total": (50, 120)},
+    "NCAA men's": {**PLAUSIBLE, "total": (100, 200), "team_total": (40, 120), "spread": (0.5, 55)},
+    "NCAA women's": {**PLAUSIBLE, "total": (90, 190), "team_total": (35, 120), "spread": (0.5, 60)},
+}
+COLLEGE = {"NCAA men's": "basketball", "NCAA women's": "women's basketball"}
+BASKETBALL = re.compile(r"basketball|hoops|\bmbb\b|\bwbb\b|\bcbb\b|ncaab|ncaaw|march madness", re.I)
+WOMEN = re.compile(r"\bwomen|\bwbb\b|\blady\b|ncaaw", re.I)
+
+
+def _plausible(h: S.Hypothesis) -> dict[str, tuple[float, float]]:
+    return PLAUSIBLE_BY_LEAGUE.get(h.league, PLAUSIBLE)
+
+
+def sport_mismatch(h: S.Hypothesis, text: str) -> bool:
+    """College only: the same school names cover football and both basketball programs."""
+    if h.league not in COLLEGE:
+        return False
+    if not BASKETBALL.search(text):
+        return True
+    women = bool(WOMEN.search(text))
+    return women if h.league == "NCAA men's" else not women
+
+
 STAT_WORD = {
     "PTS": "points",
     "REB": "rebounds",
@@ -83,6 +108,33 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
     own = next((t["name"] for t in teams if h.ticker.rsplit("-", 1)[-1].startswith(t["code"])), a)
     stat = next((w for k, w in STAT_WORD.items() if k in h.ticker.split("-")[0]), "")
     line = "" if h.threshold is None else f" {h.threshold:g}"
+    if h.league in COLLEGE:
+        sport = COLLEGE[h.league]
+        if h.market_type in ("total", "team_total"):
+            qs = [
+                f"{a} vs {b} {sport} preview",
+                f"{a} {b} {sport} injury news",
+                f"{a} {b} {sport} over under{line}",
+            ]
+        elif h.market_type == "spread":
+            qs = [
+                f"{a} vs {b} {sport} preview",
+                f"{own} {sport} injury news",
+                f"{a} {b} {sport} spread pick{line}",
+            ]
+        elif h.market_type == "player_prop" and h.subject:
+            qs = [
+                f"{a} vs {b} {sport} preview",
+                f"{h.subject} injury status",
+                f"{h.subject} {stat} prop{line}",
+            ]
+        else:
+            qs = [
+                f"{a} vs {b} {sport} preview",
+                f"{own} {sport} injury news",
+                f"{a} vs {b} {sport} prediction",
+            ]
+        return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
     if h.market_type == "player_prop" and h.subject:
         qs = [f"{a} vs {b} preview", f"{h.subject} injury status", f"{h.subject} {stat} prop{line}"]
     elif h.market_type in ("total", "team_total"):
@@ -106,9 +158,10 @@ def _words(t: str) -> set[str]:
 
 
 def line_match(h: S.Hypothesis, text: str) -> str:
-    if h.threshold is None or h.market_type not in PLAUSIBLE:
+    ranges = _plausible(h)
+    if h.threshold is None or h.market_type not in ranges:
         return "unknown"
-    lo, hi = PLAUSIBLE[h.market_type]
+    lo, hi = ranges[h.market_type]
     nums = {float(x) for x in HALF.findall(text) if lo <= float(x) <= hi}
     if not nums:
         return "unknown"
@@ -202,6 +255,9 @@ def gather(
         low = text.lower()
         if must and not any(m and m in low for m in must):
             g.dropped["off_topic"] = g.dropped.get("off_topic", 0) + 1
+            continue
+        if sport_mismatch(h, text):
+            g.dropped["other_sport"] = g.dropped.get("other_sport", 0) + 1
             continue
         cu = canonical(r.get("url", ""))
         if not cu or cu in seen_urls:

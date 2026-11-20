@@ -5,15 +5,26 @@ import type { ComboLeg, InvestigationHypothesis, LegEvidence, MarketKind } from 
  * Market type and line come from the box-score evidence when it's loaded, otherwise from the
  * ticker; never from the team name alone. */
 
-const PROP = /(PTS|REB|AST|3PT|BLK|STL|PRA)/;
+const PROP = /^(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)/;
+const PERIOD = /^(1H|2H|1Q|2Q|3Q|4Q)/;
 
+/** Kalshi prefix -> league code. Longest first, so KXNCAAMB isn't read as anything shorter. */
+const LEAGUE_PREFIXES: [string, string][] = [
+  ["KXNCAAMB", "NCAAMB"], ["KXNCAAWB", "NCAAWB"], ["KXWNBA", "WNBA"], ["KXNBA", "NBA"], ["KXNHL", "NHL"],
+];
+
+/** Kind from the series suffix after the league prefix. Halves and quarters are "other":
+ * full-game box scores can't check them. */
 export function marketKindFromSeries(series: string): MarketKind {
   const s = series.toUpperCase();
-  if (s.includes("SPREAD")) return "spread";
-  if (s.includes("TEAMTOTAL")) return "team_total";
-  if (s.includes("TOTAL")) return "total";
-  if (PROP.test(s.replace(/^KXW?NBA/, ""))) return "player_prop";
-  if (s.endsWith("GAME")) return "moneyline";
+  const pre = LEAGUE_PREFIXES.find(([p]) => s.startsWith(p))?.[0] ?? "";
+  const rest = s.slice(pre.length);
+  if (PERIOD.test(rest)) return "other";
+  if (rest.endsWith("TEAMTOTAL")) return "team_total";
+  if (rest.endsWith("SPREAD")) return "spread";
+  if (rest.endsWith("TOTAL")) return "total";
+  if (rest === "GAME") return "moneyline";
+  if (PROP.test(rest)) return "player_prop";
   return "other";
 }
 
@@ -23,20 +34,21 @@ const KIND_FROM_EVIDENCE: Record<string, MarketKind> = {
 };
 
 export function leagueOf(ticker: string): string | null {
-  if (/^KXNBA/.test(ticker)) return "NBA";
-  if (/^KXWNBA/.test(ticker)) return "WNBA";
-  if (/^KXNHL/.test(ticker)) return "NHL";
-  if (/^KXNCAAMB/.test(ticker)) return "NCAAMB";
-  return null;
+  return LEAGUE_PREFIXES.find(([p]) => ticker.startsWith(p))?.[1] ?? null;
 }
 
-/** NBA first (as specified). Other leagues fail gracefully with a reason. */
-export const SUPPORTED_LEAGUES = new Set(["NBA"]);
+/** Leagues whose box scores and team matching are tested. Others fail gracefully with a reason. */
+export const SUPPORTED_LEAGUES = new Set(["NBA", "WNBA", "NCAAMB", "NCAAWB"]);
+export const LEAGUE_NAME: Record<string, string> = {
+  NBA: "NBA", WNBA: "WNBA", NCAAMB: "NCAA men's", NCAAWB: "NCAA women's", NHL: "NHL",
+};
 const SUPPORTED_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total", "player_prop"]);
 
 export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: string } {
   const league = leagueOf(leg.ticker);
-  if (!league) return { ok: false, reason: "Investigation covers NBA game markets for now; this market isn't one." };
+  if (!league) {
+    return { ok: false, reason: "Investigation covers NBA, WNBA and college basketball game markets; this market isn't one." };
+  }
   if (!SUPPORTED_LEAGUES.has(league)) {
     return { ok: false, reason: `${league} isn't supported yet: player and team matching for it isn't tested.` };
   }
@@ -62,7 +74,7 @@ export function buildHypothesis(leg: ComboLeg, ev: LegEvidence | undefined, snap
   const statement = leg.side === "yes" ? leg.label : `NOT: ${leg.label} (betting it doesn't happen)`;
   return {
     ticker: leg.ticker, event_ticker: leg.event, side: leg.side, sport: "basketball",
-    league: leagueOf(leg.ticker) ?? "unknown", market_type, threshold,
+    league: LEAGUE_NAME[leagueOf(leg.ticker) ?? ""] ?? "unknown", market_type, threshold,
     subject: ev?.subject?.name ?? null, label: leg.label, statement, snapshot_at: snapshotAt, rules_url: null,
   };
 }
