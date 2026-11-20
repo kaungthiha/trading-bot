@@ -114,6 +114,7 @@ def _run(
 ) -> Result:
     if not games.TICKER_RE.match(ticker):
         raise ApiError(422, ErrorCode.VALIDATION_ERROR, "Bad ticker")
+    service.purge_expired_news(session, now)
     m = session.get(CatalogMarket, ticker)
     if m is None:
         raise ApiError(404, ErrorCode.NOT_FOUND, f"{ticker} is not in the catalog (run a scan)")
@@ -162,7 +163,8 @@ def start(
 
 
 @router.get("/investigations/{inv_id}", response_model=Result)
-def get_one(inv_id: IdPath, session: SessionDep) -> Result:
+def get_one(inv_id: IdPath, session: SessionDep, clock: ClockDep) -> Result:
+    service.purge_expired_news(session, clock.now())
     r = service.load(session, inv_id)
     if r is None:
         raise ApiError(404, ErrorCode.NOT_FOUND, "Investigation not found")

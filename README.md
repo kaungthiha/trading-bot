@@ -510,7 +510,10 @@ What it uses:
 - **News (optional, Brave News Search):** up to 3 targeted searches per run. Only headlines
   and snippets are used; no article page is ever fetched. Results must name this game's teams
   (or the prop's player). Articles about a past matchup or a different line are flagged and
-  never count as support. Syndicated copies count once.
+  never count as support. Syndicated copies count once. Brave's terms allow only temporary
+  storage, so once a saved investigation is older than `KRT_RESEARCH_SEARCH_CACHE_HOURS`
+  (default 6), its articles and the summary written from them are deleted from the database.
+  The box-score check, injury report and price stay. Refresh to search again.
 - **Your local model (optional, Ollama):** writes the summary from that evidence. Its output is
   checked: unknown sources are removed, numbers not in the evidence are marked unverified, hype
   and injected instructions are dropped. If Ollama is off, you get the app's own summary.

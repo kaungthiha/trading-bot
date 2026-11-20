@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -37,6 +38,14 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None,
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
+        # Brave storage terms: drop news from investigations past the search cache window.
+        try:
+            from app.investigate.service import purge_expired_news
+
+            with app.state.session_factory() as s:
+                purge_expired_news(s, app.state.clock.now())
+        except Exception:  # noqa: BLE001 - never block startup (e.g. table not migrated yet)
+            logging.getLogger(__name__).warning("Investigation news purge skipped", exc_info=True)
         yield
         app.state.jobs.shutdown()
         if getattr(app.state, "espn", None) is not None:

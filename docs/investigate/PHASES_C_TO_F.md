@@ -19,13 +19,16 @@ ledger reads 0 research searches.
   "other than transient storage required for operation". So:
   - the search cache is **in memory only**, expires after `KRT_RESEARCH_SEARCH_CACHE_HOURS`,
     and is cleared on restart;
-  - stored investigations keep each source's **headline, link, publisher and date only**.
-    Snippets are never written to disk (tested).
-
-  ⚠️ **Owner to confirm:** keeping headlines and links with a stored investigation (shown
-  later, labelled stale) is a judgement that this counts as operational use. If you want to be
-  stricter, ask Brave about a storage-rights plan, or I can strip external sources from
-  results older than the cache window.
+  - snippets are never written to disk (tested);
+  - within the cache window, a stored investigation keeps each source's headline, link,
+    publisher and date, so a cached result can be shown again;
+  - **after the cache window (the investigation's `stale_at`), news is deleted from the stored
+    copy** (`service.purge_expired_news`, decided by the owner). This covers the sources and
+    everything written from them: findings citing an article, the model's unsourced findings,
+    takeaway, gaps and stance. The app's own facts stay: box scores, the injury-report roster
+    finding, the college lineup warning and the price assessment. The takeaway then says the
+    articles were removed and to refresh. The purge runs at startup and on every research
+    request, never searches, and is tested in `tests/test_research_retention.py`.
 
 ## Phase C: bounded discovery and source controls
 - **Ledger (`investigate/ledger.py`, migration `0015_search_ledger`):**
@@ -139,4 +142,9 @@ ledger reads 0 research searches.
   never reads whole articles, and the UI says so.
 - **The summary takes ~15–20 s on this machine** and blocks the drawer's Run (it shows
   progress). It's synchronous rather than a background job.
-- **Stored headlines and links:** see the ⚠️ storage note above.
+- **Stored headlines and links** are kept only for the cache window, then deleted (see the
+  storage terms above). There's no timer: an expired row is cleaned at the next startup or
+  research request.
+- **Strict about model text:** after the window, the model's findings that cite no source are
+  removed too, since they may paraphrase a headline. The app's own sourceless notes ("History
+  covers 15 games") go with them when a model summary was used.

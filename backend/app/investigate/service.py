@@ -647,6 +647,75 @@ def load(session: Session, inv_id: str) -> S.Result | None:
     return None if row is None else S.Result.model_validate(json.loads(row.result_json))
 
 
+# Brave's terms allow only transient storage of results. Once an investigation is older than
+# the search cache window (its stale_at), everything that came from news is removed from the
+# stored copy: the sources and any text the app or the model wrote from them.
+NEWS_EXPIRED = (
+    "News articles behind this result were removed after the search cache window "
+    "(Brave's storage terms). Refresh to see a current summary."
+)
+_EXTERNAL_MARKERS = ('"access":"headline"', '"access":"snippet"', '"access":"full_text"')
+
+
+def strip_news(r: S.Result) -> S.Result:
+    """A copy of r with no external sources and nothing written from them. Internal data
+    (box scores, injury report, price assessment) is kept."""
+    out = r.model_copy(deep=True)
+    internal = {s.id for s in out.sources if s.access == "internal"}
+    if len(internal) == len(out.sources):
+        return out
+    out.sources = [s for s in out.sources if s.id in internal]
+    used_model = out.processing.model is not None
+
+    def keep(f: S.Finding) -> bool:
+        if f.text == synth.LINEUP_UNKNOWN:
+            return True
+        # A model-written finding with no source may still paraphrase a headline.
+        return all(i in internal for i in f.source_ids) and not (used_model and not f.source_ids)
+
+    top = [f for f in out.summary.findings if keep(f)]
+    out.details.supports = [f for f in out.details.supports if keep(f)]
+    out.details.against = [f for f in out.details.against if keep(f)]
+    # The app's own roster fact (from the injury report) must stay in the summary.
+    roster = next((f for f in out.details.against if "E2" in f.source_ids), None)
+    if roster is not None and not any("E2" in f.source_ids for f in top):
+        top.insert(0, roster)
+    if not top:
+        top = (out.details.against + out.details.supports)[:3]
+    out.summary.findings = top[:3]
+    out.summary.takeaway = NEWS_EXPIRED
+    out.summary.gaps = [
+        g for g in out.summary.gaps if g.startswith(("The price is stale", "Who's playing tonight"))
+    ] + ["News wasn't kept: refresh to check again."]
+    if used_model:
+        out.summary.stance = "insufficient"
+    out.details.methodology = [
+        m for m in out.details.methodology if not m.startswith("Summary: local model")
+    ] + [NEWS_EXPIRED]
+    if "news_expired" not in out.processing.partial_reasons:
+        out.processing.partial_reasons.append("news_expired")
+    return out
+
+
+def purge_expired_news(session: Session, now: datetime) -> int:
+    """Rewrite every stored investigation past its stale_at that still holds news. Returns
+    how many were rewritten."""
+    rows = session.scalars(
+        select(Investigation).where(
+            (Investigation.stale_at.is_(None)) | (Investigation.stale_at <= now),
+            Investigation.result_json.contains(_EXTERNAL_MARKERS[0])
+            | Investigation.result_json.contains(_EXTERNAL_MARKERS[1])
+            | Investigation.result_json.contains(_EXTERNAL_MARKERS[2]),
+        )
+    ).all()
+    for row in rows:
+        r = strip_news(S.Result.model_validate(json.loads(row.result_json)))
+        row.result_json = r.model_dump_json()
+    if rows:
+        session.commit()
+    return len(rows)
+
+
 def cached(session: Session, key: str, now: datetime) -> S.Result | None:
     row = session.scalars(
         select(Investigation)
