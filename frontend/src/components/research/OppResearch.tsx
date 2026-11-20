@@ -55,7 +55,7 @@ export function OppResearch({ card }: { card: OpportunityCard }) {
       </Layer>
 
       <Layer n={2} id="rs-l2" title="Evidence and assumptions" open>
-        <div className="table-scroll">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Legs of this idea (scrolls sideways on small screens)">
           <table className="market-table">
             <caption className="visually-hidden">Legs of this idea</caption>
             <thead><tr><th>Buy</th><th>Market</th><th>Limit</th><th>Qty</th><th>Cost</th><th>Fee</th><th>Depth then</th></tr></thead>

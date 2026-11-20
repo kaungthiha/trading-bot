@@ -177,3 +177,6 @@
 .what-changed p { margin: 0; }
 .sug-why { display: block; margin: 0.1rem 0 0.4rem; }
 .market-table .tip { white-space: nowrap; }
+/* Inside a focusable scroll region the table stays a table (the region scrolls). */
+@media (max-width: 719px) { .table-scroll > .market-table { display: table; } }
+.table-scroll:focus-visible { outline: 1.5px solid var(--focus) !important; outline-offset: 2px; }

@@ -86,6 +86,7 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
         <strong>{card.status}</strong>
       </p>
       <p className="small">{card.claim}</p>
+      <div className="table-scroll" tabIndex={0} role="region" aria-label={`Legs: ${card.title}`}>
       <table className="market-table">
         <thead>
           <tr>
@@ -114,6 +115,7 @@ function Card({ card, onChange }: { card: OpportunityCard; onChange: () => void 
           ))}
         </tbody>
       </table>
+      </div>
       <p className="small">
         Total {formatPrice(card.cost)} (fees {formatPrice(card.fees)}) → worst-case payout{" "}
         {formatPrice(card.min_payoff)} · profit <strong>{formatPrice(card.profit)}</strong> (

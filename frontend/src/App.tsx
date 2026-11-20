@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "./api/client";
 import type {
@@ -11,30 +11,37 @@ import type {
 import { ControlBar } from "./components/ControlBar";
 import { ResearchDocket } from "./components/docket/ResearchDocket";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { EvidencePanel } from "./components/EvidencePanel";
-import { ExecutionPanel } from "./components/ExecutionPanel";
 import { GamesPage } from "./components/games/GamesPage";
-import { GlossaryPage } from "./components/GlossaryPage";
 import { EmptyState, PageHead } from "./components/Hairline";
-import { HistoryPage } from "./components/history/HistoryPage";
 import { MarketDetail } from "./components/MarketDetail";
 import { MarketFiltersBar } from "./components/MarketFiltersBar";
 import { MarketList } from "./components/MarketList";
-import { MarketsPage } from "./components/markets/MarketsPage";
-import { ModelsPanel } from "./components/ModelsPanel";
-import { OpportunitiesPanel } from "./components/OpportunitiesPanel";
-import { GettingStarted, HealthPanel } from "./components/OpsPanels";
-import { PaperPanel } from "./components/PaperPanel";
-import { SignalsPanel } from "./components/SignalsPanel";
 import { ExploreSwitch } from "./components/shell/ExploreSwitch";
 import { LeftRail } from "./components/shell/LeftRail";
 import { Topbar } from "./components/shell/Topbar";
 import { formatUtc } from "./components/format";
-import { ResearchWorkspace } from "./components/research/ResearchWorkspace";
 import { TodayPage } from "./components/today/TodayPage";
 import { useDataRefresh } from "./components/useDataRefresh";
 import { GlossaryProvider } from "./glossary/GlossaryContext";
 import { href, sectionOf, type TermTab, useHashRoute } from "./router";
+
+// Pages and Tools panels you don't open first load on demand (keeps the first load small).
+const EvidencePanel = lazy(() => import("./components/EvidencePanel").then((m) => ({ default: m.EvidencePanel })));
+const ExecutionPanel = lazy(() => import("./components/ExecutionPanel").then((m) => ({ default: m.ExecutionPanel })));
+const GlossaryPage = lazy(() => import("./components/GlossaryPage").then((m) => ({ default: m.GlossaryPage })));
+const HistoryPage = lazy(() => import("./components/history/HistoryPage").then((m) => ({ default: m.HistoryPage })));
+const MarketsPage = lazy(() => import("./components/markets/MarketsPage").then((m) => ({ default: m.MarketsPage })));
+const ModelsPanel = lazy(() => import("./components/ModelsPanel").then((m) => ({ default: m.ModelsPanel })));
+const OpportunitiesPanel = lazy(() => import("./components/OpportunitiesPanel").then((m) => ({ default: m.OpportunitiesPanel })));
+const PaperPanel = lazy(() => import("./components/PaperPanel").then((m) => ({ default: m.PaperPanel })));
+const SignalsPanel = lazy(() => import("./components/SignalsPanel").then((m) => ({ default: m.SignalsPanel })));
+const ResearchWorkspace = lazy(() => import("./components/research/ResearchWorkspace").then((m) => ({ default: m.ResearchWorkspace })));
+const GettingStarted = lazy(() => import("./components/OpsPanels").then((m) => ({ default: m.GettingStarted })));
+const HealthPanel = lazy(() => import("./components/OpsPanels").then((m) => ({ default: m.HealthPanel })));
+
+function PageLoading() {
+  return <p className="page-loading small muted" role="status">Loading…</p>;
+}
 
 type Load<T> = { state: "loading" } | { state: "ok"; data: T } | { state: "error"; message: string };
 
@@ -111,11 +118,24 @@ export default function App() {
   // On navigation between pages, move focus to the new page's title so keyboard and
   // screen-reader users start at the top (not mid-page). Not on first load.
   const lastPage = useRef(route.page);
+  const seenTitle = useRef<Element | null>(null);
   useEffect(() => {
-    if (lastPage.current === route.page) return; // first load (and StrictMode's re-run)
+    const first = lastPage.current === route.page; // first load (and StrictMode's re-run)
     lastPage.current = route.page;
-    const h = document.querySelector<HTMLElement>("#main h2");
-    if (h) { h.tabIndex = -1; h.focus(); }
+    const old = seenTitle.current;
+    // Wait for THIS page's title: while a lazy page loads, the old page can still be shown.
+    const take = () => {
+      const h = document.querySelector<HTMLElement>("#main h2");
+      if (!h || h === old) return false;
+      seenTitle.current = h;
+      if (!first) { h.tabIndex = -1; h.focus(); }
+      return true;
+    };
+    if (take()) return;
+    const obs = new MutationObserver(() => { if (take()) obs.disconnect(); });
+    obs.observe(document.body, { childList: true, subtree: true });
+    const stop = setTimeout(() => obs.disconnect(), 3000);
+    return () => { obs.disconnect(); clearTimeout(stop); };
   }, [route.page]);
 
   return (
@@ -126,6 +146,7 @@ export default function App() {
       <LeftRail section={sectionOf(route.page)} />
       <div className="work">
 
+      <Suspense fallback={<PageLoading />}>
       <ErrorBoundary resetKey={`${route.page}:${route.research?.kind ?? ""}:${route.research?.id ?? ""}`}>
       {route.page === "research" && route.research ? (
         <main id="main"><ResearchWorkspace kind={route.research.kind} id={route.research.id} /></main>
@@ -160,6 +181,7 @@ export default function App() {
           ))}
         </div>
         <div className="subtab-panel" role="tabpanel" key={termTab}>
+        <Suspense fallback={<PageLoading />}>
         {termTab === "scanner" && (
           <section aria-labelledby="opps-h" className="panel">
             <h2 id="opps-h" className="visually-hidden">Opportunities (scanner)</h2>
@@ -214,10 +236,12 @@ export default function App() {
             <section aria-labelledby="health-h" className="panel"><h2 id="health-h">Health</h2><HealthPanel /></section>
           </>
         )}
+        </Suspense>
         </div>
       </main>
       )}
       </ErrorBoundary>
+      </Suspense>
       <footer className="app-footer small muted">
         Research and paper-trading tool: model probabilities are not profits, and no orders are placed.{" "}
         {/* Required by the FRED API Terms of Use. */}
