@@ -50,6 +50,8 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None,
         app.state.jobs.shutdown()
         if getattr(app.state, "espn", None) is not None:
             app.state.espn.close()
+        if getattr(app.state, "moneypuck", None) is not None:
+            app.state.moneypuck.close()
 
     app = FastAPI(
         lifespan=lifespan,

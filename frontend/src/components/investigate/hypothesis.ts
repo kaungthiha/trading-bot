@@ -6,7 +6,8 @@ import type { ComboLeg, InvestigationHypothesis, LegEvidence, MarketKind } from 
  * ticker; never from the team name alone. */
 
 const PROP = /^(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)/;
-const PERIOD = /^(1H|2H|1Q|2Q|3Q|4Q)/;
+// Halves, quarters and hockey periods: full-game data can't check them.
+const PERIOD = /^(1H|2H|1Q|2Q|3Q|4Q|1P|2P|3P)/;
 
 /** Kalshi prefix -> league code. Longest first, so KXNCAAMB isn't read as anything shorter. */
 const LEAGUE_PREFIXES: [string, string][] = [
@@ -38,21 +39,26 @@ export function leagueOf(ticker: string): string | null {
 }
 
 /** Leagues whose box scores and team matching are tested. Others fail gracefully with a reason. */
-export const SUPPORTED_LEAGUES = new Set(["NBA", "WNBA", "NCAAMB", "NCAAWB"]);
+export const SUPPORTED_LEAGUES = new Set(["NBA", "WNBA", "NCAAMB", "NCAAWB", "NHL"]);
 export const LEAGUE_NAME: Record<string, string> = {
   NBA: "NBA", WNBA: "WNBA", NCAAMB: "NCAA men's", NCAAWB: "NCAA women's", NHL: "NHL",
 };
 const SUPPORTED_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total", "player_prop"]);
+/** NHL: game winner, puck line and totals only (no player props yet). */
+const NHL_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total"]);
 
 export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: string } {
   const league = leagueOf(leg.ticker);
   if (!league) {
-    return { ok: false, reason: "Investigation covers NBA, WNBA and college basketball game markets; this market isn't one." };
+    return { ok: false, reason: "Investigation covers NBA, WNBA, college basketball and NHL game markets; this market isn't one." };
   }
   if (!SUPPORTED_LEAGUES.has(league)) {
     return { ok: false, reason: `${league} isn't supported yet: player and team matching for it isn't tested.` };
   }
   const kind = marketKindFromSeries(leg.ticker.split("-")[0]!);
+  if (league === "NHL" && !NHL_KINDS.has(kind)) {
+    return { ok: false, reason: "Only NHL game winner, puck line and totals can be investigated (no periods or player props yet)." };
+  }
   if (!SUPPORTED_KINDS.has(kind)) {
     return { ok: false, reason: "Only game winner, spread, totals and player props can be investigated." };
   }
@@ -70,10 +76,14 @@ export function buildHypothesis(leg: ComboLeg, ev: LegEvidence | undefined, snap
   const series = leg.ticker.split("-")[0]!;
   const market_type = (ev?.kind && KIND_FROM_EVIDENCE[ev.kind]) || marketKindFromSeries(series);
   // A game-winner market has no line (box-score evidence reports 0 for it).
-  const threshold = market_type === "moneyline" ? null : ev?.line ?? lineFromTicker(leg.ticker);
+  const nhl = leagueOf(leg.ticker) === "NHL";
+  const tick = lineFromTicker(leg.ticker);
+  // Kalshi NHL suffixes are "over N-0.5" (TOTAL-6 = over 5.5, SPREAD-BOS2 = by over 1.5).
+  const threshold = market_type === "moneyline" ? null
+    : ev?.line ?? (nhl && tick != null ? tick - 0.5 : tick);
   const statement = leg.side === "yes" ? leg.label : `NOT: ${leg.label} (betting it doesn't happen)`;
   return {
-    ticker: leg.ticker, event_ticker: leg.event, side: leg.side, sport: "basketball",
+    ticker: leg.ticker, event_ticker: leg.event, side: leg.side, sport: nhl ? "hockey" : "basketball",
     league: LEAGUE_NAME[leagueOf(leg.ticker) ?? ""] ?? "unknown", market_type, threshold,
     subject: ev?.subject?.name ?? null, label: leg.label, statement, snapshot_at: snapshotAt, rules_url: null,
   };

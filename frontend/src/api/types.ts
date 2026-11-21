@@ -933,7 +933,9 @@ export interface InvestigationResult {
   hypothesis: InvestigationHypothesis;
   quote: InvestigationQuote;
   summary: { takeaway: string; findings: InvestigationFinding[]; gaps: string[];
-    stance: "supports" | "challenges" | "insufficient"; uncertainty: string };
+    stance: "supports" | "challenges" | "insufficient"; uncertainty: string;
+    /** e.g. "1 factual dataset · 3 commentary links · goalie status unconfirmed" */
+    coverage?: string | null };
   price_assessment: InvestigationPrice;
   details: { supports: InvestigationFinding[]; against: InvestigationFinding[]; methodology: string[]; data_gaps: string[];
     rules_excerpt?: string | null };
@@ -944,6 +946,8 @@ export interface ResearchPreflight {
   quote: InvestigationQuote; model: string | null; cached: boolean; unsupported: string | null; usage: ResearchUsage;
 }
 export interface ResearchUsage {
+  /** used_* are app-wide totals across every Brave feature (what the caps apply to). */
   configured: boolean; used_today: number; daily_cap: number; used_month: number; monthly_cap: number;
   max_searches_per_investigation: number;
+  by_purpose?: Record<string, { today: number; month: number }>;
 }

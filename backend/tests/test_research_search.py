@@ -133,7 +133,8 @@ def test_caps_hold_under_concurrent_requests(engine) -> None:  # type: ignore[no
     for t in threads:
         t.join()
     assert len(ok) == 20 and len(refused) == 20
-    assert led.usage("research") == {"used_today": 20, "used_month": 20}
+    u = led.usage("research")
+    assert u["used_today"] == 20 and u["used_month"] == 20 and u["total_month"] == 20
 
 
 def test_monthly_cap_and_day_rollover(engine) -> None:  # type: ignore[no-untyped-def]
@@ -145,8 +146,9 @@ def test_monthly_cap_and_day_rollover(engine) -> None:  # type: ignore[no-untype
             except BudgetExhausted as e:
                 assert e.scope == "This month's" and d == 2
     assert ledger(engine, now=NOW + timedelta(days=2)).usage()["used_month"] == 5
-    # other purposes are recorded but never capped, and don't use up research budget
-    ledger(engine, daily=0, monthly=0).reserve("headlines", "headlines", capped=False)
+    # other purposes share the same cap: nothing gets a budget of its own
+    with pytest.raises(BudgetExhausted):
+        ledger(engine, daily=10, monthly=5, now=NOW + timedelta(days=2)).reserve("headlines", "h")
     with engine.connect() as c:
         raw = c.execute(text("SELECT query_hash FROM search_ledger")).scalars().all()
     assert all(len(q) == 64 for q in raw)  # hashes only, never the query text
@@ -191,7 +193,7 @@ def test_budget_exhausted_stops_before_sending(engine) -> None:  # type: ignore[
     brave = Brave([art("Knicks Towns rebounds", "https://espn.com/x")])
     g = gather(hyp(), brave, ledger(engine, daily=1))
     assert g.searches == 1 and brave.calls == 1
-    assert any("Today's search budget (1) is used up" in e for e in g.errors)
+    assert any("Today's Brave request budget (1) is used up" in e for e in g.errors)
 
 
 def test_429_is_not_retried_and_downtime_is_explained(engine) -> None:  # type: ignore[no-untyped-def]

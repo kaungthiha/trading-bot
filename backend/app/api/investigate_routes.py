@@ -16,11 +16,12 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import search, service, synth
+from app.investigate import nhl, search, service, sources, synth
 from app.investigate.ledger import ledger_for
 from app.investigate.schemas import Result
 from app.sportsdata.espn import EspnSource
 from app.sportsdata.llm import LlmError, OllamaClient
+from app.sportsdata.moneypuck import MoneyPuck
 from app.sportsdata.news import NewsSearch
 
 router = APIRouter(prefix="/api/research")
@@ -46,6 +47,17 @@ def _espn(request: Request, settings: Any) -> EspnSource | None:
         src = request.app.state.espn = EspnSource(
             min_interval=settings.espn_min_request_interval_seconds
         )
+    return src
+
+
+def _moneypuck(request: Request, settings: Any) -> MoneyPuck | None:
+    """NHL season data (MoneyPuck). None when the owner switched the source off."""
+    if not sources.allows("moneypuck", "download_listed_season_csv", settings):
+        return None
+    src = getattr(request.app.state, "moneypuck", None)
+    if src is None:
+        src = MoneyPuck(settings, timeout=settings.http_timeout_seconds)
+        request.app.state.moneypuck = src
     return src
 
 
@@ -135,6 +147,7 @@ def _run(
             settings.research_search_cache_hours,
             gatherer=_gatherer(request, settings, now),
             synthesizer=synth_chat,
+            mp_src=_moneypuck(request, settings) if nhl.is_nhl(ticker) else None,
         )
     except service.Unsupported as e:
         raise ApiError(422, ErrorCode.VALIDATION_ERROR, str(e)) from e
@@ -190,17 +203,26 @@ def refresh(
 
 @router.get("/usage")
 def usage(settings: SettingsDep, request: Request) -> dict[str, Any]:
-    """Research searches sent, from this app's own ledger, against this app's caps.
-    Not your Brave balance or bill: the API doesn't expose those."""
-    used = ledger_for(request.app.state).usage("research")
+    """Brave requests sent by the WHOLE app (what the caps apply to), with a per-feature
+    breakdown, from this app's own ledger. Not your Brave balance or bill: the API doesn't
+    expose those, so no "$ remaining" is ever shown."""
+    used = ledger_for(request.app.state).usage()
     return {
         "configured": settings.brave_search_api_key is not None,
-        "used_today": used["used_today"],
+        "used_today": used["total_today"],
         "daily_cap": settings.research_brave_daily_request_cap,
-        "used_month": used["used_month"],
+        "used_month": used["total_month"],
         "monthly_cap": settings.research_brave_monthly_request_cap,
+        "by_purpose": used["by_purpose"],
         "max_searches_per_investigation": settings.research_max_searches_per_investigation,
     }
+
+
+@router.get("/sources")
+def source_rights(settings: SettingsDep) -> dict[str, Any]:
+    """The data-source rights matrix (reviewed terms, allowed operations, owner switches).
+    Read-only: rights can't be granted through the API."""
+    return {"version": sources.SOURCES_VERSION, "sources": sources.matrix(settings)}
 
 
 @router.get("/preflight")
@@ -229,9 +251,11 @@ def preflight(
         unsupported = str(exc)
     return {
         "quote": service.quote_for(m, side, now).model_dump(),
-        "model": "Box-score history (frequency, checked when you run it)"
-        if unsupported is None
-        else None,
+        "model": None
+        if unsupported is not None
+        else "No NHL model: MoneyPuck season data for context (checked when you run it)"
+        if nhl.is_nhl(ticker)
+        else "Box-score history (frequency, checked when you run it)",
         "cached": service.cached(
             session, service.cache_key(ticker, side, m, _model_name(settings)), now
         )

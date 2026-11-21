@@ -1,0 +1,349 @@
+"""Data-source registry: what this app may do with each source, from a dated review.
+
+A site being public is NOT a licence to scrape it, feed it to a model, or keep its text.
+Every source below records exactly which operations its published terms allow for this
+app's use (a single person's local, non-commercial research tool). Adapters must call
+`allows(source_id, operation)` before any request; nothing is silently promoted from
+`metadata_only` to full text. When a review is uncertain the source is
+`blocked_pending_review` and only links are offered for manual reading.
+
+rights_status:
+- structured_dataset_allowed: a published file/API whose terms support the intended use;
+- metadata_only: titles, links and discovery results only (snippets per provider terms);
+- licensed_full_text: automated processing and retention under a reviewed licence (none yet);
+- manual_user_input: text the user pastes; never a licence to crawl the publisher;
+- blocked_pending_review: no automatic ingestion;
+- legacy_unreviewed: in use before this registry (owner-accepted), terms not re-reviewed here;
+  kept for the features that already rely on it, never used for a new sport or purpose.
+
+Owner switch: KRT_RESEARCH_DISABLED_SOURCES=moneypuck,espn_site_api (comma-separated ids)
+turns a source off without code changes. Bump SOURCES_VERSION when anything changes.
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
+
+SOURCES_VERSION = "2026-11-21.1"
+REVIEWED = "2026-11-21"
+
+Rights = Literal[
+    "structured_dataset_allowed",
+    "metadata_only",
+    "licensed_full_text",
+    "manual_user_input",
+    "blocked_pending_review",
+    "legacy_unreviewed",
+]
+
+
+@dataclass(frozen=True)
+class DataSource:
+    source_id: str
+    name: str
+    sport: str
+    information_type: str
+    connector: str  # module that talks to it, or "none" (not connected)
+    usage_terms_url: str
+    rights_status: Rights
+    allowed_operations: tuple[str, ...]
+    attribution: str
+    expiry: str  # when stored content must go, or "n/a"
+    last_reviewed_at: str
+    notes: str
+    review_quotes: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["allowed_operations"] = list(self.allowed_operations)
+        d["review_quotes"] = list(self.review_quotes)
+        return d
+
+
+SOURCES: dict[str, DataSource] = {
+    s.source_id: s
+    for s in [
+        DataSource(
+            "kalshi_public",
+            "Kalshi public market data",
+            "all",
+            "markets, prices, settlement rules",
+            "app.adapters.kalshi_public",
+            "https://docs.kalshi.com",
+            "structured_dataset_allowed",
+            ("read_markets", "read_rules"),
+            "Kalshi",
+            "n/a",
+            REVIEWED,
+            "The exchange's own documented public API; the app reads it and never trades.",
+        ),
+        DataSource(
+            "brave_news",
+            "Brave News Search",
+            "all",
+            "news discovery (headline, link, short snippet, date)",
+            "app.sportsdata.news",
+            "https://brave.com/search/api/",
+            "metadata_only",
+            ("search_metadata", "transient_snippet_for_matching_and_local_summary"),
+            "Publisher name and link to the original article",
+            "Headline/link removed from stored investigations after the search cache window; "
+            "snippets never stored",
+            REVIEWED,
+            "Every request counts against the one app-wide cap (60/day, 800/month by default). "
+            "Brave's terms allow only transient storage of results.",
+        ),
+        DataSource(
+            "espn_site_api",
+            "ESPN public site JSON",
+            "basketball (NBA, WNBA, NCAA)",
+            "schedules, box scores, injury report",
+            "app.sportsdata.espn",
+            "https://disneytermsofuse.com/",
+            "legacy_unreviewed",
+            ("basketball_box_scores", "basketball_injury_report"),
+            "ESPN",
+            "In-memory cache only",
+            REVIEWED,
+            "Undocumented public endpoints the basketball features already used before this "
+            "registry. Not reviewed or licensed for automated use here; deliberately NOT "
+            "used for hockey or any new sport. Turn off with KRT_SPORTS_EVIDENCE_ENABLED=false.",
+        ),
+        DataSource(
+            "moneypuck",
+            "MoneyPuck season data downloads",
+            "hockey (NHL)",
+            "team and goalie season stats: expected goals, goals for/against, goalie "
+            "goals saved above expected",
+            "app.sportsdata.moneypuck",
+            "https://moneypuck.com/data.htm",
+            "structured_dataset_allowed",
+            ("download_listed_season_csv",),
+            "Data: MoneyPuck.com (credited wherever its numbers appear)",
+            "In-memory cache only (refreshed at most every 12 hours)",
+            REVIEWED,
+            "Allowed for non-commercial use with credit: this app is one person's local "
+            "research tool and doesn't sell or republish the data. Only the two listed "
+            "season CSVs (teams, goalies) are downloaded, at most twice a day; no other "
+            "MoneyPuck page is fetched (its page says non-approved scraping is blocked). "
+            "Owner to confirm the personal, non-commercial reading; any commercial use "
+            "needs MoneyPuck's permission.",
+            (
+                "The data below is free to use for non-commercial purposes and by "
+                "journalists for ad-hoc use.",
+                "Please clearly credit MoneyPuck.com in all cases where you are showing "
+                "anything using our data as an input.",
+                "Please message us for approval before scraping any data not listed on this page.",
+            ),
+        ),
+        DataSource(
+            "nhl_api_web",
+            "NHL web data endpoints (api-web.nhle.com)",
+            "hockey (NHL)",
+            "schedules, rosters, box scores, play-by-play",
+            "none",
+            "https://www.nhl.com/info/terms-of-service",
+            "blocked_pending_review",
+            (),
+            "NHL",
+            "n/a",
+            REVIEWED,
+            "No published documentation or terms for these endpoints, and NHL.com's terms "
+            "prohibit unauthorised automated means to compile information. Needs written "
+            "permission or an official licensed feed before any use.",
+            (
+                "Engage in unauthorized spidering, scraping, or harvesting of content or "
+                "information, or use any other unauthorized automated means to compile "
+                "information;",
+            ),
+        ),
+        DataSource(
+            "puckapi",
+            "PuckAPI",
+            "hockey (NHL)",
+            "normalised team and goalie data (500 free credits/month advertised)",
+            "none",
+            "https://puckapi.com/",
+            "blocked_pending_review",
+            (),
+            "PuckAPI",
+            "n/a",
+            REVIEWED,
+            "Not reviewed: needs an account key, its terms page and quota checked first.",
+        ),
+        DataSource(
+            "open_meteo",
+            "Open-Meteo weather API",
+            "outdoor sports",
+            "forecast and historical weather",
+            "none",
+            "https://open-meteo.com/en/terms",
+            "structured_dataset_allowed",
+            ("forecast_lookup_noncommercial",),
+            "Weather data by Open-Meteo.com (CC BY 4.0)",
+            "n/a",
+            REVIEWED,
+            "Allowed for non-commercial use under CC BY 4.0, under 10,000 calls/day. Not "
+            "connected yet: no supported sport is played outdoors (NHL is indoors).",
+            (
+                "You may only use the free API services for non-commercial purposes.",
+                "Less than 10'000 API calls per day, 5'000 per hour and 600 per minute.",
+            ),
+        ),
+        DataSource(
+            "nflverse",
+            "nflverse data releases",
+            "football (NFL)",
+            "play-by-play, rosters, schedules",
+            "none",
+            "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md",
+            "structured_dataset_allowed",
+            ("download_cc_by_release_files",),
+            "nflverse (CC BY 4.0), with a link to the release",
+            "n/a",
+            REVIEWED,
+            "The repository is CC BY 4.0. Each dataset's own licence must be checked before "
+            "use: the FTN charting data's licence couldn't be confirmed, so it is excluded. "
+            "Not connected yet (NFL is the next sport).",
+        ),
+        DataSource(
+            "statsbomb_open",
+            "StatsBomb Open Data",
+            "soccer",
+            "historical event data for selected competitions",
+            "none",
+            "https://github.com/hudl/open-data",
+            "blocked_pending_review",
+            (),
+            "StatsBomb (name and logo required)",
+            "n/a",
+            REVIEWED,
+            "README requires crediting StatsBomb with its logo; the LICENSE.pdf couldn't be "
+            "read, so its terms (including any AI/data-mining clause) are unverified.",
+        ),
+        DataSource(
+            "ncaa_api_community",
+            "NCAA API (community wrapper)",
+            "college sports",
+            "scores, box scores, schedules",
+            "none",
+            "https://github.com/henrygd/ncaa-api",
+            "blocked_pending_review",
+            (),
+            "NCAA",
+            "n/a",
+            REVIEWED,
+            "The wrapper's code licence isn't a licence to NCAA's data; NCAA terms unreviewed.",
+        ),
+        DataSource(
+            "sports_insights_rss",
+            "Sports Insights RSS",
+            "several",
+            "betting-oriented article discovery",
+            "none",
+            "https://www.sportsinsights.com/sports-insights-rss-feed/",
+            "metadata_only",
+            (),
+            "Publisher name and link",
+            "n/a",
+            REVIEWED,
+            "At most titles and links for discovery; feed terms not reviewed, so not connected.",
+        ),
+        DataSource(
+            "cbs_rss",
+            "CBS Sports RSS",
+            "several",
+            "news discovery",
+            "none",
+            "https://www.cbssports.com/xml/rss",
+            "metadata_only",
+            (),
+            "Publisher name and link",
+            "n/a",
+            REVIEWED,
+            "At most titles and links; feed terms not reviewed, so not connected.",
+        ),
+        DataSource(
+            "football_data_uk",
+            "Football-Data.co.uk",
+            "soccer",
+            "historical odds, scores, stats CSV",
+            "none",
+            "https://football-data.co.uk/contact.php",
+            "blocked_pending_review",
+            (),
+            "Football-Data.co.uk",
+            "n/a",
+            REVIEWED,
+            "Fair-use policy restricts derived products; needs explicit permission first.",
+        ),
+        DataSource(
+            "the_odds_api",
+            "The Odds API",
+            "several",
+            "sportsbook prices",
+            "none",
+            "https://the-odds-api.com/",
+            "blocked_pending_review",
+            (),
+            "The Odds API",
+            "n/a",
+            REVIEWED,
+            "Not reviewed. Sportsbook odds compare prices; they're not an independent "
+            "probability estimate.",
+        ),
+        DataSource(
+            "betting_pick_sites",
+            "Pickswise, Boyd's Bets, Covers, PickDawgz, Sports Betting Dime, SBR",
+            "several",
+            "written picks and commentary",
+            "app.investigate.search (via Brave metadata)",
+            "https://www.covers.com/",
+            "metadata_only",
+            ("search_metadata",),
+            "Publisher name and link; cited as opinion",
+            "As Brave",
+            REVIEWED,
+            "Headlines and links only, always classed as analyst opinion. No full text "
+            "without an explicit licence for automated processing.",
+        ),
+        DataSource(
+            "guardian_open_platform",
+            "The Guardian Open Platform",
+            "mainly international sport",
+            "full-text articles",
+            "none",
+            "https://www.theguardian.com/open-platform/terms-and-conditions",
+            "blocked_pending_review",
+            (),
+            "The Guardian",
+            "n/a",
+            REVIEWED,
+            "API access isn't AI-processing permission; its terms restrict AI and automated "
+            "analysis without explicit permission. The terms page refused an automated read "
+            "on review day, so it stays blocked.",
+        ),
+    ]
+}
+
+
+def disabled(settings: Any) -> set[str]:
+    raw = getattr(settings, "research_disabled_sources", "") or ""
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def allows(source_id: str, operation: str, settings: Any = None) -> bool:
+    """True only if the reviewed terms allow this exact operation and the owner hasn't
+    switched the source off. Unknown sources and operations are refused."""
+    s = SOURCES.get(source_id)
+    if s is None or operation not in s.allowed_operations:
+        return False
+    if s.rights_status in ("blocked_pending_review", "manual_user_input"):
+        return False
+    return not (settings is not None and source_id in disabled(settings))
+
+
+def matrix(settings: Any = None) -> list[dict[str, Any]]:
+    off = disabled(settings) if settings is not None else set()
+    return [s.to_dict() | {"enabled": s.source_id not in off} for s in SOURCES.values()]

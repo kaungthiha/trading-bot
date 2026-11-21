@@ -160,15 +160,21 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4.1-mini", pattern=r"^[A-Za-z0-9._:-]{1,80}$")
     llm_max_reviews_per_day: int = Field(default=40, ge=0, le=1000)
 
-    # --- Investigate this pick: app-side spending caps for news search (Brave) ----------
-    # These are THIS APP's ceilings, counted from its own request ledger. They are not your
-    # Brave balance or bill (the app can't see those). Only an explicit "Run investigation"
-    # or "Refresh research" click can spend a search; cache hits are free.
-    research_brave_daily_request_cap: int = Field(default=20, ge=0, le=1000)
-    research_brave_monthly_request_cap: int = Field(default=200, ge=0, le=20000)
-    research_max_searches_per_investigation: int = Field(default=3, ge=0, le=3)
-    research_max_sources_per_investigation: int = Field(default=5, ge=0, le=10)
+    # --- Brave Search: ONE app-wide spending cap -----------------------------------------
+    # These are THIS APP's ceilings, counted from its own request ledger, and they apply to
+    # the TOTAL of every Brave caller (investigations, "Headlines here", AI-review headlines).
+    # They are not your Brave balance or bill (the app can't see those). Only explicit clicks
+    # spend; cache hits are free. The defaults are also the upper bounds: at Brave's published
+    # $5 per 1,000 requests, 800/month is about $4, leaving ~$1 of a $5 monthly credit as a
+    # reserve. You can lower them in .env; raising them needs a code change on purpose.
+    research_brave_daily_request_cap: int = Field(default=60, ge=0, le=60)
+    research_brave_monthly_request_cap: int = Field(default=800, ge=0, le=800)
+    research_max_searches_per_investigation: int = Field(default=5, ge=0, le=5)
+    research_max_sources_per_investigation: int = Field(default=7, ge=0, le=10)
     research_search_cache_hours: float = Field(default=6, ge=0.25, le=168)
+    # Data-source switches (see app/investigate/sources.py): comma-separated source ids to
+    # turn off, e.g. "moneypuck". Sources can only be turned off here, never granted rights.
+    research_disabled_sources: str = Field(default="", max_length=400)
 
     # --- Local worker ------------------------------------------------------------------
     worker_kalshi_interval_seconds: int = Field(default=900, ge=60)

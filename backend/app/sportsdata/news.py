@@ -44,8 +44,9 @@ class _Metered(RetryingJsonClient):
 
 
 class NewsSearch:
+    # max_retries=0 by default: every attempt is billed, and a 429 or outage isn't retried.
     def __init__(self, api_key: str, *, transport: httpx.BaseTransport | None = None,
-                 timeout: float = 10.0, max_retries: int = 1,
+                 timeout: float = 10.0, max_retries: int = 0,
                  on_attempt: Callable[[], None] | None = None) -> None:
         self._http = _Metered(BRAVE, allowed_bases={BRAVE}, path_pattern=BRAVE_PATHS,
                               transport=transport, timeout=timeout, max_retries=max_retries,
@@ -79,7 +80,10 @@ def headlines(settings: Any, subjects: list[str], prefix: str = "S", per: int = 
               limit: int = 5, on_attempt: Callable[[], None] | None = None
               ) -> list[dict[str, str]]:
     """Recent headlines about each subject, with ids (S1, S2...) the model can cite.
-    Empty when no Brave key is set. A failing subject is skipped, never fatal."""
+    Empty when no Brave key is set. A failing subject is skipped, never fatal. Once the
+    app-wide Brave budget is used up (on_attempt raises), it stops and returns what it has."""
+    from app.investigate.ledger import BudgetExhausted
+
     key = settings.brave_search_api_key
     if key is None or not subjects:
         return []
@@ -95,6 +99,8 @@ def headlines(settings: Any, subjects: list[str], prefix: str = "S", per: int = 
                                 "snippet": it["description"], "url": it["url"]})
             except AdapterError:
                 continue
+            except BudgetExhausted:
+                break
     finally:
         client.close()
     return out

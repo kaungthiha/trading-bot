@@ -376,7 +376,8 @@ def test_api_injuries_by_team(api: TestClient) -> None:
 
 
 def test_api_news_is_off_without_a_key(api: TestClient) -> None:
-    assert api.get("/api/games/news", params={"q": "Towns injury"}).json() == {
+    assert api.post("/api/games/news", json={"q": "Towns injury"},
+                    headers={"X-KRT-Request": "research"}).json() == {
         "configured": False, "items": []}
 
 

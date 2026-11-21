@@ -168,7 +168,8 @@ export const api = {
   slipCheck: (legs: { ticker: string; side: Side }[], stake?: number, quote?: number) =>
     getJson<SlipCheck>(`/api/games/check${qs({ legs: legs.map((l) => `${l.ticker}:${l.side}`).join(","),
       stake: stake ? stake.toFixed(2) : undefined, quote: quote ? quote.toFixed(2) : undefined })}`),
-  news: (q: string) => getJson<NewsResult>(`/api/games/news${qs({ q })}`),
+  // POST + header: spends one Brave request (app-wide cap), so only a click can trigger it.
+  news: (q: string) => postJson<NewsResult>("/api/games/news", { q }, "research"),
   ideas: (prefix: string, key: string) =>
     getJson<GameIdeas>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/ideas`),
   ideasAi: (prefix: string, key: string) =>

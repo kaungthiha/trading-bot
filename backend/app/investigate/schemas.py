@@ -78,6 +78,8 @@ class Summary(BaseModel):
     gaps: list[str]
     stance: Literal["supports", "challenges", "insufficient"]
     uncertainty: str
+    # e.g. "1 factual dataset · 3 commentary links · goalie status unconfirmed"
+    coverage: str | None = Field(default=None, max_length=200)
 
 
 class Details(BaseModel):

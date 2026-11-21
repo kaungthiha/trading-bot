@@ -12,9 +12,10 @@ const DAY = 86_400_000;
 export function fixtureUsage(scenario: FixtureScenario = "ok"): ResearchUsage {
   return {
     configured: scenario !== "brave_unconfigured",
-    used_today: scenario === "budget_exhausted" ? 20 : 4, daily_cap: 20,
-    used_month: scenario === "budget_exhausted" ? 61 : 37, monthly_cap: 200,
-    max_searches_per_investigation: 3,
+    used_today: scenario === "budget_exhausted" ? 60 : 4, daily_cap: 60,
+    used_month: scenario === "budget_exhausted" ? 127 : 37, monthly_cap: 800,
+    max_searches_per_investigation: 5,
+    by_purpose: { research: { today: 3, month: 30 }, news: { today: 1, month: 5 }, headlines: { today: 0, month: 2 } },
   };
 }
 
@@ -81,7 +82,7 @@ export function fixtureInvestigation(h: InvestigationHypothesis, scenario: Fixtu
       model: llm ? "gemma4:12b (sample)" : null, searches: searched ? 2 : 0, cache: "miss",
       errors: scenario === "ollama_offline" ? ["Local model offline: summary is box-score only."]
         : scenario === "brave_unconfigured" ? ["Brave Search isn't configured: no news was checked."]
-        : scenario === "budget_exhausted" ? ["Today's search budget is used up: no news was checked."]
+        : scenario === "budget_exhausted" ? ["Today's Brave request budget is used up: no news was checked."]
         : scenario === "no_results" ? ["No relevant articles found for this game."] : [],
       partial_reasons: llm ? [] : ["deterministic_only"],
     },

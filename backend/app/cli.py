@@ -55,6 +55,51 @@ def _print_summary(s: IngestionSummary) -> None:
         print(f"  ... {len(s.errors) - 20} more")
 
 
+def _research_eval(settings: Settings) -> int:
+    """Offline: reads stored investigations and the catalog's game times. No network."""
+    import json as _json
+
+    from sqlalchemy import select
+
+    from app.db.models import CatalogEvent, Investigation
+    from app.db.session import make_engine, make_session_factory
+    from app.investigate import schemas as S
+    from app.investigate.evaluate import evaluate
+
+    engine = make_engine(settings.database_url)
+    with make_session_factory(engine)() as s:
+        rows = s.scalars(select(Investigation)).all()
+        results = [S.Result.model_validate(_json.loads(r.result_json)) for r in rows]
+        events = {r.hypothesis.event_ticker for r in results}
+        starts = {e.event_ticker: e.occurs_at for e in s.scalars(
+            select(CatalogEvent).where(CatalogEvent.event_ticker.in_(events))) if e.occurs_at}
+    engine.dispose()
+    print(_json.dumps(evaluate(results, starts=starts).rates(), indent=2))
+    return 0
+
+
+def _research_smoke(settings: Settings, live_moneypuck: bool) -> int:
+    """Live checks run only with an explicit flag, and only against free, non-billed sources
+    the registry permits. Brave is never called here."""
+    if not live_moneypuck:
+        print("Nothing run. Pass --live-moneypuck to download MoneyPuck's two listed season "
+              "CSVs once (free, non-billed, credited). Brave is never called by this command.")
+        return 0
+    from datetime import UTC, datetime
+
+    from app.sportsdata.moneypuck import MoneyPuck, season_of
+
+    src = MoneyPuck(settings)
+    try:
+        d = src.season(season_of(datetime.now(UTC)))
+    finally:
+        src.close()
+    print(f"MoneyPuck {d.season}: {len(d.teams)} teams, "
+          f"{sum(len(v) for v in d.goalies.values())} goalies, data as of {d.data_as_of} "
+          "(Data: MoneyPuck.com)")
+    return 0 if len(d.teams) >= 30 else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="krt")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -118,10 +163,20 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("scan", help="Scan all open Kalshi events for mispricings (public data)")
     sub.add_parser("journal-settle", help="Settle journaled trades on finalized Kalshi results")
     sub.add_parser("scorecard", help="Real-money scorecard of executed thesis cards")
+    sub.add_parser("research-eval",
+                   help="Evidence-quality report over stored investigations (offline, free)")
+    smk = sub.add_parser("research-smoke",
+                         help="Opt-in live check of free, non-billed data sources (never Brave)")
+    smk.add_argument("--live-moneypuck", action="store_true",
+                     help="Download MoneyPuck's two listed season CSVs once and summarise them")
     args = parser.parse_args(argv)
 
     configure_logging()
     settings = get_settings()
+    if args.cmd == "research-eval":
+        return _research_eval(settings)
+    if args.cmd == "research-smoke":
+        return _research_smoke(settings, args.live_moneypuck)
     if args.cmd == "migrate":
         command.upgrade(alembic_config(settings.database_url), "head")
     elif args.cmd == "downgrade":

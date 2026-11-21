@@ -10,6 +10,7 @@ WRITE_ROUTES = {
     ("/api/jobs/{name}/run", "post"),  # UI buttons: refresh / FRED / scan
     ("/api/jobs/auto-scan", "post"),  # UI auto-scan toggle
     ("/api/games/review", "post"),  # optional paid AI second opinion (CSRF + daily cap)
+    ("/api/games/news", "post"),  # "Headlines here": one Brave request (CSRF + app-wide cap)
     ("/api/history/coach", "post"),  # local AI coach (CSRF header; Ollama on loopback)
     ("/api/history/open/review", "post"),  # local AI read of open positions (CSRF)
     ("/api/research/investigations", "post"),  # on-demand pick research (CSRF)

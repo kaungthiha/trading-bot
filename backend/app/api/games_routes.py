@@ -21,7 +21,7 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.catalog.slipcheck import check_slip
-from app.investigate.ledger import record_hook
+from app.investigate.ledger import BudgetExhausted, record_hook
 from app.sportsdata.espn import COLLEGE, LEAGUES, EspnSource
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.ideas import build_ideas, ideas_facts
@@ -91,21 +91,47 @@ def leg_evidence(session: SessionDep, settings: SettingsDep, request: Request,
     return _evidence(session, settings, request, _legs(legs))[0]
 
 
-@router.get("/news")
-def news(settings: SettingsDep, request: Request,
-         q: Annotated[str, Query(min_length=2, max_length=120)]) -> dict[str, Any]:
+class NewsIn(BaseModel):
+    q: str = PydField(min_length=2, max_length=120)
+
+
+NEWS_TTL = timedelta(minutes=30)
+
+
+@router.post("/news")
+def news(body: NewsIn, settings: SettingsDep, clock: ClockDep, request: Request,
+         x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None
+         ) -> dict[str, Any]:
+    """"Headlines here": one Brave request, counted against the app-wide cap. POST + custom
+    header, so only a click in this app can spend it (not a link or page on another site)."""
+    if x_krt_request != "research":
+        raise ApiError(403, ErrorCode.VALIDATION_ERROR, "Missing X-KRT-Request header")
     key = settings.brave_search_api_key
     if key is None:
         return {"configured": False, "items": []}
-    clean = re.sub(r"[^\w\s.'+-]", " ", q).strip()
+    clean = re.sub(r"[^\w\s.'+-]", " ", body.q).strip()
+    now = clock.now()
+    # In-memory only (Brave's terms allow transient storage); a repeat click is free.
+    cache = request.app.state.__dict__.setdefault("news_cache", {})
+    hit = cache.get(clean.lower())
+    if hit and now - hit[0] < NEWS_TTL:
+        return {"configured": True, "items": hit[1], "cached": True}
     client = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds,
-                        on_attempt=record_hook(request.app.state, "news"))
+                        on_attempt=record_hook(request.app.state, "news", clean))
     try:
-        return {"configured": True, "items": client.search(clean)}
+        items = client.search(clean)
+    except BudgetExhausted as e:
+        raise ApiError(429, ErrorCode.VALIDATION_ERROR,
+                       f"{e}: no headline search was sent. It resets with the day or month "
+                       "(KRT_RESEARCH_BRAVE_*_REQUEST_CAP).") from e
     except AdapterError as e:
         raise ApiError(502, ErrorCode.SOURCE_FAILURE, f"Headline search: {e}") from e
     finally:
         client.close()
+    if len(cache) > 200:
+        cache.clear()
+    cache[clean.lower()] = (now, items)
+    return {"configured": True, "items": items, "cached": False}
 
 
 # --- Slip check: does this combo make sense for your money? -----------------------------------

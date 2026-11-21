@@ -487,8 +487,8 @@ probability), what you'd pay (the slip check), the AI second opinion, and **Save
 your decision and why, saved in this browser with the price at the time and listed on Today
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
-**Investigate this pick.** On a single-game NBA, WNBA or college basketball (men's or women's)
-leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
+**Investigate this pick.** On a single-game NBA, WNBA, college basketball (men's or women's)
+or NHL leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
 *Investigate*. A drawer opens for that
 exact contract and side, without leaving the page or touching your slip. Nothing runs until you
 click **Run investigation**. Then you get:
@@ -507,7 +507,16 @@ What it uses:
   college team's history also comes from opponents of very different strength, and the result
   says so. News searches name the sport, and articles about football or the other basketball
   program are dropped.
-- **News (optional, Brave News Search):** up to 3 targeted searches per run. Only headlines
+- **NHL** (game winner, puck line, game and team totals; periods, overtime and player props
+  aren't covered): season stats from **MoneyPuck** (expected-goals share, goals for/against,
+  goalie save % and goals saved above expected; free for non-commercial use, credited "Data:
+  MoneyPuck.com"). ESPN and the NHL's own endpoints aren't used for hockey. The starting goalie
+  is *unknown*, *expected (reported by news)* or *conflicting*, never *confirmed*: no official
+  lineup source is connected. There's no validated NHL model, so **no estimate or edge is
+  shown**; the stats are context. Kalshi settles game winner and puck line on the official
+  final result (overtime and shootout included), and totals count a shootout as one goal.
+- **News (optional, Brave News Search):** up to 3 targeted searches per run (4 for the NHL,
+  starting with the goalie). Only headlines
   and snippets are used; no article page is ever fetched. Results must name this game's teams
   (or the prop's player). Articles about a past matchup or a different line are flagged and
   never count as support. Syndicated copies count once. Brave's terms allow only temporary
@@ -522,13 +531,23 @@ Setup and spending caps:
 - **Brave:** set `KRT_BRAVE_SEARCH_API_KEY` in `.env` (a key from https://brave.com/search/api/;
   at the time of writing $5 per 1,000 requests with $5 free credit a month, so check the
   current price there).
-- **App-side caps** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (20),
-  `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (200), `KRT_RESEARCH_MAX_SEARCHES_PER_INVESTIGATION`
-  (3), `KRT_RESEARCH_MAX_SOURCES_PER_INVESTIGATION` (5), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6).
-  Every network attempt is written to a local ledger before it's sent, and the caps are
-  enforced atomically. Cache hits are free. Retries are off, because each attempt is billed.
-  The drawer shows this app's count; **your Brave balance isn't visible to the app**, so check
-  the Brave dashboard.
+- **One app-wide Brave cap** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (60) and
+  `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (800) apply to the **total** of every Brave use:
+  Investigate, the "Headlines here" button and the AI reviews' headlines. Also
+  `KRT_RESEARCH_MAX_SEARCHES_PER_INVESTIGATION` (5), `KRT_RESEARCH_MAX_SOURCES_PER_INVESTIGATION`
+  (7), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6). The defaults are also the maximums: 800 a month
+  is about $4 at $5 per 1,000, below a $5 monthly credit. You can lower them; raising them
+  needs a code change. Every network attempt is written to a local ledger before it's sent, and
+  the caps are enforced atomically across features. Cache hits are free. Retries are off,
+  because each attempt is billed. The drawer shows "Brave requests: N / 800 this month" with a
+  per-feature breakdown; **your Brave balance isn't visible to the app**, so check the Brave
+  dashboard. "Headlines here" is a click-only POST (a link on another site can't spend it).
+- **Data sources:** `app/investigate/sources.py` records each source's reviewed terms and the
+  exact operations allowed (`GET /api/research/sources` shows the matrix). Turn one off with
+  `KRT_RESEARCH_DISABLED_SOURCES=moneypuck`. Details: `docs/investigate/EVIDENCE_V2.md`.
+- **Checks:** `krt research-eval` prints an evidence-quality report over saved investigations
+  (offline). `krt research-smoke --live-moneypuck` downloads MoneyPuck's two files once (free;
+  never Brave); without the flag it does nothing.
 - **Ollama:** the same local model as the other AI features (`KRT_LLM_PROVIDER=ollama`,
   `KRT_OLLAMA_MODEL`). An investigation's summary is capped at 90 seconds, one at a time.
 

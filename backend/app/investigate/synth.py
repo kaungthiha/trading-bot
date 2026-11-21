@@ -51,6 +51,11 @@ Rules:
 - Cite the source ids you rely on (N1.., E1, E2, K1). Betting sites are analyst opinion.
 - A source about a different line or a past matchup is NOT direct evidence for this pick.
 - Copies of the same report are one source, not confirmation.
+- You only ever see headlines and short snippets, never full articles. Never say or imply that
+  you (or anyone) read an article; say "a headline reports" or "a snippet says".
+- App data (K1 Kalshi, E1/E2 ESPN, M1 MoneyPuck) is structured fact; compare news claims against
+  it and point out disagreements. Season averages are context, not a probability.
+- Hockey: never call a starting goalie "confirmed". News reports are "reported" or "expected".
 - Always include the strongest reason the pick could be wrong, or what is still unknown.
 - takeaway: 1-2 plain sentences saying whether the evidence supports, challenges or is
   insufficient for the pick. No hype ("lock", "guaranteed", "easy money"). No advice to bet.
@@ -126,6 +131,16 @@ UNSAFE = re.compile(
     r"\bexecute\b|place (an |the )?order|approve|kill[- ]switch|/api/)",
     re.I,
 )
+# Pretending to have read more than a headline/snippet.
+PHANTOM = re.compile(
+    r"\b(read|reading|according to|per) (the|this|that) (full |whole |entire )?"
+    r"(article|story|piece|report)\b|\bfull (article|story)\b|\bin the article\b",
+    re.I,
+)
+# No official lineup source exists for hockey, so "confirmed" is never true.
+CONFIRMED = re.compile(r"\bconfirm(ed|s|ation)?\b", re.I)
+# Deterministic findings that always stay in the summary (decide whether stats mean anything).
+PINNED_PREFIXES = ("Starting goalies",)
 NUM = re.compile(r"\d+(?:\.\d+)?")
 CTRL = re.compile(r"[\x00-\x1f\x7f]+")
 
@@ -208,10 +223,16 @@ def _resolve(ids: list[Any], valid: dict[str, S.Source]) -> list[str]:
 
 
 def _finding(
-    raw: dict[str, Any], valid: dict[str, S.Source], corpus: set[str], ids_key: str
+    raw: dict[str, Any],
+    valid: dict[str, S.Source],
+    corpus: set[str],
+    ids_key: str,
+    hockey: bool = False,
 ) -> S.Finding | None:
     text = _clean(raw.get("text"), 380)
-    if not text or UNSAFE.search(text):
+    if not text or UNSAFE.search(text) or PHANTOM.search(text):
+        return None
+    if hockey and CONFIRMED.search(text):
         return None
     kind = raw.get("kind") if raw.get("kind") in KINDS else "interpretation"
     stance = raw.get("stance") if raw.get("stance") in STANCES else "neutral"
@@ -269,19 +290,20 @@ def apply(
 
     valid = {s.id: s for s in r.sources}
     corpus = _nums(json.dumps(facts, default=str))
+    hockey = r.hypothesis.sport == "hockey"
     dropped = 0
     claims: list[S.Finding] = []
     for c in (raw.get("claims") if isinstance(raw.get("claims"), list) else [])[:10]:
         if not isinstance(c, dict):
             continue
-        f = _finding(c, valid, corpus, "source_id")
+        f = _finding(c, valid, corpus, "source_id", hockey)
         if f is None or not f.source_ids:
             dropped += 1
             continue
         claims.append(f)
     top: list[S.Finding] = []
     for x in (raw.get("findings") if isinstance(raw.get("findings"), list) else [])[:3]:
-        f = _finding(x, valid, corpus, "source_ids") if isinstance(x, dict) else None
+        f = _finding(x, valid, corpus, "source_ids", hockey) if isinstance(x, dict) else None
         if f is None:
             dropped += 1
             continue
@@ -295,6 +317,10 @@ def apply(
     unknown = next((f for f in det if f.text == LINEUP_UNKNOWN), None)
     if unknown and unknown not in top:
         top.insert(0, unknown)
+    # The goalie-status finding (hockey) always stays, first.
+    pinned = next((f for f in det if f.text.startswith(PINNED_PREFIXES)), None)
+    if pinned and pinned not in top:
+        top.insert(0, pinned)
     if not any(f.stance != "supports" for f in top):
         counter = next((f for f in det + r.details.against if f.stance != "supports"), None)
         if counter is not None:
@@ -306,7 +332,14 @@ def apply(
     take = _clean(raw.get("takeaway"), 500)
     sentences = [s for s in re.split(r"(?<=[.!?])\s+", take) if s][:2]
     take = " ".join(sentences)
-    if not take or HYPE.search(take) or UNSAFE.search(take) or not _nums(take) <= corpus:
+    if (
+        not take
+        or HYPE.search(take)
+        or UNSAFE.search(take)
+        or PHANTOM.search(take)
+        or (hockey and CONFIRMED.search(take))
+        or not _nums(take) <= corpus
+    ):
         take = r.summary.takeaway
         out.processing.errors.append(
             "The model's takeaway didn't pass checks; the app's own takeaway is shown."
@@ -314,10 +347,12 @@ def apply(
     gaps = [
         g
         for g in (_clean(x, 200) for x in (raw.get("gaps") or [])[:3] if isinstance(x, str))
-        if g and not UNSAFE.search(g)
+        if g and not UNSAFE.search(g) and not (hockey and CONFIRMED.search(g))
     ]
     stale_gap = [
-        g for g in r.summary.gaps if g.startswith(("The price is stale", "Who's playing tonight"))
+        g
+        for g in r.summary.gaps
+        if g.startswith(("The price is stale", "Who's playing tonight", "Who starts in goal"))
     ]
     stance = (
         raw.get("stance")
@@ -331,6 +366,7 @@ def apply(
         gaps=(stale_gap + gaps) or r.summary.gaps,
         stance=stance,
         uncertainty=r.summary.uncertainty,
+        coverage=r.summary.coverage,
     )  # type: ignore[arg-type]
     out.details.supports = r.details.supports + [c for c in claims if c.stance == "supports"]
     out.details.against = r.details.against + [c for c in claims if c.stance != "supports"]

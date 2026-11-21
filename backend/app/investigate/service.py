@@ -38,8 +38,9 @@ from app.sportsdata.espn import COLLEGE, LEAGUE_LABEL, LEAGUES
 from app.sportsdata.evidence import avg_text
 from app.sportsdata.service import evidence_for
 
-# Bump when rules change (cache key). v2 roster check, v3 news search, v4 college leagues.
-POLICY_VERSION = "v4"
+# Bump when rules change (cache key). v2 roster check, v3 news search, v4 college leagues,
+# v5 NHL + source coverage line.
+POLICY_VERSION = "v5"
 QUOTE_FRESH = timedelta(minutes=30)
 MIN_GAMES_FOR_EDGE = 15
 PROP = re.compile(r"(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)")
@@ -130,9 +131,16 @@ def market_kind(series: str) -> str:
 
 
 def check_supported(ticker: str, event_ticker: str, series: str) -> None:
+    from app.investigate import nhl
+
+    if nhl.is_nhl(ticker):
+        why = nhl.unsupported_reason(series, event_ticker)
+        if why:
+            raise Unsupported(why)
+        return
     if league_of(ticker) is None:
         raise Unsupported(
-            "Investigation covers NBA, WNBA and college basketball game markets for now."
+            "Investigation covers NBA, WNBA, college basketball and NHL game markets for now."
         )
     if market_kind(series) == "other":
         raise Unsupported("Only game winner, spread, totals and player props can be investigated.")
@@ -171,6 +179,29 @@ def cache_key(ticker: str, side: str, m: CatalogMarket, model: str = "none") -> 
     )
 
 
+def coverage(r: S.Result, goalies: Any = None) -> str:
+    """One line on what the result rests on: structured datasets (not counting the Kalshi
+    quote), commentary links, and the lineup/goalie state. Ordered by impact, not count."""
+    data = [s for s in r.sources if s.access == "internal" and s.id != "K1"]
+    links = [s for s in r.sources if s.access != "internal" and s.duplicate_of is None]
+    parts = [
+        f"{len(data)} factual dataset{'s' if len(data) != 1 else ''}",
+        f"{len(links)} commentary link{'s' if len(links) != 1 else ''}",
+    ]
+    if goalies is not None:
+        states = {g.state for g in goalies.values()}
+        parts.append(
+            "goalie status unknown" if states == {"unknown"}
+            else "goalie reports conflict" if "conflicting" in states
+            else "goalie status unconfirmed"
+        )
+    elif any(f.text == synth.LINEUP_UNKNOWN for f in r.summary.findings):
+        parts.append("lineup unknown (no injury report)")
+    elif any("E2" in f.source_ids for f in r.summary.findings + r.details.against):
+        parts.append("injury report checked")
+    return " · ".join(parts)
+
+
 def build(
     session: Session,
     src: Any,
@@ -181,7 +212,13 @@ def build(
     cache_hours: float,
     gatherer: Any = None,
     synthesizer: Any = None,
+    mp_src: Any = None,
 ) -> S.Result:
+    from app.investigate import nhl
+
+    if nhl.is_nhl(ticker):
+        return nhl.build(session, mp_src, ticker, side, label, now, cache_hours,
+                         gatherer=gatherer, synthesizer=synthesizer)
     m = session.get(CatalogMarket, ticker)
     if m is None:
         raise NotFound(f"{ticker} is not in the catalog (run a scan)")
@@ -618,6 +655,7 @@ def build(
             partial_reasons=["deterministic_only"],
         ),
     )
+    result.summary.coverage = coverage(result)
     if synthesizer is not None:
         result = synth.apply(result, news.snippets if news is not None else {}, synthesizer)
     return result
@@ -694,6 +732,10 @@ def strip_news(r: S.Result) -> S.Result:
     ] + [NEWS_EXPIRED]
     if "news_expired" not in out.processing.partial_reasons:
         out.processing.partial_reasons.append("news_expired")
+    if out.summary.coverage:
+        # Recount: the commentary links are gone; the lineup/goalie note stays as it was.
+        tail = out.summary.coverage.split(" · ")[2:]
+        out.summary.coverage = " · ".join(coverage(out).split(" · ")[:2] + tail)
     return out
 
 

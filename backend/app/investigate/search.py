@@ -38,10 +38,20 @@ PLAUSIBLE_BY_LEAGUE = {
     "WNBA": {**PLAUSIBLE, "total": (120, 210), "team_total": (50, 120)},
     "NCAA men's": {**PLAUSIBLE, "total": (100, 200), "team_total": (40, 120), "spread": (0.5, 55)},
     "NCAA women's": {**PLAUSIBLE, "total": (90, 190), "team_total": (35, 120), "spread": (0.5, 60)},
+    # Hockey: totals around 5.5-6.5, puck lines 1.5-3.5.
+    "NHL": {"total": (3.5, 10.5), "team_total": (0.5, 6.5), "spread": (0.5, 4.5),
+            "player_prop": (0.5, 6.5)},
 }
 COLLEGE = {"NCAA men's": "basketball", "NCAA women's": "women's basketball"}
 BASKETBALL = re.compile(r"basketball|hoops|\bmbb\b|\bwbb\b|\bcbb\b|ncaab|ncaaw|march madness", re.I)
 WOMEN = re.compile(r"\bwomen|\bwbb\b|\blady\b|ncaaw", re.I)
+# NHL nicknames are shared with other leagues (Rangers, Kings, Jets, Panthers, Senators...):
+# an NHL result must actually be about hockey.
+HOCKEY = re.compile(
+    r"\bnhl\b|hockey|goalie|goaltender|netminder|\bpuck|power play|power-play|shutout|"
+    r"\bin goal\b|between the pipes|\bcrease\b|stanley cup",
+    re.I,
+)
 
 
 def _plausible(h: S.Hypothesis) -> dict[str, tuple[float, float]]:
@@ -49,7 +59,10 @@ def _plausible(h: S.Hypothesis) -> dict[str, tuple[float, float]]:
 
 
 def sport_mismatch(h: S.Hypothesis, text: str) -> bool:
-    """College only: the same school names cover football and both basketball programs."""
+    """College: the same school names cover football and both basketball programs. NHL: the
+    nicknames are shared with MLB/NFL/NBA teams, so the text must be about hockey."""
+    if h.league == "NHL":
+        return not HOCKEY.search(text)
     if h.league not in COLLEGE:
         return False
     if not BASKETBALL.search(text):
@@ -108,6 +121,17 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
     own = next((t["name"] for t in teams if h.ticker.rsplit("-", 1)[-1].startswith(t["code"])), a)
     stat = next((w for k, w in STAT_WORD.items() if k in h.ticker.split("-")[0]), "")
     line = "" if h.threshold is None else f" {h.threshold:g}"
+    if h.league == "NHL":
+        # Goalie first: who starts is the biggest unknown in a hockey game.
+        qs = [f"{a} {b} NHL starting goalie confirmed", f"{a} vs {b} NHL preview",
+              f"{own} NHL injury update"]
+        if h.market_type in ("total", "team_total"):
+            qs.append(f"{a} {b} NHL over under{line}")
+        elif h.market_type == "spread":
+            qs.append(f"{a} {b} NHL puck line{line}")
+        else:
+            qs.append(f"{a} vs {b} NHL prediction")
+        return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
     if h.league in COLLEGE:
         sport = COLLEGE[h.league]
         if h.market_type in ("total", "team_total"):

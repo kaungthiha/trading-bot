@@ -75,8 +75,23 @@ describe("hypotheses are exact", () => {
       event: "KXWNBAGAME-27MAY20LVANYL" }).ok).toBe(true);
   });
 
+  it("supports NHL game winner, puck line and totals with the right lines, not periods or props", () => {
+    const ev = "26NOV19BOSNYR";
+    const win = { ticker: `KXNHLGAME-${ev}-BOS`, side: "yes" as const, label: "Boston", event: `KXNHLGAME-${ev}` };
+    expect(supportFor(win).ok).toBe(true);
+    expect(buildHypothesis(win, undefined, null)).toMatchObject({ sport: "hockey", league: "NHL", market_type: "moneyline", threshold: null });
+    const tot = { ticker: `KXNHLTOTAL-${ev}-6`, side: "no" as const, label: "Over 5.5", event: `KXNHLTOTAL-${ev}` };
+    expect(buildHypothesis(tot, undefined, null)).toMatchObject({ market_type: "total", threshold: 5.5 });
+    const pl = { ticker: `KXNHLSPREAD-${ev}-BOS2`, side: "yes" as const, label: "BOS by 1.5", event: `KXNHLSPREAD-${ev}` };
+    expect(buildHypothesis(pl, undefined, null)).toMatchObject({ market_type: "spread", threshold: 1.5 });
+    for (const t of ["KXNHL1P", "KXNHL2PTOTAL", "KXNHLGOAL", "KXNHLPTS", "KXNHLOT"]) {
+      const r = supportFor({ ticker: `${t}-${ev}-BOS`, side: "yes", label: t, event: `${t}-${ev}` });
+      expect(r.ok, t).toBe(false);
+    }
+  });
+
   it("unsupported markets explain why instead of offering the action", () => {
-    expect(supportFor({ ...WIN, ticker: "KXNHLGAME-26NOV19BOSNYR-BOS", event: "KXNHLGAME-26NOV19BOSNYR" }).ok).toBe(false);
+    expect(supportFor({ ...WIN, ticker: "KXNHLSEASONPTS-27-MCDAVID", event: "KXNHLSEASONPTS-27" }).ok).toBe(false);
     expect(supportFor({ ticker: "KXNBAMVP-27-SGA", side: "yes", label: "SGA MVP", event: "KXNBAMVP-27" }).ok).toBe(false);
     expect(supportFor({ ticker: "KXCPI-26DEC-T3", side: "yes", label: "CPI", event: "KXCPI-26DEC" }).ok).toBe(false);
     // College halves and season-long markets stay out; full-game college lines are in.
@@ -114,7 +129,7 @@ describe("<InvestigationDrawer>", () => {
     expect(within(dlg).getByText("Game winner")).toBeInTheDocument();
     expect(within(dlg).getByText("KXNBAGAME-26NOV19GSWMEM-GSW")).toBeInTheDocument();
     expect(await within(dlg).findByText(/34¢ ask/)).toBeInTheDocument();
-    expect(within(dlg).getByText(/Uses up to 3 news searches \(16 of 20 left today/)).toBeInTheDocument();
+    expect(within(dlg).getByText(/Uses up to 5 news searches \(56 left today on this app's cap/)).toBeInTheDocument();
     expect(run).not.toHaveBeenCalled(); // opening is free
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -201,7 +216,13 @@ describe("<InvestigationDrawer>", () => {
     investigation.reset();
     investigation.setScenario("budget_exhausted");
     await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
-    expect(await screen.findByText(/Today's search budget is used up/)).toBeInTheDocument();
+    expect(await screen.findByText(/Today's Brave budget is used up/)).toBeInTheDocument();
+    // App-wide usage, with a per-feature breakdown on expand; never a "$ remaining" figure.
+    const usage = screen.getByText("Brave requests: 127 / 800 this month");
+    await user.click(usage);
+    expect(screen.getByText(/Headlines here: 5 this month/)).toBeInTheDocument();
+    expect(screen.getByText(/Every Brave feature in the app shares these caps/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/\$\s?\d+(\.\d+)? (left|remaining)/i);
   });
 
   it("Escape closes even when focus has left the drawer, and Run hands focus to the title", async () => {

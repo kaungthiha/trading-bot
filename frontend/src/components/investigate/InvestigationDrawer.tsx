@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { InvestigationFinding, InvestigationHypothesis, InvestigationResult, InvestigationSource } from "../../api/types";
+import type { InvestigationFinding, InvestigationHypothesis, InvestigationResult, InvestigationSource, ResearchUsage } from "../../api/types";
 import { StatusLabel } from "../design/StatusLabel";
 import { Term } from "../Term";
 import { useNow } from "../shell/Topbar";
@@ -140,6 +140,30 @@ function FullResearch({ r }: { r: InvestigationResult }) {
   );
 }
 
+const PURPOSE_LABEL: Record<string, string> = {
+  research: "Investigate", news: "Headlines here", headlines: "AI review headlines",
+};
+
+/** App-wide Brave request count (what the caps apply to), with a per-feature breakdown.
+ * Counted by this app; never a "$ remaining" figure, which the API doesn't expose. */
+function BraveUsage({ u }: { u: ResearchUsage }) {
+  const parts = Object.entries(u.by_purpose ?? {});
+  return (
+    <details className="inv-usage fine muted">
+      <summary>Brave requests: {u.used_month} / {u.monthly_cap} this month</summary>
+      <p>Today {u.used_today} / {u.daily_cap}. Every Brave feature in the app shares these caps.</p>
+      {parts.length > 0 && (
+        <ul>
+          {parts.map(([k, v]) => (
+            <li key={k}>{PURPOSE_LABEL[k] ?? k}: {v.month} this month · {v.today} today</li>
+          ))}
+        </ul>
+      )}
+      <p>Counted by this app. Your Brave balance isn't visible here; check the Brave dashboard.</p>
+    </details>
+  );
+}
+
 export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
   const { entries } = useInvestigation();
   const entry = entries[hypothesisKey(h)];
@@ -165,6 +189,13 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
     src.preflight(h).then((p) => { if (!cancel) setPre(p); }, () => { if (!cancel) setPre(null); });
     return () => { cancel = true; };
   }, [h, src]);
+  // After a run, re-read the request counts (free: no search) so the usage line is current.
+  useEffect(() => {
+    if (entry?.status !== "done") return;
+    let cancel = false;
+    src.usage().then((usage) => { if (!cancel) setPre((p) => (p ? { ...p, usage } : p)); }, () => {});
+    return () => { cancel = true; };
+  }, [entry?.status, src]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") return; // handled once, at document level
@@ -178,7 +209,8 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
 
   const result = entry?.status === "done" ? entry.result : null;
   const u = pre?.usage;
-  const left = u ? Math.max(0, u.daily_cap - u.used_today) : null;
+  // The caps are app-wide: every Brave feature draws from the same daily and monthly totals.
+  const left = u ? Math.max(0, Math.min(u.daily_cap - u.used_today, u.monthly_cap - u.used_month)) : null;
   const sum = result ? clampSummary(result.summary) : null;
 
   return (
@@ -214,10 +246,9 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
               {!u ? "Checking search budget…"
                 : !u.configured ? "Brave Search isn't set up: the investigation will use box scores only."
                 : pre?.cached ? "A cached result is available: no new search needed."
-                : left === 0 ? "Today's search budget is used up: box scores only."
-                : `Uses up to ${u.max_searches_per_investigation} news searches (${left} of ${u.daily_cap} left today on this app's cap).`}
+                : left === 0 ? (u.used_month >= u.monthly_cap ? "This month's" : "Today's") + " Brave budget is used up: box scores only."
+                : `Uses up to ${Math.min(u.max_searches_per_investigation, left ?? 0)} news searches (${left} left today on this app's cap).`}
             </p>
-            {u?.configured && <p className="fine muted">Counted by this app ({u.used_month} of {u.monthly_cap} this month). Your Brave balance isn't visible here; check the Brave dashboard.</p>}
           </div>
         )}
         {entry?.status === "running" && (
@@ -234,6 +265,7 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
           <section className="inv-summary" aria-labelledby="inv-sum">
             <h3 id="inv-sum" className="visually-hidden">Summary</h3>
             <p className="inv-takeaway">{sum.takeaway}</p>
+            {result.summary.coverage && <p className="inv-coverage small muted">{result.summary.coverage}</p>}
             {result.processing.errors.map((e) => <p key={e} className="small inv-note">{e}</p>)}
             <section className="inv-block" aria-labelledby="inv-three">
               <h3 id="inv-three">Three things that matter</h3>
@@ -251,6 +283,7 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
             <FullResearch r={result} />
           </section>
         )}
+        {u?.configured && <BraveUsage u={u} />}
         <p className="fine muted inv-foot">Research and education only. You decide; nothing here places orders.</p>
       </div>
     </div>

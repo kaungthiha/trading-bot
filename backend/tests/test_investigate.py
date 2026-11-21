@@ -153,17 +153,21 @@ def test_usage_reports_app_caps_without_claiming_a_brave_balance(api: TestClient
     assert u == {
         "configured": False,
         "used_today": 0,
-        "daily_cap": 20,
+        "daily_cap": 60,
         "used_month": 0,
-        "monthly_cap": 200,
-        "max_searches_per_investigation": 3,
+        "monthly_cap": 800,
+        "by_purpose": {p: {"today": 0, "month": 0} for p in ("research", "news", "headlines")},
+        "max_searches_per_investigation": 5,
     }
+    assert not any("balance" in k or "dollar" in k or "remaining" in k for k in u)
 
 
 def test_supported_checks() -> None:
+    # NHL game markets are supported (see test_nhl.py); period markets still aren't.
+    service.check_supported("KXNHLGAME-26NOV19BOSNYR-BOS", "KXNHLGAME-26NOV19BOSNYR", "KXNHLGAME")
     with pytest.raises(service.Unsupported):
         service.check_supported(
-            "KXNHLGAME-26NOV19BOSNYR-BOS", "KXNHLGAME-26NOV19BOSNYR", "KXNHLGAME"
+            "KXNHL1P-26NOV19BOSNYR-BOS", "KXNHL1P-26NOV19BOSNYR", "KXNHL1P"
         )
     with pytest.raises(service.Unsupported):
         service.check_supported("KXNBAMVP-27-SGA", "KXNBAMVP-27", "KXNBAMVP")
