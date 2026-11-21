@@ -21,7 +21,15 @@ export function ago(iso: string | null): string {
   return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
 }
 
-export const gameRef = (prefix: string, key: string) => `${prefix}-${key}`;
+/** ESPN's injury comment ("Curry (ankle) won't play Friday.") plus when it was posted. */
+export function injuryWhy(detail: string | null | undefined, date?: string | null): string {
+  const d = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00`) : null;
+  const when = d && !Number.isNaN(d.getTime())
+    ? `ESPN, ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(d)}` : "";
+  return [detail?.trim(), when].filter(Boolean).join(" · ");
+}
+
+export const gameRef =(prefix: string, key: string) => `${prefix}-${key}`;
 export function parseGameRef(ref: string | null): { prefix: string; key: string } | null {
   if (!ref) return null;
   const m = /^(KX[A-Z0-9]{2,20})-([A-Z0-9]{4,40})$/.exec(ref);

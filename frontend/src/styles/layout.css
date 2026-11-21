@@ -180,3 +180,32 @@
 /* Inside a focusable scroll region the table stays a table (the region scrolls). */
 @media (max-width: 719px) { .table-scroll > .market-table { display: table; } }
 .table-scroll:focus-visible { outline: 1.5px solid var(--focus) !important; outline-offset: 2px; }
+
+/* --- Ultra-wide (e.g. a 49" 5120×1440 or 3840×1080 monitor) ------------------------------
+   The work surface was capped at 1440px, leaving most of the screen empty. From 1920px it
+   uses the full width; long lines of prose and tables keep a readable measure. Pixel density
+   on these monitors matches a 27" 1440p screen, so type size stays the same. */
+@media (min-width: 1920px) {
+  .work, .topbar { max-width: none; padding-left: 2rem; padding-right: 2rem; }
+  .research { max-width: 1320px; }
+  .games-layout { grid-template-columns: 280px minmax(0, 1fr); gap: 1.25rem; }
+  /* A player table stretched to 4000px is hard to read across; keep rows compact. */
+  .player-grid .grid-scroll { max-width: 1800px; }
+  .thesis-grid { grid-template-columns: repeat(auto-fill, minmax(min(460px, 100%), 1fr)); }
+}
+@media (min-width: 2400px) {
+  .app.shell.has-docket { grid-template-columns: var(--rail-w) minmax(0, 1fr) 420px; }
+  /* Today: groups side by side rather than one column of very wide rows. */
+  .today {
+    display: grid; align-items: start; gap: 0 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(960px, 100%), 1fr));
+  }
+  .today > :not(.today-section) { grid-column: 1 / -1; }
+  /* Games: price rows (moneyline, spread, totals…) sit in columns instead of one narrow stack. */
+  .board .tab-panel:has(> .rail-row) {
+    display: grid; align-items: start; column-gap: 1.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(620px, 1fr));
+  }
+  /* Markets: the event list and event view get more room. */
+  .markets-layout { grid-template-columns: 340px minmax(0, 1fr); }
+}

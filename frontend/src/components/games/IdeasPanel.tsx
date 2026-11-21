@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import type { GameIdeas, IdeaCombo, IdeaSingle, IdeasAi, LlmStatus } from "../../api/types";
 import { EmptyState, Figure } from "../Hairline";
-import { cents, pct } from "./format";
+import { cents, injuryWhy, pct } from "./format";
 import { offReason } from "./SecondOpinion";
 import { slip, useSlip } from "./slip";
 import { Tip } from "../design/Tip";
@@ -25,7 +25,8 @@ function SingleRow({ x, inSlip }: { x: IdeaSingle; inSlip: boolean }) {
         <span className="small muted">
           history {pct(num(x.history))} vs {cents(num(x.all_in ?? null))} all-in
           {w && ` · L10 ${w.last10[0]}/${w.last10[1]} · season ${w.season[0]}/${w.season[1]}`}
-          {x.injury && <em className="inj-note"> · {x.injury.status}</em>}
+          {x.injury && <em className="inj-note"> · {x.injury.detail?.trim()
+            ? <Tip text={injuryWhy(x.injury.detail)}>{x.injury.status}</Tip> : x.injury.status}</em>}
         </span>
         {x.caution && <span className="small inj-note">{x.caution}</span>}
       </div>

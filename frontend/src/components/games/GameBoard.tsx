@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, ApiError } from "../../api/client";
 import type { GameChip, GameDetail, GameGroup, GameInjuries, GamePlayer } from "../../api/types";
-import { ago, cents, gameTime, pct } from "./format";
+import { ago, cents, gameTime, injuryWhy, pct } from "./format";
 import { IdeasPanel } from "./IdeasPanel";
 import { slip, useSlip } from "./slip";
 import { Tip } from "../design/Tip";
@@ -149,11 +149,14 @@ function InjuryStrip({ game }: { game: GameDetail }) {
   }
   return (
     <div className="injury-strip" aria-label="Injury report (ESPN)">
-      {items.length === 0 ? <span className="small muted">No injuries listed</span> : items.map((i) => (
-        <span key={`${i.code}-${i.player}`} className={`inj ${/out/i.test(i.status) ? "out" : ""}`}>
-          {i.code} · {i.player} <em>{i.status}</em>
-        </span>
-      ))}
+      {items.length === 0 ? <span className="small muted">No injuries listed</span> : items.map((i) => {
+        const cls = `inj ${/out/i.test(i.status) ? "out" : ""}`;
+        const label = <>{i.code} · {i.player} <em>{i.status}</em></>;
+        // Hover, focus or tap shows why (ESPN's comment), as the old native title did.
+        return i.detail?.trim()
+          ? <Tip key={`${i.code}-${i.player}`} className={cls} text={injuryWhy(i.detail, i.date)}>{label}</Tip>
+          : <span key={`${i.code}-${i.player}`} className={cls}>{label}</span>;
+      })}
     </div>
   );
 }

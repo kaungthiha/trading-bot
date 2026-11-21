@@ -153,6 +153,16 @@ describe("<GamesPage>", () => {
     expect(screen.queryByText("No injuries listed")).not.toBeInTheDocument();
   });
 
+  it("shows why a player is listed when hovering their injury", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(await screen.findByRole("button", { name: /NYK @ MIN/ }));
+    const chip = await screen.findByRole("button", { name: /Jonathan Kuminga/ });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await user.hover(chip);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(/^Shoulder · ESPN, Nov 18$/);
+  });
+
   it("builds a combo: legs, evidence verdicts, correlation, history-adjusted price and quote check", async () => {
     const user = userEvent.setup();
     render(<Harness />);
