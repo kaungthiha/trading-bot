@@ -45,6 +45,11 @@ PLAUSIBLE_BY_LEAGUE = {
     "NFL": {"total": (20.5, 75.5), "team_total": (3.5, 50.5), "spread": (0.5, 30.5),
             "player_prop": (0.5, 450.5)},
 }
+# Soccer: goals. Totals 0.5-5.5, team totals 0.5-3.5, winning margins 0.5-3.5.
+SOCCER_LEAGUES = ("EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS")
+for _lg in SOCCER_LEAGUES:
+    PLAUSIBLE_BY_LEAGUE[_lg] = {"total": (0.5, 8.5), "team_total": (0.5, 5.5),
+                                "spread": (0.5, 4.5), "player_prop": (0.5, 5.5)}
 COLLEGE = {"NCAA men's": "basketball", "NCAA women's": "women's basketball"}
 BASKETBALL = re.compile(r"basketball|hoops|\bmbb\b|\bwbb\b|\bcbb\b|ncaab|ncaaw|march madness", re.I)
 WOMEN = re.compile(r"\bwomen|\bwbb\b|\blady\b|ncaaw", re.I)
@@ -55,6 +60,15 @@ HOCKEY = re.compile(
     r"\bin goal\b|between the pipes|\bcrease\b|stanley cup",
     re.I,
 )
+# Soccer club names collide with other sports (Inter, Arsenal, Dallas, Houston, Chicago...).
+SOCCER = re.compile(
+    r"soccer|football|premier league|la liga|laliga|serie a|bundesliga|ligue 1|champions league|"
+    r"\bucl\b|\bepl\b|\bmls\b|striker|midfielder|goalkeeper|keeper|defender|\bmanager\b|"
+    r"\bboss\b|pitch|derby|fixture|matchday|kick-off|kickoff|clean sheet|penalt|\bxi\b|lineup|"
+    r"team news|\bgoals?\b",
+    re.I,
+)
+GRIDIRON = re.compile(r"\bnfl\b|quarterback|touchdown|\bqb\b|field goal|wide receiver", re.I)
 # NFL nicknames are shared too (Giants, Cardinals, Jets, Panthers, Kings...).
 FOOTBALL = re.compile(
     r"nfl|football|quarterback|qbs?|touchdown|field goal|wide receiver|running back|"
@@ -74,6 +88,8 @@ def sport_mismatch(h: S.Hypothesis, text: str) -> bool:
         return not HOCKEY.search(text)
     if h.league == "NFL":
         return not FOOTBALL.search(text)
+    if h.sport == "soccer":
+        return not SOCCER.search(text) or bool(GRIDIRON.search(text))
     if h.league not in COLLEGE:
         return False
     if not BASKETBALL.search(text):
@@ -153,6 +169,18 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
             qs.append(f"{a} {b} NFL spread pick{line}")
         else:
             qs.append(f"{a} vs {b} NFL prediction")
+        return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
+    if h.sport == "soccer":
+        # Team news first: lineups and absences matter most and no lineup source exists.
+        qs = [f"{a} vs {b} team news", f"{a} vs {b} preview {h.league}"]
+        if h.market_type in ("total", "team_total"):
+            qs.append(f"{a} vs {b} over under{line} goals")
+        elif h.market_type == "btts":
+            qs.append(f"{a} vs {b} both teams to score")
+        elif h.market_type == "spread":
+            qs.append(f"{a} vs {b} handicap{line}")
+        else:
+            qs.append(f"{a} vs {b} prediction")
         return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
     if h.league in COLLEGE:
         sport = COLLEGE[h.league]

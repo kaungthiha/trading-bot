@@ -78,14 +78,18 @@ def _research_eval(settings: Settings) -> int:
     return 0
 
 
-def _research_smoke(settings: Settings, live_moneypuck: bool, live_nflverse: bool = False) -> int:
+def _research_smoke(
+    settings: Settings, live_moneypuck: bool, live_nflverse: bool = False,
+    live_football_data: bool = False,
+) -> int:
     """Live checks run only with an explicit flag, and only against free, non-billed sources
     the registry permits. Brave is never called here."""
-    if not live_moneypuck and not live_nflverse:
+    if not live_moneypuck and not live_nflverse and not live_football_data:
         print("Nothing run. Pass --live-moneypuck to download MoneyPuck's two listed season "
               "CSVs once, or --live-nflverse to download nflverse's schedule, team stats and "
-              "injury files once (free, non-billed, credited). Brave is never called by this "
-              "command.")
+              "injury files once, or --live-football-data to make one football-data.org request "
+              "(needs KRT_FOOTBALL_DATA_API_KEY). All free and non-billed; Brave is never called "
+              "by this command.")
         return 0
     from datetime import UTC, datetime
 
@@ -118,6 +122,24 @@ def _research_smoke(settings: Settings, live_moneypuck: bool, live_nflverse: boo
         for err in n.errors:
             print(f"  note: {err}")
         ok = ok and len(teams) >= 32
+    if live_football_data:
+        from app.sportsdata import footballdata as fdm
+
+        key = settings.football_data_api_key
+        if key is None:
+            print("football-data.org: no key set (KRT_FOOTBALL_DATA_API_KEY in .env); "
+                  "nothing sent.")
+            return 1
+        fsrc = fdm.FootballData(settings, key.get_secret_value())
+        try:
+            sm = fsrc.season("PL", fdm.season_of(datetime.now(UTC)))
+        finally:
+            fsrc.close()
+        played = sum(1 for m in sm.matches if m.played)
+        teams_fd = {m.home.id for m in sm.matches} | {m.away.id for m in sm.matches}
+        print(f"football-data.org Premier League {sm.season}: {len(sm.matches)} matches "
+              f"({played} with a 90-minute result), {len(teams_fd)} teams ({fdm.ATTRIBUTION})")
+        ok = ok and len(teams_fd) >= 20
     return 0 if ok else 1
 
 
@@ -192,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
                      help="Download MoneyPuck's two listed season CSVs once and summarise them")
     smk.add_argument("--live-nflverse", action="store_true",
                      help="Download nflverse's three listed release files once and summarise them")
+    smk.add_argument("--live-football-data", action="store_true",
+                     help="One football-data.org request (Premier League) to check your key")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -199,7 +223,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "research-eval":
         return _research_eval(settings)
     if args.cmd == "research-smoke":
-        return _research_smoke(settings, args.live_moneypuck, args.live_nflverse)
+        return _research_smoke(
+            settings, args.live_moneypuck, args.live_nflverse, args.live_football_data
+        )
     if args.cmd == "migrate":
         command.upgrade(alembic_config(settings.database_url), "head")
     elif args.cmd == "downgrade":

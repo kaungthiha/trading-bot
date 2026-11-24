@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SOURCES_VERSION = "2026-11-23.1"
+SOURCES_VERSION = "2026-11-23.2"
 REVIEWED = "2026-11-21"
 NFL_REVIEWED = "2026-11-23"
 
@@ -324,6 +324,53 @@ SOURCES: dict[str, DataSource] = {
             "n/a",
             REVIEWED,
             "At most titles and links; feed terms not reviewed, so not connected.",
+        ),
+        DataSource(
+            "football_data_org",
+            "football-data.org API (free tier)",
+            "soccer (Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League)",
+            "fixtures, kickoff times, 90-minute results",
+            "app.sportsdata.footballdata",
+            "https://www.football-data.org/client/register",
+            "structured_dataset_allowed",
+            ("read_competition_matches",),
+            "Football data provided by the Football-Data.org API",
+            "In-memory cache only (refreshed at most every 3 hours)",
+            NFL_REVIEWED,
+            "General Terms (June 2018): registered use of the free tier under a fair-use "
+            "policy, one application per key, attribution required. Needs the owner's free "
+            "key in .env (KRT_FOOTBALL_DATA_API_KEY); without it soccer runs on price and "
+            "news only. One endpoint (competition matches), at most every 3 hours per "
+            "competition, under the 10-requests-a-minute limit. Team logos are never "
+            "fetched (owned by the clubs). MLS isn't in the free tier.",
+            (
+                'You agree to include the following attribution to Football-Data in your app '
+                'or website: "Football data provided by the Football-Data.org API".',
+                "Developer credentials may not be stored in code repositories of open source "
+                "projects.",
+                "All graphics, including team logos and profile photos, are copyrighted by "
+                "their legal owner.",
+            ),
+        ),
+        DataSource(
+            "openfootball",
+            "openfootball football.json",
+            "soccer",
+            "fixtures and results (public domain)",
+            "none",
+            "https://github.com/openfootball/football.json",
+            "structured_dataset_allowed",
+            ("download_public_domain_json",),
+            "openfootball (public domain, CC0)",
+            "n/a",
+            NFL_REVIEWED,
+            "Public domain, but not connected: on review day (Nov 23) the 2026-27 files' "
+            "latest results were from Sep 20, so season form would silently miss two months. "
+            "Reconsider if it's kept current.",
+            (
+                "The football.json schema, data and scripts are dedicated to the public "
+                "domain. Use as you please with no restrictions whatsoever.",
+            ),
         ),
         DataSource(
             "football_data_uk",

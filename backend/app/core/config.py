@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     # Optional headline search (https://brave.com/search/api/). Empty = off; the Games page
     # then shows search links instead. Sent only as a request header, never logged.
     brave_search_api_key: SecretStr | None = None
+    # Optional soccer results (https://www.football-data.org/, free tier, registration).
+    # Empty = soccer investigations run on price and news only. Sent only as the
+    # X-Auth-Token header, never logged; their terms forbid committing it to a repository.
+    football_data_api_key: SecretStr | None = None
     # AI second opinion / coach. "ollama" = a model running on THIS machine (free, private,
     # loopback only); "openai" = paid API (needs a key). Runs only when you click a button.
     llm_provider: str = Field(default="ollama", pattern=r"^(ollama|openai)$")
@@ -216,6 +220,7 @@ class Settings(BaseSettings):
         "sec_user_agent",
         "nyt_api_key",
         "brave_search_api_key",
+        "football_data_api_key",
         "openai_api_key",
         mode="before",
     )

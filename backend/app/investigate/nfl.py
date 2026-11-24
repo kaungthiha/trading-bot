@@ -22,18 +22,14 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.adapters.base import AdapterError
 from app.catalog import games
-from app.catalog.slipcheck import Fees, _side_prices, price_single
-from app.catalog.stats import Quote as CatQuote
-from app.catalog.stats import implied
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import registry, sources
+from app.investigate import common, registry, sources
 from app.investigate import schemas as S
 from app.investigate.search import Gathered, game_date
 from app.sportsdata import nflverse as nv
@@ -277,64 +273,12 @@ def build(
 
     # --- quote and price (existing slip-check maths; no estimate) ------------------------
     quote = service.quote_for(m, side, now)
-    fees = Fees(session)
-    y, _ = implied(CatQuote(ticker, ticker, m.yes_bid, m.yes_ask))
-    mid = None if y is None else Decimal(str(y if side == "yes" else 1 - y))
-    ask, bid = _side_prices(m, side)
-    ps = price_single(
-        fees,
-        {
-            "ticker": ticker,
-            "side": side,
-            "label": name,
-            "series": series,
-            "mid": mid,
-            "ask": ask,
-            "bid": bid,
-            "history": None,
-            "p_est": None,
-        },
-    )
-    all_in = float(ps["all_in"]) if ps.get("all_in") else None
-    fee = None if ask is None else float(fees.taker(series, Decimal(100), ask) / 100)
-    abstain = [NO_MODEL]
-    if not quote.fresh:
-        abstain.append("The quote is stale: refresh prices before deciding.")
-    if ask is None:
-        abstain.append("No ask to buy at right now.")
-    price = S.Price(
-        ask=service._f(ask),
-        model_p=None,
-        model_band=None,
-        model_name=None,
-        raw_diff=None,
-        conservative_edge=None,
-        break_even=all_in,
-        walk_away=None,
-        fee_per_contract=service._f(fee),
-        slippage_per_contract=0.0,
-        assumptions=[
-            f"Ask from the last catalog scan ({service._iso(m.refreshed_at) or 'unknown time'}).",
-            f"Taker fee from Kalshi's {'verified' if fees.verified else 'unverified'} "
-            "schedule, one contract.",
-            "Break-even = all-in price per $1 payout.",
-            f"Settlement: {SETTLEMENT[kind]}",
-        ],
-        abstain_reasons=abstain,
+    price, all_in = common.price_lens(
+        session, m, side, name, series, quote, SETTLEMENT[kind], NO_MODEL
     )
 
     # --- sources ------------------------------------------------------------------------
-    srcs = [
-        S.Source(
-            id="K1",
-            url=hyp.rules_url or "https://kalshi.com",
-            title=f"Kalshi market: {m.title}"[:200],
-            publisher="Kalshi",
-            retrieved_at=service._iso(m.refreshed_at) or now.isoformat(),
-            access="internal",
-            line_match="exact",
-        )
-    ]
+    srcs = [common.kalshi_source(m, hyp.rules_url, now)]
     if season is not None:
         files = (
             ["schedule"]

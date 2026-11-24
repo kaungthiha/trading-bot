@@ -901,7 +901,7 @@ export interface SlipCheck {
 
 // --- Pick investigation (canonical result; summary and full view read the same object) ----
 
-export type MarketKind = "moneyline" | "spread" | "total" | "team_total" | "player_prop" | "other";
+export type MarketKind = "moneyline" | "spread" | "total" | "team_total" | "player_prop" | "btts" | "other";
 export interface InvestigationHypothesis {
   ticker: string; event_ticker: string; side: Side; sport: string; league: string;
   market_type: MarketKind; threshold: number | null; subject: string | null;

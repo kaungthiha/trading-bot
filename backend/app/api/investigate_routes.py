@@ -16,10 +16,11 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import nfl, nhl, search, service, sources, synth
+from app.investigate import nfl, nhl, search, service, soccer, sources, synth
 from app.investigate.ledger import ledger_for
 from app.investigate.schemas import Result
 from app.sportsdata.espn import EspnSource
+from app.sportsdata.footballdata import FootballData
 from app.sportsdata.llm import LlmError, OllamaClient
 from app.sportsdata.moneypuck import MoneyPuck
 from app.sportsdata.news import NewsSearch
@@ -82,6 +83,23 @@ def _weather(request: Request, settings: Any) -> OpenMeteo | None:
     if src is None:
         src = OpenMeteo(settings, timeout=settings.http_timeout_seconds)
         request.app.state.weather = src
+    return src
+
+
+def _football_data(request: Request, settings: Any) -> FootballData | None:
+    """Soccer results (football-data.org, keyed). None when switched off; an adapter without
+    a key is still returned so the result can say how to add one."""
+    if not sources.allows("football_data_org", "read_competition_matches", settings):
+        return None
+    src = getattr(request.app.state, "football_data", None)
+    if src is None:
+        key = settings.football_data_api_key
+        src = FootballData(
+            settings,
+            key.get_secret_value() if key is not None else None,
+            timeout=settings.http_timeout_seconds,
+        )
+        request.app.state.football_data = src
     return src
 
 
@@ -174,6 +192,7 @@ def _run(
             mp_src=_moneypuck(request, settings) if nhl.is_nhl(ticker) else None,
             nv_src=_nflverse(request, settings) if nfl.is_nfl(ticker) else None,
             wx_src=_weather(request, settings) if nfl.is_nfl(ticker) else None,
+            fd_src=_football_data(request, settings) if soccer.is_soccer(ticker) else None,
         )
     except service.Unsupported as e:
         raise ApiError(422, ErrorCode.VALIDATION_ERROR, str(e)) from e
@@ -284,6 +303,9 @@ def preflight(
         else "No NFL model: nflverse season data and kickoff weather for context (checked "
         "when you run it)"
         if nfl.is_nfl(ticker)
+        else "No soccer model: football-data.org results for context (checked when you run "
+        "it; needs KRT_FOOTBALL_DATA_API_KEY)"
+        if soccer.is_soccer(ticker)
         else "Box-score history (frequency, checked when you run it)",
         "cached": service.cached(
             session, service.cache_key(ticker, side, m, _model_name(settings)), now

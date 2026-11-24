@@ -488,7 +488,7 @@ your decision and why, saved in this browser with the price at the time and list
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
 **Investigate this pick.** On a single-game NBA, WNBA, college basketball (men's or women's),
-NHL or NFL leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
+NHL, NFL or soccer leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
 *Investigate*. A drawer opens for that
 exact contract and side, without leaving the page or touching your slip. Nothing runs until you
 click **Run investigation**. Then you get:
@@ -527,8 +527,17 @@ What it uses:
   validated NFL model exists, so **no estimate or edge is shown**. Kalshi settles the game
   winner on the official result (overtime counts; a tie pays $0.50 per team); spreads and
   totals use the official score, overtime included.
+- **Soccer** (Premier League, La Liga, Bundesliga, Serie A, Ligue 1, Champions League, MLS;
+  match winner including the separate *Tie* contract, spread, totals, both teams to score;
+  halves, corners and correct score aren't covered): everything settles **after 90 minutes
+  plus stoppage time** (no extra time or penalties), so past results are read as 90-minute
+  scores. Results come from **football-data.org** (free tier; set `KRT_FOOTBALL_DATA_API_KEY`
+  in `.env`; credited "Football data provided by the Football-Data.org API"), counting only
+  matches **before this kickoff**. Without the key, or for MLS (not in the free tier), you get
+  the price, rules and news only. No lineup or injury source exists for soccer, so team news is
+  always shown as unknown. No validated model, so **no estimate or edge is shown**.
 - **News (optional, Brave News Search):** up to 3 targeted searches per run (4 for the NHL and
-  NFL, starting with the goalie or quarterback). Only headlines
+  NFL, starting with the goalie or quarterback; soccer starts with team news). Only headlines
   and snippets are used; no article page is ever fetched. Results must name this game's teams
   (or the prop's player). Articles about a past matchup or a different line are flagged and
   never count as support. Syndicated copies count once. Brave's terms allow only temporary
@@ -557,10 +566,11 @@ Setup and spending caps:
 - **Data sources:** `app/investigate/sources.py` records each source's reviewed terms and the
   exact operations allowed (`GET /api/research/sources` shows the matrix). Turn one off with
   `KRT_RESEARCH_DISABLED_SOURCES=moneypuck,nflverse_injuries` (any ids from the matrix).
-  Details: `docs/investigate/EVIDENCE_V2.md` and `docs/investigate/NFL.md`.
+  Details: `docs/investigate/EVIDENCE_V2.md`, `NFL.md` and `SOCCER.md` there.
 - **Checks:** `krt research-eval` prints an evidence-quality report over saved investigations
   (offline). `krt research-smoke --live-moneypuck` downloads MoneyPuck's two files once and
-  `--live-nflverse` nflverse's three files once (free; never Brave); without a flag it does
+  `--live-nflverse` nflverse's three files once; `--live-football-data` sends one
+  football-data.org request to check your key (all free; never Brave). Without a flag it does
   nothing.
 - **Ollama:** the same local model as the other AI features (`KRT_LLM_PROVIDER=ollama`,
   `KRT_OLLAMA_MODEL`). An investigation's summary is capped at 90 seconds, one at a time.

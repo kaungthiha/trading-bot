@@ -39,8 +39,8 @@ from app.sportsdata.evidence import avg_text
 from app.sportsdata.service import evidence_for
 
 # Bump when rules change (cache key). v2 roster check, v3 news search, v4 college leagues,
-# v5 NHL + source coverage line, v6 NFL.
-POLICY_VERSION = "v6"
+# v5 NHL + source coverage line, v6 NFL, v7 soccer.
+POLICY_VERSION = "v7"
 QUOTE_FRESH = timedelta(minutes=30)
 MIN_GAMES_FOR_EDGE = 15
 PROP = re.compile(r"(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)")
@@ -131,9 +131,17 @@ def market_kind(series: str) -> str:
 
 
 def check_supported(ticker: str, event_ticker: str, series: str) -> None:
-    from app.investigate import nfl, nhl
+    from app.investigate import nfl, nhl, soccer
 
-    sport = nhl if nhl.is_nhl(ticker) else nfl if nfl.is_nfl(ticker) else None
+    sport = (
+        nhl
+        if nhl.is_nhl(ticker)
+        else nfl
+        if nfl.is_nfl(ticker)
+        else soccer
+        if soccer.is_soccer(ticker)
+        else None
+    )
     if sport is not None:
         why = sport.unsupported_reason(series, event_ticker)
         if why:
@@ -141,7 +149,8 @@ def check_supported(ticker: str, event_ticker: str, series: str) -> None:
         return
     if league_of(ticker) is None:
         raise Unsupported(
-            "Investigation covers NBA, WNBA, college basketball, NHL and NFL game markets for now."
+            "Investigation covers NBA, WNBA, college basketball, NHL, NFL and soccer game markets "
+            "for now."
         )
     if market_kind(series) == "other":
         raise Unsupported("Only game winner, spread, totals and player props can be investigated.")
@@ -180,7 +189,9 @@ def cache_key(ticker: str, side: str, m: CatalogMarket, model: str = "none") -> 
     )
 
 
-def coverage(r: S.Result, goalies: Any = None, quarterbacks: Any = None) -> str:
+def coverage(
+    r: S.Result, goalies: Any = None, quarterbacks: Any = None, lineup: str | None = None
+) -> str:
     """One line on what the result rests on: structured datasets (not counting the Kalshi
     quote), commentary links, and the lineup/goalie state. Ordered by impact, not count."""
     data = [s for s in r.sources if s.access == "internal" and s.id != "K1"]
@@ -192,17 +203,23 @@ def coverage(r: S.Result, goalies: Any = None, quarterbacks: Any = None) -> str:
     if goalies is not None:
         states = {g.state for g in goalies.values()}
         parts.append(
-            "goalie status unknown" if states == {"unknown"}
-            else "goalie reports conflict" if "conflicting" in states
+            "goalie status unknown"
+            if states == {"unknown"}
+            else "goalie reports conflict"
+            if "conflicting" in states
             else "goalie status unconfirmed"
         )
     elif quarterbacks is not None:
         states = {q.state for q in quarterbacks.values()}
         parts.append(
-            "QB reports conflict" if "conflicting" in states
-            else "starting QB unknown" if "unknown" in states
+            "QB reports conflict"
+            if "conflicting" in states
+            else "starting QB unknown"
+            if "unknown" in states
             else "starting QBs unconfirmed"
         )
+    elif lineup is not None:
+        parts.append(lineup)
     elif any(f.text == synth.LINEUP_UNKNOWN for f in r.summary.findings):
         parts.append("lineup unknown (no injury report)")
     elif any("E2" in f.source_ids for f in r.summary.findings + r.details.against):
@@ -223,15 +240,47 @@ def build(
     mp_src: Any = None,
     nv_src: Any = None,
     wx_src: Any = None,
+    fd_src: Any = None,
 ) -> S.Result:
-    from app.investigate import nfl, nhl
+    from app.investigate import nfl, nhl, soccer
 
     if nhl.is_nhl(ticker):
-        return nhl.build(session, mp_src, ticker, side, label, now, cache_hours,
-                         gatherer=gatherer, synthesizer=synthesizer)
+        return nhl.build(
+            session,
+            mp_src,
+            ticker,
+            side,
+            label,
+            now,
+            cache_hours,
+            gatherer=gatherer,
+            synthesizer=synthesizer,
+        )
     if nfl.is_nfl(ticker):
-        return nfl.build(session, nv_src, wx_src, ticker, side, label, now, cache_hours,
-                         gatherer=gatherer, synthesizer=synthesizer)
+        return nfl.build(
+            session,
+            nv_src,
+            wx_src,
+            ticker,
+            side,
+            label,
+            now,
+            cache_hours,
+            gatherer=gatherer,
+            synthesizer=synthesizer,
+        )
+    if soccer.is_soccer(ticker):
+        return soccer.build(
+            session,
+            fd_src,
+            ticker,
+            side,
+            label,
+            now,
+            cache_hours,
+            gatherer=gatherer,
+            synthesizer=synthesizer,
+        )
     m = session.get(CatalogMarket, ticker)
     if m is None:
         raise NotFound(f"{ticker} is not in the catalog (run a scan)")

@@ -19,7 +19,7 @@ None came from tests or scripts.
 | NCAA men's and women's | winner, spread, totals | ESPN box scores (no injury report exists) | Never (lineup unknown) |
 | **NHL (new)** | winner, puck line, game total, team total | MoneyPuck season data | Never (no validated model) |
 | **NFL (added Nov 23)** | winner, spread, game total, team total | nflverse schedule, team stats, injury report; Open-Meteo weather | Never (no validated model); see `NFL.md` |
-| Soccer | not yet | sources reviewed, not connected | — |
+| **Soccer (added Nov 23)** | winner (incl. Tie), spread, totals, both teams to score | football-data.org results (keyed; not MLS) | Never (no validated model); see `SOCCER.md` |
 
 **NHL is not supported for:**
 - periods (`1P`/`2P`/`3P`);
@@ -68,6 +68,8 @@ Reviewed 2026-11-21 by reading each source's published terms. Short quotes are k
 | NCAA API wrapper | blocked_pending_review | — | A code licence isn't a data licence |
 | Sports Insights RSS, CBS RSS | metadata_only | — | Feed terms not reviewed; not connected |
 | Football-Data.co.uk, The Odds API | blocked_pending_review | — | Permission needed or not reviewed |
+| football-data.org (Nov 23) | structured_dataset_allowed | competition fixtures and results (keyed) | Registered free tier, fair use, attribution; see `SOCCER.md` |
+| openfootball (Nov 23) | allowed (CC0), not connected | — | Public domain but stale (last results Sep 20) |
 | Betting pick sites | metadata_only | via Brave metadata | Cited as opinion; no full text |
 | Guardian Open Platform | blocked_pending_review | — | Its terms restrict AI processing; the page refused an automated read |
 
@@ -192,7 +194,7 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 
 ## Known gaps and next steps
 
-- **NFL:** connected on Nov 23 (`NFL.md`). **Soccer:** not connected; StatsBomb needs its licence read.
+- **NFL and soccer:** connected on Nov 23 (`NFL.md`, `SOCCER.md`). StatsBomb still needs its licence read.
 - **User-provided excerpts (Phase 4 stream 3):** not built.
 - **Background job queue for long model runs (optional Phase 6):** not built.
 - **No official NHL lineup source:** "confirmed" is unreachable by design until one is licensed.

@@ -12,6 +12,8 @@ const PERIOD = /^(1H|2H|1Q|2Q|3Q|4Q|1P|2P|3P)/;
 /** Kalshi prefix -> league code. Longest first, so KXNCAAMB isn't read as anything shorter. */
 const LEAGUE_PREFIXES: [string, string][] = [
   ["KXNCAAMB", "NCAAMB"], ["KXNCAAWB", "NCAAWB"], ["KXWNBA", "WNBA"], ["KXNBA", "NBA"], ["KXNHL", "NHL"], ["KXNFL", "NFL"],
+  ["KXBUNDESLIGA", "BUNDESLIGA"], ["KXLALIGA", "LALIGA"], ["KXSERIEA", "SERIEA"], ["KXLIGUE1", "LIGUE1"],
+  ["KXEPL", "EPL"], ["KXUCL", "UCL"], ["KXMLS", "MLS"],
 ];
 
 /** Kind from the series suffix after the league prefix. Halves and quarters are "other":
@@ -25,6 +27,7 @@ export function marketKindFromSeries(series: string): MarketKind {
   if (rest.endsWith("SPREAD")) return "spread";
   if (rest.endsWith("TOTAL")) return "total";
   if (rest === "GAME") return "moneyline";
+  if (rest === "BTTS") return "btts";
   if (PROP.test(rest)) return "player_prop";
   return "other";
 }
@@ -38,10 +41,17 @@ export function leagueOf(ticker: string): string | null {
   return LEAGUE_PREFIXES.find(([p]) => ticker.startsWith(p))?.[1] ?? null;
 }
 
+/** Soccer leagues (top divisions and the Champions League). */
+const SOCCER = ["EPL", "LALIGA", "BUNDESLIGA", "SERIEA", "LIGUE1", "UCL", "MLS"];
+/** Soccer: match winner (three-way, incl. Tie), spread, totals, both teams to score. */
+const SOCCER_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total", "btts"]);
+
 /** Leagues whose box scores and team matching are tested. Others fail gracefully with a reason. */
-export const SUPPORTED_LEAGUES = new Set(["NBA", "WNBA", "NCAAMB", "NCAAWB", "NHL", "NFL"]);
+export const SUPPORTED_LEAGUES = new Set(["NBA", "WNBA", "NCAAMB", "NCAAWB", "NHL", "NFL", ...SOCCER]);
 export const LEAGUE_NAME: Record<string, string> = {
   NBA: "NBA", WNBA: "WNBA", NCAAMB: "NCAA men's", NCAAWB: "NCAA women's", NHL: "NHL", NFL: "NFL",
+  EPL: "EPL", LALIGA: "La Liga", BUNDESLIGA: "Bundesliga", SERIEA: "Serie A", LIGUE1: "Ligue 1",
+  UCL: "Champions League", MLS: "MLS",
 };
 const SUPPORTED_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total", "player_prop"]);
 /** NHL and NFL: game winner, spread and totals only (no periods, halves or player props yet). */
@@ -50,7 +60,7 @@ const TEAM_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_to
 export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: string } {
   const league = leagueOf(leg.ticker);
   if (!league) {
-    return { ok: false, reason: "Investigation covers NBA, WNBA, college basketball, NHL and NFL game markets; this market isn't one." };
+    return { ok: false, reason: "Investigation covers NBA, WNBA, college basketball, NHL, NFL and soccer game markets; this market isn't one." };
   }
   if (!SUPPORTED_LEAGUES.has(league)) {
     return { ok: false, reason: `${league} isn't supported yet: player and team matching for it isn't tested.` };
@@ -62,7 +72,11 @@ export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: s
   if (league === "NFL" && !TEAM_KINDS.has(kind)) {
     return { ok: false, reason: "Only NFL game winner, spread and totals can be investigated (no halves, quarters or player props yet)." };
   }
-  if (!SUPPORTED_KINDS.has(kind)) {
+  if (SOCCER.includes(league)) {
+    if (!SOCCER_KINDS.has(kind)) {
+      return { ok: false, reason: "Only soccer match winner, spread, totals and both-teams-to-score can be investigated (no halves, corners or correct score)." };
+    }
+  } else if (!SUPPORTED_KINDS.has(kind)) {
     return { ok: false, reason: "Only game winner, spread, totals and player props can be investigated." };
   }
   // Season-long markets (MVP, champion) have no game date in the event ticker.
@@ -82,13 +96,14 @@ export function buildHypothesis(leg: ComboLeg, ev: LegEvidence | undefined, snap
   const league = leagueOf(leg.ticker);
   const nhl = league === "NHL";
   const nfl = league === "NFL";
+  const soc = SOCCER.includes(league ?? "");
   const tick = lineFromTicker(leg.ticker);
   // Kalshi NHL and NFL suffixes are "over N-0.5" (TOTAL-6 = over 5.5, SPREAD-BUF8 = by over 7.5).
-  const threshold = market_type === "moneyline" ? null
-    : ev?.line ?? ((nhl || nfl) && tick != null ? tick - 0.5 : tick);
+  const threshold = market_type === "moneyline" || market_type === "btts" ? null
+    : ev?.line ?? ((nhl || nfl || soc) && tick != null ? tick - 0.5 : tick);
   const statement = leg.side === "yes" ? leg.label : `NOT: ${leg.label} (betting it doesn't happen)`;
   return {
-    ticker: leg.ticker, event_ticker: leg.event, side: leg.side, sport: nhl ? "hockey" : nfl ? "football" : "basketball",
+    ticker: leg.ticker, event_ticker: leg.event, side: leg.side, sport: nhl ? "hockey" : nfl ? "football" : soc ? "soccer" : "basketball",
     league: LEAGUE_NAME[leagueOf(leg.ticker) ?? ""] ?? "unknown", market_type, threshold,
     subject: ev?.subject?.name ?? null, label: leg.label, statement, snapshot_at: snapshotAt, rules_url: null,
   };
@@ -99,5 +114,5 @@ export const hypothesisKey = (h: Pick<InvestigationHypothesis, "ticker" | "side"
 
 export const MARKET_LABEL: Record<MarketKind, string> = {
   moneyline: "Game winner", spread: "Spread", total: "Game total", team_total: "Team total",
-  player_prop: "Player prop", other: "Other",
+  player_prop: "Player prop", btts: "Both teams to score", other: "Other",
 };

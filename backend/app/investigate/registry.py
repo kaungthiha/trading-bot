@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-REGISTRY_VERSION = "2026-11-23.1"
+REGISTRY_VERSION = "2026-11-23.2"
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,14 @@ REGISTRY: dict[str, Publisher] = {
                          "unauthorised automated access)."),
     "nfl.com": Publisher("NFL.com", "official", 1,
                          note="Headline only: the app never fetches NFL.com."),
+    # Soccer: official competition sites and news (metadata via Brave only)
+    "premierleague.com": Publisher("Premier League", "official", 1),
+    "uefa.com": Publisher("UEFA", "official", 1),
+    "mlssoccer.com": Publisher("MLS", "official", 1),
+    "bbc.co.uk": Publisher("BBC Sport", "news", 1),
+    "bbc.com": Publisher("BBC Sport", "news", 1),
+    "skysports.com": Publisher("Sky Sports", "news", 1),
+    "goal.com": Publisher("Goal", "news", 2),
     # Football news and injury reporting (metadata via Brave only)
     "profootballtalk.nbcsports.com": Publisher("ProFootballTalk", "injury_news", 1),
     "profootballnetwork.com": Publisher("Pro Football Network", "news", 2),

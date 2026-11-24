@@ -8,7 +8,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Side = Literal["yes", "no"]
-MarketKind = Literal["moneyline", "spread", "total", "team_total", "player_prop", "other"]
+MarketKind = Literal[
+    "moneyline", "spread", "total", "team_total", "player_prop", "btts", "other"
+]
 ClaimKind = Literal["factual", "statistical", "analyst_opinion", "prediction", "interpretation"]
 Stance = Literal["supports", "opposes", "neutral"]
 

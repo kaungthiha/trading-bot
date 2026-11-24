@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComboLeg, InvestigationHypothesis, LegEvidence } from "../../api/types";
 import { slip } from "../games/slip";
 import { fixtureInvestigation } from "./fixture";
-import { buildHypothesis, hypothesisKey, supportFor } from "./hypothesis";
+import { buildHypothesis, hypothesisKey, MARKET_LABEL, supportFor } from "./hypothesis";
 import { InvestigateButton } from "./InvestigateButton";
 import { clampSummary, InvestigationHost } from "./InvestigationDrawer";
 import { fixtureSource, investigation } from "./store";
@@ -107,6 +107,27 @@ describe("hypotheses are exact", () => {
       expect(r.ok, t).toBe(false);
     }
     expect(supportFor({ ticker: "KXNFLWINS-27-BUF", side: "yes", label: "wins", event: "KXNFLWINS-27" }).ok).toBe(false);
+  });
+
+  it("supports soccer winner (incl. Tie), spread, totals and BTTS, not halves or corners", () => {
+    const ev = "26NOV29ARSMCI";
+    const win = { ticker: `KXEPLGAME-${ev}-ARS`, side: "yes" as const, label: "Arsenal", event: `KXEPLGAME-${ev}` };
+    expect(supportFor(win).ok).toBe(true);
+    expect(buildHypothesis(win, undefined, null)).toMatchObject({ sport: "soccer", league: "EPL", market_type: "moneyline", threshold: null });
+    const tie = { ticker: `KXEPLGAME-${ev}-TIE`, side: "yes" as const, label: "Tie", event: `KXEPLGAME-${ev}` };
+    expect(supportFor(tie).ok).toBe(true);
+    const tot = { ticker: `KXUCLTOTAL-${ev}-3`, side: "no" as const, label: "Over 2.5", event: `KXUCLTOTAL-${ev}` };
+    expect(buildHypothesis(tot, undefined, null)).toMatchObject({ league: "Champions League", market_type: "total", threshold: 2.5 });
+    const sp = { ticker: `KXLALIGASPREAD-${ev}-MCI2`, side: "yes" as const, label: "by 1.5", event: `KXLALIGASPREAD-${ev}` };
+    expect(buildHypothesis(sp, undefined, null)).toMatchObject({ league: "La Liga", market_type: "spread", threshold: 1.5 });
+    const btts = { ticker: `KXSERIEABTTS-${ev}-BTTS`, side: "yes" as const, label: "BTTS", event: `KXSERIEABTTS-${ev}` };
+    expect(supportFor(btts).ok).toBe(true);
+    expect(buildHypothesis(btts, undefined, null)).toMatchObject({ market_type: "btts", threshold: null });
+    expect(MARKET_LABEL.btts).toBe("Both teams to score");
+    for (const t of ["KXUCL1HTOTAL", "KXUCL2HSPREAD", "KXLALIGACORNERS", "KXUCLSCORE", "KXUCLFTTS", "KXLALIGA2GAME"]) {
+      const r = supportFor({ ticker: `${t}-${ev}-ARS`, side: "yes", label: t, event: `${t}-${ev}` });
+      expect(r.ok, t).toBe(false);
+    }
   });
 
   it("unsupported markets explain why instead of offering the action", () => {
