@@ -25,8 +25,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SOURCES_VERSION = "2026-11-21.1"
+SOURCES_VERSION = "2026-11-23.1"
 REVIEWED = "2026-11-21"
+NFL_REVIEWED = "2026-11-23"
 
 Rights = Literal[
     "structured_dataset_allowed",
@@ -176,36 +177,96 @@ SOURCES: dict[str, DataSource] = {
             "open_meteo",
             "Open-Meteo weather API",
             "outdoor sports",
-            "forecast and historical weather",
-            "none",
+            "kickoff forecast for open-air NFL stadiums",
+            "app.sportsdata.weather",
             "https://open-meteo.com/en/terms",
             "structured_dataset_allowed",
             ("forecast_lookup_noncommercial",),
             "Weather data by Open-Meteo.com (CC BY 4.0)",
             "n/a",
             REVIEWED,
-            "Allowed for non-commercial use under CC BY 4.0, under 10,000 calls/day. Not "
-            "connected yet: no supported sport is played outdoors (NHL is indoors).",
+            "Allowed for non-commercial use under CC BY 4.0, under 10,000 calls/day. One "
+            "request per NFL game (cached an hour), only for home teams' open-air stadiums "
+            "within 7 days of kickoff; no key needed.",
             (
                 "You may only use the free API services for non-commercial purposes.",
                 "Less than 10'000 API calls per day, 5'000 per hour and 600 per minute.",
             ),
         ),
         DataSource(
-            "nflverse",
-            "nflverse data releases",
+            "nflverse_schedules",
+            "nflverse schedules release (games.csv)",
             "football (NFL)",
-            "play-by-play, rosters, schedules",
-            "none",
-            "https://github.com/nflverse/nflverse-data/blob/main/LICENSE.md",
+            "game facts: kickoff, final scores, rest days, roof, stadium, listed starting QB",
+            "app.sportsdata.nflverse",
+            "https://github.com/nflverse/nflverse-data/releases/tag/schedules",
             "structured_dataset_allowed",
-            ("download_cc_by_release_files",),
-            "nflverse (CC BY 4.0), with a link to the release",
+            ("download_schedule_release",),
+            "Data: nflverse (CC BY 4.0), linked to the release page",
+            "In-memory cache only (refreshed at most every 12 hours)",
+            NFL_REVIEWED,
+            "Hosted in the CC BY 4.0 nflverse-data repository; maintained in Lee Sharpe's "
+            "nfldata repo, which has no licence file of its own. Only public game facts are "
+            "read. The sportsbook columns (moneylines, spread_line, total_line, odds) are "
+            "never read: they come from betting sources this registry hasn't reviewed. The "
+            "listed QB for an upcoming game is a projection, never an official lineup.",
+            (
+                "nflverse-data repository licence: Creative Commons Attribution 4.0 "
+                "International (CC-BY-4.0).",
+            ),
+        ),
+        DataSource(
+            "nflverse_team_stats",
+            "nflverse team stats release (stats_team_week_{season}.csv)",
+            "football (NFL)",
+            "weekly team totals incl. passing/rushing EPA and plays",
+            "app.sportsdata.nflverse",
+            "https://github.com/nflverse/nflverse-data/releases/tag/stats_team",
+            "structured_dataset_allowed",
+            ("download_team_stats_release",),
+            "Data: nflverse (CC BY 4.0), linked to the release page",
+            "In-memory cache only (refreshed at most every 12 hours)",
+            NFL_REVIEWED,
+            "nflverse's own aggregates (nflfastR calculate_stats) in the CC BY 4.0 repository. "
+            "Used for points-independent efficiency (EPA per play), point in time.",
+            ("Team stats in different summary levels created with nflfastR::calculate_stats()",),
+        ),
+        DataSource(
+            "nflverse_injuries",
+            "nflverse injuries release (injuries_{season}.csv)",
+            "football (NFL)",
+            "the NFL's weekly injury report: player, position, game status, practice status",
+            "app.sportsdata.nflverse",
+            "https://github.com/nflverse/nflverse-data/releases/tag/injuries",
+            "structured_dataset_allowed",
+            ("download_injury_report_release",),
+            "Data: nflverse (CC BY 4.0); the report itself is the NFL's",
+            "In-memory cache only (refreshed at most every 12 hours)",
+            NFL_REVIEWED,
+            "The official report republished by nflverse; NFL.com is never fetched. Only "
+            "status facts are used, tagged with the report week. nflreadr notes NFL data "
+            "belongs to its owners, so the owner should confirm this personal, non-commercial "
+            "use; switch off with KRT_RESEARCH_DISABLED_SOURCES=nflverse_injuries. The file "
+            "often lags a week: a missing week is shown as unknown, never as healthy.",
+            (
+                "NFL data accessed by this package belong to their respective owners, and are "
+                "governed by their terms of use. (nflreadr)",
+            ),
+        ),
+        DataSource(
+            "nflverse_ftn",
+            "nflverse FTN charting release",
+            "football (NFL)",
+            "charted play details",
+            "none",
+            "https://github.com/nflverse/nflverse-data/releases/tag/ftn_charting",
+            "blocked_pending_review",
+            (),
+            "FTN Data via nflverse",
             "n/a",
-            REVIEWED,
-            "The repository is CC BY 4.0. Each dataset's own licence must be checked before "
-            "use: the FTN charting data's licence couldn't be confirmed, so it is excluded. "
-            "Not connected yet (NFL is the next sport).",
+            NFL_REVIEWED,
+            "Under a different licence (CC BY-SA 4.0 per the spec) that hasn't been "
+            "confirmed for this use; never downloaded.",
         ),
         DataSource(
             "statsbomb_open",

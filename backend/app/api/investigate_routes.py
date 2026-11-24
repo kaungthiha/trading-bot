@@ -16,13 +16,15 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import nhl, search, service, sources, synth
+from app.investigate import nfl, nhl, search, service, sources, synth
 from app.investigate.ledger import ledger_for
 from app.investigate.schemas import Result
 from app.sportsdata.espn import EspnSource
 from app.sportsdata.llm import LlmError, OllamaClient
 from app.sportsdata.moneypuck import MoneyPuck
 from app.sportsdata.news import NewsSearch
+from app.sportsdata.nflverse import Nflverse
+from app.sportsdata.weather import OpenMeteo
 
 router = APIRouter(prefix="/api/research")
 IdPath = Annotated[str, Path(min_length=1, max_length=36, pattern=r"^[A-Za-z0-9-]+$")]
@@ -58,6 +60,28 @@ def _moneypuck(request: Request, settings: Any) -> MoneyPuck | None:
     if src is None:
         src = MoneyPuck(settings, timeout=settings.http_timeout_seconds)
         request.app.state.moneypuck = src
+    return src
+
+
+def _nflverse(request: Request, settings: Any) -> Nflverse | None:
+    """NFL release files (nflverse). None when the owner switched the schedule source off."""
+    if not sources.allows("nflverse_schedules", "download_schedule_release", settings):
+        return None
+    src = getattr(request.app.state, "nflverse", None)
+    if src is None:
+        src = Nflverse(settings, timeout=max(settings.http_timeout_seconds, 30.0))
+        request.app.state.nflverse = src
+    return src
+
+
+def _weather(request: Request, settings: Any) -> OpenMeteo | None:
+    """Kickoff forecasts (Open-Meteo, free, no key). None when switched off."""
+    if not sources.allows("open_meteo", "forecast_lookup_noncommercial", settings):
+        return None
+    src = getattr(request.app.state, "weather", None)
+    if src is None:
+        src = OpenMeteo(settings, timeout=settings.http_timeout_seconds)
+        request.app.state.weather = src
     return src
 
 
@@ -148,6 +172,8 @@ def _run(
             gatherer=_gatherer(request, settings, now),
             synthesizer=synth_chat,
             mp_src=_moneypuck(request, settings) if nhl.is_nhl(ticker) else None,
+            nv_src=_nflverse(request, settings) if nfl.is_nfl(ticker) else None,
+            wx_src=_weather(request, settings) if nfl.is_nfl(ticker) else None,
         )
     except service.Unsupported as e:
         raise ApiError(422, ErrorCode.VALIDATION_ERROR, str(e)) from e
@@ -255,6 +281,9 @@ def preflight(
         if unsupported is not None
         else "No NHL model: MoneyPuck season data for context (checked when you run it)"
         if nhl.is_nhl(ticker)
+        else "No NFL model: nflverse season data and kickoff weather for context (checked "
+        "when you run it)"
+        if nfl.is_nfl(ticker)
         else "Box-score history (frequency, checked when you run it)",
         "cached": service.cached(
             session, service.cache_key(ticker, side, m, _model_name(settings)), now

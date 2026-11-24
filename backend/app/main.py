@@ -52,6 +52,9 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None,
             app.state.espn.close()
         if getattr(app.state, "moneypuck", None) is not None:
             app.state.moneypuck.close()
+        for name in ("nflverse", "weather"):
+            if getattr(app.state, name, None) is not None:
+                getattr(app.state, name).close()
 
     app = FastAPI(
         lifespan=lifespan,

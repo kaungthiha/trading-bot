@@ -18,7 +18,8 @@ None came from tests or scripts.
 | NBA, WNBA | winner, spread, totals, player props | ESPN box scores, injury report | Only with 15+ games, a fresh quote and a normal lineup |
 | NCAA men's and women's | winner, spread, totals | ESPN box scores (no injury report exists) | Never (lineup unknown) |
 | **NHL (new)** | winner, puck line, game total, team total | MoneyPuck season data | Never (no validated model) |
-| NFL, soccer | not yet | sources reviewed, not connected | — |
+| **NFL (added Nov 23)** | winner, spread, game total, team total | nflverse schedule, team stats, injury report; Open-Meteo weather | Never (no validated model); see `NFL.md` |
+| Soccer | not yet | sources reviewed, not connected | — |
 
 **NHL is not supported for:**
 - periods (`1P`/`2P`/`3P`);
@@ -61,8 +62,8 @@ Reviewed 2026-11-21 by reading each source's published terms. Short quotes are k
 | MoneyPuck season CSVs | structured_dataset_allowed | download the two listed season CSVs | "free to use for non-commercial purposes"; credit required; other pages need approval |
 | NHL api-web endpoints | blocked_pending_review | — | No published terms; NHL.com terms bar "unauthorized automated means" |
 | PuckAPI | blocked_pending_review | — | Needs a key and a terms review |
-| Open-Meteo | structured_dataset_allowed | non-commercial forecast lookup | CC BY 4.0, under 10,000 calls a day; not connected (no outdoor sport yet) |
-| nflverse | structured_dataset_allowed | CC BY 4.0 release files | Repository is CC BY 4.0; FTN data's licence unconfirmed, so excluded; not connected |
+| Open-Meteo | structured_dataset_allowed | non-commercial forecast lookup | CC BY 4.0, under 10,000 calls a day; connected for open-air NFL stadiums (Nov 23) |
+| nflverse (per dataset, Nov 23) | schedules, team stats, injuries allowed; FTN blocked | one release file each | See `NFL.md`: one release's licence isn't assumed for another; sportsbook columns never read |
 | StatsBomb Open Data | blocked_pending_review | — | LICENSE.pdf couldn't be read |
 | NCAA API wrapper | blocked_pending_review | — | A code licence isn't a data licence |
 | Sports Insights RSS, CBS RSS | metadata_only | — | Feed terms not reviewed; not connected |
@@ -191,7 +192,7 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 
 ## Known gaps and next steps
 
-- **NFL and soccer:** not connected (spec order). nflverse is the next adapter; StatsBomb needs its licence read.
+- **NFL:** connected on Nov 23 (`NFL.md`). **Soccer:** not connected; StatsBomb needs its licence read.
 - **User-provided excerpts (Phase 4 stream 3):** not built.
 - **Background job queue for long model runs (optional Phase 6):** not built.
 - **No official NHL lineup source:** "confirmed" is unreachable by design until one is licensed.

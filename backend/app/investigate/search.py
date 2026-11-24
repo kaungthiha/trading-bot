@@ -41,6 +41,9 @@ PLAUSIBLE_BY_LEAGUE = {
     # Hockey: totals around 5.5-6.5, puck lines 1.5-3.5.
     "NHL": {"total": (3.5, 10.5), "team_total": (0.5, 6.5), "spread": (0.5, 4.5),
             "player_prop": (0.5, 6.5)},
+    # Football: totals around 35-55, spreads up to about 20, team totals 10-35.
+    "NFL": {"total": (20.5, 75.5), "team_total": (3.5, 50.5), "spread": (0.5, 30.5),
+            "player_prop": (0.5, 450.5)},
 }
 COLLEGE = {"NCAA men's": "basketball", "NCAA women's": "women's basketball"}
 BASKETBALL = re.compile(r"basketball|hoops|\bmbb\b|\bwbb\b|\bcbb\b|ncaab|ncaaw|march madness", re.I)
@@ -50,6 +53,12 @@ WOMEN = re.compile(r"\bwomen|\bwbb\b|\blady\b|ncaaw", re.I)
 HOCKEY = re.compile(
     r"\bnhl\b|hockey|goalie|goaltender|netminder|\bpuck|power play|power-play|shutout|"
     r"\bin goal\b|between the pipes|\bcrease\b|stanley cup",
+    re.I,
+)
+# NFL nicknames are shared too (Giants, Cardinals, Jets, Panthers, Kings...).
+FOOTBALL = re.compile(
+    r"nfl|football|quarterback|qbs?|touchdown|field goal|wide receiver|running back|"
+    r"tight end|super bowl|depth chart|snap(s|ped)?|gridiron|endzone|end zone|sack",
     re.I,
 )
 
@@ -63,6 +72,8 @@ def sport_mismatch(h: S.Hypothesis, text: str) -> bool:
     nicknames are shared with MLB/NFL/NBA teams, so the text must be about hockey."""
     if h.league == "NHL":
         return not HOCKEY.search(text)
+    if h.league == "NFL":
+        return not FOOTBALL.search(text)
     if h.league not in COLLEGE:
         return False
     if not BASKETBALL.search(text):
@@ -131,6 +142,17 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
             qs.append(f"{a} {b} NHL puck line{line}")
         else:
             qs.append(f"{a} vs {b} NHL prediction")
+        return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
+    if h.league == "NFL":
+        # Quarterback first: who starts moves an NFL line more than anything else.
+        qs = [f"{a} {b} NFL starting quarterback", f"{a} vs {b} NFL preview",
+              f"{own} NFL injury report"]
+        if h.market_type in ("total", "team_total"):
+            qs.append(f"{a} {b} NFL over under{line}")
+        elif h.market_type == "spread":
+            qs.append(f"{a} {b} NFL spread pick{line}")
+        else:
+            qs.append(f"{a} vs {b} NFL prediction")
         return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
     if h.league in COLLEGE:
         sport = COLLEGE[h.league]

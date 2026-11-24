@@ -28,7 +28,7 @@ from app.investigate import schemas as S
 PERMISSION = re.compile(r"switched off|not permitted|blocked|disabled|isn't set up", re.I)
 MODEL = re.compile(r"local model|model's takeaway|ollama", re.I)
 NUM = re.compile(r"\d+(?:\.\d+)?")
-STRUCTURED_IDS = ("E1", "E2", "M1")
+STRUCTURED_IDS = ("E1", "E2", "M1", "F1", "W1")
 
 
 @dataclass

@@ -487,8 +487,8 @@ probability), what you'd pay (the slip check), the AI second opinion, and **Save
 your decision and why, saved in this browser with the price at the time and listed on Today
 under *Saved research*. Numbers are only shown for the legs they were computed for.
 
-**Investigate this pick.** On a single-game NBA, WNBA, college basketball (men's or women's)
-or NHL leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
+**Investigate this pick.** On a single-game NBA, WNBA, college basketball (men's or women's),
+NHL or NFL leg (Docket, the Ideas tab, a game's market table, or such a leg on a scanner card) click
 *Investigate*. A drawer opens for that
 exact contract and side, without leaving the page or touching your slip. Nothing runs until you
 click **Run investigation**. Then you get:
@@ -515,8 +515,20 @@ What it uses:
   lineup source is connected. There's no validated NHL model, so **no estimate or edge is
   shown**; the stats are context. Kalshi settles game winner and puck line on the official
   final result (overtime and shootout included), and totals count a shootout as one goal.
-- **News (optional, Brave News Search):** up to 3 targeted searches per run (4 for the NHL,
-  starting with the goalie). Only headlines
+- **NFL** (game winner, spread, game and team totals; halves, quarters and player props aren't
+  covered): from **nflverse** release files, each with its own rights entry: the schedule
+  (kickoff, scores, rest days, roof, listed QB; the sportsbook line columns are never read),
+  weekly team stats (points and EPA per play) and the weekly injury report. Credited "Data:
+  nflverse (CC BY 4.0)". Season form counts **only games played before this kickoff**. Weather
+  comes from **Open-Meteo** (free, no key) at kickoff, for open-air home stadiums only. ESPN
+  and NFL.com aren't used. The starting QB is *expected* (listed or reported), *unknown* or
+  *conflicting*, never *confirmed*. A listed QB who is Out or Doubtful counts as unknown, and if
+  this week's injury report isn't out yet, availability is shown as unknown, not healthy. No
+  validated NFL model exists, so **no estimate or edge is shown**. Kalshi settles the game
+  winner on the official result (overtime counts; a tie pays $0.50 per team); spreads and
+  totals use the official score, overtime included.
+- **News (optional, Brave News Search):** up to 3 targeted searches per run (4 for the NHL and
+  NFL, starting with the goalie or quarterback). Only headlines
   and snippets are used; no article page is ever fetched. Results must name this game's teams
   (or the prop's player). Articles about a past matchup or a different line are flagged and
   never count as support. Syndicated copies count once. Brave's terms allow only temporary
@@ -544,10 +556,12 @@ Setup and spending caps:
   dashboard. "Headlines here" is a click-only POST (a link on another site can't spend it).
 - **Data sources:** `app/investigate/sources.py` records each source's reviewed terms and the
   exact operations allowed (`GET /api/research/sources` shows the matrix). Turn one off with
-  `KRT_RESEARCH_DISABLED_SOURCES=moneypuck`. Details: `docs/investigate/EVIDENCE_V2.md`.
+  `KRT_RESEARCH_DISABLED_SOURCES=moneypuck,nflverse_injuries` (any ids from the matrix).
+  Details: `docs/investigate/EVIDENCE_V2.md` and `docs/investigate/NFL.md`.
 - **Checks:** `krt research-eval` prints an evidence-quality report over saved investigations
-  (offline). `krt research-smoke --live-moneypuck` downloads MoneyPuck's two files once (free;
-  never Brave); without the flag it does nothing.
+  (offline). `krt research-smoke --live-moneypuck` downloads MoneyPuck's two files once and
+  `--live-nflverse` nflverse's three files once (free; never Brave); without a flag it does
+  nothing.
 - **Ollama:** the same local model as the other AI features (`KRT_LLM_PROVIDER=ollama`,
   `KRT_OLLAMA_MODEL`). An investigation's summary is capped at 90 seconds, one at a time.
 

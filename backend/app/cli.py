@@ -78,26 +78,47 @@ def _research_eval(settings: Settings) -> int:
     return 0
 
 
-def _research_smoke(settings: Settings, live_moneypuck: bool) -> int:
+def _research_smoke(settings: Settings, live_moneypuck: bool, live_nflverse: bool = False) -> int:
     """Live checks run only with an explicit flag, and only against free, non-billed sources
     the registry permits. Brave is never called here."""
-    if not live_moneypuck:
+    if not live_moneypuck and not live_nflverse:
         print("Nothing run. Pass --live-moneypuck to download MoneyPuck's two listed season "
-              "CSVs once (free, non-billed, credited). Brave is never called by this command.")
+              "CSVs once, or --live-nflverse to download nflverse's schedule, team stats and "
+              "injury files once (free, non-billed, credited). Brave is never called by this "
+              "command.")
         return 0
     from datetime import UTC, datetime
 
-    from app.sportsdata.moneypuck import MoneyPuck, season_of
+    ok = True
+    if live_moneypuck:
+        from app.sportsdata.moneypuck import MoneyPuck, season_of
 
-    src = MoneyPuck(settings)
-    try:
-        d = src.season(season_of(datetime.now(UTC)))
-    finally:
-        src.close()
-    print(f"MoneyPuck {d.season}: {len(d.teams)} teams, "
-          f"{sum(len(v) for v in d.goalies.values())} goalies, data as of {d.data_as_of} "
-          "(Data: MoneyPuck.com)")
-    return 0 if len(d.teams) >= 30 else 1
+        src = MoneyPuck(settings)
+        try:
+            d = src.season(season_of(datetime.now(UTC)))
+        finally:
+            src.close()
+        print(f"MoneyPuck {d.season}: {len(d.teams)} teams, "
+              f"{sum(len(v) for v in d.goalies.values())} goalies, data as of {d.data_as_of} "
+              "(Data: MoneyPuck.com)")
+        ok = ok and len(d.teams) >= 30
+    if live_nflverse:
+        from app.sportsdata import nflverse as nv
+
+        nsrc = nv.Nflverse(settings)
+        try:
+            n = nsrc.season(nv.season_of(datetime.now(UTC)))
+        finally:
+            nsrc.close()
+        played = sum(1 for g in n.games if g.played)
+        teams = {g.away for g in n.games} | {g.home for g in n.games}
+        print(f"nflverse {n.season}: {len(n.games)} games ({played} played), {len(teams)} teams, "
+              f"{len(n.weeks)} team-week rows, {len(n.injuries)} injury rows (latest week "
+              f"{n.latest_injury_week()}), data as of {n.data_as_of} ({nv.ATTRIBUTION})")
+        for err in n.errors:
+            print(f"  note: {err}")
+        ok = ok and len(teams) >= 32
+    return 0 if ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -169,6 +190,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="Opt-in live check of free, non-billed data sources (never Brave)")
     smk.add_argument("--live-moneypuck", action="store_true",
                      help="Download MoneyPuck's two listed season CSVs once and summarise them")
+    smk.add_argument("--live-nflverse", action="store_true",
+                     help="Download nflverse's three listed release files once and summarise them")
     args = parser.parse_args(argv)
 
     configure_logging()
@@ -176,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "research-eval":
         return _research_eval(settings)
     if args.cmd == "research-smoke":
-        return _research_smoke(settings, args.live_moneypuck)
+        return _research_smoke(settings, args.live_moneypuck, args.live_nflverse)
     if args.cmd == "migrate":
         command.upgrade(alembic_config(settings.database_url), "head")
     elif args.cmd == "downgrade":
