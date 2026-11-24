@@ -14,7 +14,9 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -25,7 +27,8 @@ WEB = "https://site.web.api.espn.com"
 SITE = "https://site.api.espn.com"
 _LEAGUE = r"(?:nba|wnba|mens-college-basketball|womens-college-basketball)"
 WEB_PATHS = re.compile(
-    rf"/apis/common/v3/(?:search|sports/basketball/{_LEAGUE}/athletes/\d{{1,12}}/gamelog)")
+    rf"/apis/common/v3/(?:search|sports/basketball/{_LEAGUE}/athletes/\d{{1,12}}/gamelog"
+    rf"|sports/basketball/(?:nba|wnba)/statistics/byteam)")
 SITE_PATHS = re.compile(
     rf"/apis/site/v2/sports/basketball/{_LEAGUE}/(?:injuries|teams|teams/\d{{1,6}}/schedule)")
 
@@ -43,6 +46,8 @@ ALIASES = {"nba": {"NYK": "NY", "GSW": "GS", "SAS": "SA", "NOP": "NO", "UTA": "U
 TTL_LOG = 30 * 60
 TTL_INJ = 15 * 60
 TTL_TEAMS = 24 * 3600
+TTL_OPP = 6 * 3600
+TTL_OPP_FAIL = 10 * 60
 
 
 @dataclass
@@ -56,6 +61,20 @@ class GameRow:
     team_score: int | None
     opp_score: int | None
     stats: dict[str, float] = field(default_factory=dict)
+    # US Eastern calendar date (Kalshi's game keys use it; a 7pm ET tip is the next UTC day).
+    et_date: str = ""
+
+
+ET = ZoneInfo("America/New_York")
+
+
+def et_date(iso: Any) -> str:
+    """'2026-11-24T00:30:00.000+00:00' -> '2026-11-23'. Unparseable -> ''."""
+    try:
+        d = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    return d.astimezone(ET).date().isoformat() if d.tzinfo else d.date().isoformat()
 
 
 def _num(x: Any) -> float | None:
@@ -105,6 +124,7 @@ def parse_gamelog(body: dict[str, Any], season: str) -> list[GameRow]:
                 res = m.get("gameResult")
                 rows.append(GameRow(
                     event_id=eid, date=str(m.get("gameDate") or "")[:10], season=season,
+                    et_date=et_date(m.get("gameDate")),
                     opponent=str((m.get("opponent") or {}).get("abbreviation") or ""),
                     home=not away, won=True if res == "W" else False if res == "L" else None,
                     team_score=ts, opp_score=os_, stats=stats))
@@ -134,6 +154,7 @@ def parse_schedule(body: dict[str, Any], team_id: str, season: str) -> list[Game
         ts, os_ = score(me), score(opp)
         rows.append(GameRow(
             event_id=str(ev.get("id") or ""), date=str(ev.get("date") or "")[:10],
+            et_date=et_date(ev.get("date")),
             season=season, opponent=str((opp.get("team") or {}).get("abbreviation") or ""),
             home=me.get("homeAway") == "home",
             won=bool(me.get("winner")) if me.get("winner") is not None else
@@ -141,6 +162,46 @@ def parse_schedule(body: dict[str, Any], team_id: str, season: str) -> list[Game
             team_score=ts, opp_score=os_))
     rows.sort(key=lambda r: r.date, reverse=True)
     return rows
+
+
+# League-wide team table (statistics/byteam?category=opponent). Each category comes twice per
+# team, labelled "Own ..." and "Opponent ..." (what the team allows). Checked 2026-11-24 against
+# Miami's schedule: 120.7 scored and 119.4 allowed, matching the two rows.
+OPP_FIELDS = {
+    "allow_PTS": ("Opponent", "offensive", "avgPoints"),
+    "allow_REB": ("Opponent", "general", "avgRebounds"),
+    "allow_AST": ("Opponent", "offensive", "avgAssists"),
+    "allow_3PT": ("Opponent", "offensive", "avgThreePointFieldGoalsMade"),
+    "own_PTS": ("Own", "offensive", "avgPoints"),
+    "own_TO": ("Own", "offensive", "avgTurnovers"),
+    "gp": ("Own", "general", "gamesPlayed"),
+}
+
+
+def parse_opponents(body: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """ESPN abbreviation -> {allow_PTS, allow_REB, ..., own_PTS, own_TO, gp}. Teams or fields
+    that don't parse are left out, never zero-filled."""
+    names: dict[str, list[str]] = {}
+    for c in body.get("categories") or []:
+        if c.get("names"):  # each category is listed twice; only the first carries names
+            names.setdefault(str(c.get("name")), list(c["names"]))
+    out: dict[str, dict[str, float]] = {}
+    for t in body.get("teams") or []:
+        abbr = str((t.get("team") or {}).get("abbreviation") or "")
+        rows: dict[tuple[str, str], list[Any]] = {}
+        for c in t.get("categories") or []:
+            whose = str(c.get("displayName") or "").split(" ")[0]  # "Own" | "Opponent"
+            rows[(whose, str(c.get("name")))] = c.get("totals") or []
+        vals: dict[str, float] = {}
+        for key, (whose, cat, field_) in OPP_FIELDS.items():
+            r, ns = rows.get((whose, cat)) or [], names.get(cat) or []
+            if field_ in ns and ns.index(field_) < len(r):
+                v = _num(str(r[ns.index(field_)]).replace("+", ""))
+                if v is not None:
+                    vals[key] = v
+        if abbr and vals.get("gp"):
+            out[abbr] = vals
+    return out
 
 
 def _norm(s: str) -> str:
@@ -292,6 +353,21 @@ class EspnSource:
                     pass
             return rows
         return self._cached(("tlog", league, team_id), TTL_LOG, fetch)
+
+    def opponent_stats(self, league: str) -> dict[str, dict[str, float]]:
+        """What every team allows per game, this season (NBA and WNBA; one request)."""
+        if league not in ("nba", "wnba"):
+            return {}
+
+        def fetch() -> dict[str, dict[str, float]]:
+            body = self._web.get(f"/apis/common/v3/sports/basketball/{league}/statistics/byteam",
+                                 {"category": "opponent", "limit": 40})
+            return parse_opponents(body)
+        try:
+            return self._cached(("opp", league), TTL_OPP, fetch)
+        except AdapterError:
+            # Briefs work without it; remember the failure briefly instead of retrying per leg.
+            return self._cached(("opp", league), TTL_OPP_FAIL, dict)
 
     def injuries(self, league: str) -> list[dict[str, str]]:
         def fetch() -> list[dict[str, str]]:

@@ -614,8 +614,8 @@ For the legs on the Docket:
   fair price, which captures the correlation a plain multiplied price ignores.
 - **Quote check.** Type the price Kalshi quotes you to see the markup over fair.
 
-Limits: box scores don't know tonight's matchup, minutes or injuries. The injury strip and
-news links are there for that. Quarter and half markets have no box-score check yet.
+Limits: the history estimate itself ignores tonight's matchup, minutes and injuries. The leg
+brief (below), the injury strip and the news links cover those. Quarter and half markets have no box-score check yet.
 Headlines in the app need an optional Brave Search key (`KRT_BRAVE_SEARCH_API_KEY` in `.env`);
 without one you get search links. `KRT_SPORTS_EVIDENCE_ENABLED=false` stops all ESPN calls.
 
@@ -650,6 +650,30 @@ Kalshi's combo quotes are take-it-or-leave-it, so limit orders apply to single l
 - **Ask the local model to pick (or pass):** it may choose at most 3 ids from the list.
   Picks on one team count as one exposure. Stakes are clipped to your cap, with 3 caps in
   total. Passing is allowed. It can't add bets that aren't on the list.
+
+**Leg briefs (NBA, WNBA, college basketball).** Each basketball leg on the Docket gets a brief: the case for and
+against that side, from free data, with no probability. Tap a leg to read it; the pill on the
+leg shows the lean (strong case / mixed / weak case / thin data / avoid). Points cover:
+- **form:** last 10 games against the line, compared with what the price implies (10 of 10
+  on an 85% leg is just why it costs 85%, so it doesn't count);
+- **minutes:** last 5 games vs the season, a role growing or shrinking;
+- **matchup:** what tonight's opponent allows in that stat, ranked league-wide (ESPN's
+  team table; for game lines, point differentials and scoring, only while the price is open);
+- **head-to-head** since last season, **rest** (back-to-backs), a clear **home/away split**;
+- **injuries:** his own status, and teammates out (a bigger role his history can't show);
+- **price** against his own history.
+A strong case means several facts point the same way and at most one against. It's a lead to
+research, not a forecast. Details: `docs/investigate/NBA_BRIEFS.md`.
+
+**Tonight's combos (Games page, NBA).** With no game selected, the Games page offers **Build
+tonight's combos**. It briefs the most-traded legs of every game in the next 30 hours (both
+sides; about 30 seconds, ESPN only, no search spend), then suggests up to three 3–4 leg combos
+built only from clear-case legs: priced 40–80%, at least two more points for than against, at
+most one against, combinable on Kalshi. One leg per player and at most two per game, and never
+winner plus spread of one game. Each combo lists every leg's reasons, **what could sink it**, the
+market price (adjusted where same-game legs historically landed together), and what past Kalshi
+combos of that size paid back. "Put on docket" loads it for the usual slip check. A build only
+starts on a click.
 
 **Local AI (Ollama): second opinion and Coach.** The app uses a model running on your own
 machine (default `gemma4:12b`). It is free and private, and the app only connects to

@@ -28,6 +28,8 @@ from app.sportsdata.ideas import build_ideas, ideas_facts
 from app.sportsdata.llm import LlmError, llm_status, local_reviewer, make_reviewer
 from app.sportsdata.news import NewsSearch, headlines
 from app.sportsdata.service import evidence_for
+from app.sportsdata.slate import LEAGUES as SLATE_LEAGUES
+from app.sportsdata.slate import SlateRunner
 
 router = APIRouter(prefix="/api/games")
 
@@ -77,9 +79,10 @@ def list_games(session: SessionDep, clock: ClockDep, league: League = None,
 
 
 def _evidence(session: Any, settings: Any, request: Request,
-              parsed: list[tuple[str, str]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+              parsed: list[tuple[str, str]], briefs: bool = False
+              ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     src = _espn(request, settings.sports_evidence_enabled)
-    out, rows, missing = evidence_for(session, src, parsed)
+    out, rows, missing = evidence_for(session, src, parsed, briefs=briefs)
     if missing:
         raise ApiError(404, ErrorCode.NOT_FOUND, f"{missing[0]} is not in the catalog")
     return out, rows
@@ -88,7 +91,34 @@ def _evidence(session: Any, settings: Any, request: Request,
 @router.get("/evidence")
 def leg_evidence(session: SessionDep, settings: SettingsDep, request: Request,
                  legs: Annotated[str, Query(min_length=3, max_length=2000)]) -> dict[str, Any]:
-    return _evidence(session, settings, request, _legs(legs))[0]
+    # The docket shows each leg's brief (case for and against), so it asks for them here.
+    return _evidence(session, settings, request, _legs(legs), briefs=True)[0]
+
+
+def _slate(request: Request, prefix: str) -> SlateRunner:
+    if prefix not in SLATE_LEAGUES:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Slate combos cover the NBA and WNBA")
+    st = request.app.state
+    if getattr(st, "slate", None) is None:
+        st.slate = SlateRunner(st.session_factory, st.clock.now)
+    return st.slate
+
+
+@router.get("/slate/{prefix}")
+def slate_state(prefix: Prefix, request: Request) -> dict[str, Any]:
+    """The latest slate build (status, progress, result). Never starts one."""
+    return _slate(request, prefix).state(prefix)
+
+
+@router.post("/slate/{prefix}")
+def slate_build(prefix: Prefix, settings: SettingsDep, request: Request,
+                x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None
+                ) -> dict[str, Any]:
+    """Start building tonight's combo suggestions (ESPN only: free, no search spend)."""
+    if x_krt_request != "slate":
+        raise ApiError(403, ErrorCode.VALIDATION_ERROR, "Missing X-KRT-Request header")
+    runner = _slate(request, prefix)
+    return runner.start(prefix, _espn(request, settings.sports_evidence_enabled))
 
 
 class NewsIn(BaseModel):

@@ -131,6 +131,32 @@ def _schedule(gs: list[tuple[str, str, str, int, int, int, int]], tid: str = "18
     return {"events": evs, "requestedSeason": {"year": 2027}}
 
 
+def _byteam(rows: dict[str, tuple[float, float, float, float, float, float]]) -> dict:
+    """abbr -> (scored, allowed points, allowed rebounds, allowed assists, allowed threes, gp)."""
+    names = {"general": ["avgRebounds", "gamesPlayed"],
+             "offensive": ["avgPoints", "avgAssists", "avgThreePointFieldGoalsMade",
+                           "avgTurnovers"]}
+    teams = []
+    for abbr, (own, pts, reb, ast, tpm, gp) in rows.items():
+        teams.append({"team": {"abbreviation": abbr}, "categories": [
+            {"name": "general", "displayName": "Own General", "totals": ["44.0", str(gp)]},
+            {"name": "general", "displayName": "Opponent General", "totals": [str(reb), str(gp)]},
+            {"name": "offensive", "displayName": "Own Offensive",
+             "totals": [str(own), "25.0", "13.0", "14.0"]},
+            {"name": "offensive", "displayName": "Opponent Offensive",
+             "totals": [str(pts), str(ast), str(tpm), "15.0"]}]})
+    cats = [{"name": k, "names": v} for k, v in names.items()]
+    cats += [{"name": k} for k in names]  # ESPN repeats each category without names
+    return {"teams": teams, "categories": cats}
+
+
+# NY and MIN plus two filler teams: MIN allows the most rebounds of the four.
+BYTEAM = _byteam({"NY": (118, 110, 42.0, 26.0, 13.0, 16),
+                  "MIN": (112, 114, 47.5, 27.0, 14.0, 16),
+                  "BOS": (115, 108, 43.0, 25.0, 12.5, 16),
+                  "MIA": (120.7, 119.4, 44.8, 28.8, 15.4, 16)})
+
+
 def espn_handler(seen: list[str]):  # type: ignore[no-untyped-def]
     def handle(req: httpx.Request) -> httpx.Response:
         seen.append(req.url.host + req.url.path)
@@ -149,6 +175,10 @@ def espn_handler(seen: list[str]):  # type: ignore[no-untyped-def]
                           "displayName": "Minnesota Timberwolves"}}]}]}]})
         if p.endswith("/teams/18/schedule"):
             return httpx.Response(200, json=_schedule(PREV if season else CUR))
+        if p.endswith("/teams/16/schedule"):
+            return httpx.Response(200, json=_schedule(PREV if season else CUR, tid="16"))
+        if p.endswith("/statistics/byteam"):
+            return httpx.Response(200, json=BYTEAM)
         if p.endswith("/nba/injuries"):
             return httpx.Response(200, json={"injuries": [{"id": "16", "displayName":
                 "Minnesota Timberwolves", "injuries": [{"status": "Day-To-Day",

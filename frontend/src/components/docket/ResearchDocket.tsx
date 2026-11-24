@@ -5,6 +5,7 @@ import type { ComboResult, EvidenceResult, LegEvidence, Verdict } from "../../ap
 import { EmptyState } from "../Hairline";
 import { cents, pct } from "../games/format";
 import "../games/games.css";
+import { LeanChip } from "../games/BriefCard";
 import { LegResearch } from "../games/LegResearch";
 import { SecondOpinion } from "../games/SecondOpinion";
 import { SlipCheck } from "../games/SlipCheck";
@@ -153,6 +154,7 @@ export function ResearchDocket() {
                       {evLoading && !e ? <span className="shimmer" aria-hidden="true" />
                         : v ? <Tip text={v.tip} className={`verdict ${v.cls}`}>{v.text}</Tip>
                         : e && !e.supported ? <Tip text={e.reason ?? "No box-score check for this market"} className="verdict v-thin">no check</Tip> : null}
+                      {e?.brief && <LeanChip lean={e.brief.lean} />}
                       {e?.windows && <span className="muted small">L10 {e.windows.last10[0]}/{e.windows.last10[1]}</span>}
                       {e?.injury && <Tip text={e.injury.detail || e.injury.status} className="inj small">{e.injury.status}</Tip>}
                       <InvestigateButton leg={l} ev={e} scanAt={scanAt ?? null} />

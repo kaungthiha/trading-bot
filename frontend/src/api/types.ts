@@ -807,6 +807,38 @@ export interface LegEvidence {
   estimate?: number; interval?: [number, number]; market?: number | null; verdict?: Verdict;
   season_avg?: number | null;
   recent?: { date: string; opponent: string; home: boolean; value: number | null; hit: boolean | null }[];
+  brief?: Brief;
+}
+/** Qualitative case for and against one leg (no probability). */
+export type BriefLean = "strong" | "mixed" | "weak" | "thin" | "avoid";
+export interface BriefPoint { text: string; kind: string }
+export interface Brief {
+  lean: BriefLean; headline: string; score: number;
+  for: BriefPoint[]; against: BriefPoint[]; context: BriefPoint[];
+}
+export interface SlateLeg {
+  ticker: string; side: Side; label: string; bet: string; event_ticker: string; game: string;
+  price: number;
+}
+export interface SlateCombo {
+  legs: (SlateLeg & { headline: string; why: BriefPoint[] })[];
+  games: number; market: number; adjusted: number; pays: number | null;
+  together: { team: string; lift: number; games: number }[];
+  risks: { leg: string; text: string }[];
+  past: { bucket: string; n: number; return_per_dollar: number | null } | null;
+}
+export interface SlateResult {
+  prefix: string; generated_at: string;
+  games: { game_key: string; title: string; occurs_at: string }[];
+  combos: SlateCombo[]; pool: (SlateLeg & { brief: Brief })[];
+  briefed: number; leans: Partial<Record<BriefLean, number>>;
+  skipped: { game: string; reason: string }[];
+  rules: { leg_price: [number, number]; min_score: number; max_per_game: number };
+}
+export interface SlateState {
+  status: "idle" | "building" | "ready" | "failed";
+  progress?: string | null; started_at?: string; finished_at?: string; fresh?: boolean;
+  error?: string | null; result?: SlateResult | null;
 }
 export interface LegCorrelation {
   game_key: string; team: string; legs: string[]; games: number; together: number;

@@ -44,6 +44,11 @@ const evLeg = (ticker: string, side: "yes" | "no", verdict: LegEvidence["verdict
   estimate: 0.71, interval: [0.58, 0.81], market: 0.635, verdict, season_avg: 13.6,
   recent: [{ date: "2026-11-18", opponent: "TOR", home: false, value: 16, hit: true },
            { date: "2026-11-16", opponent: "TOR", home: true, value: 11, hit: false }],
+  brief: { lean: "strong", headline: "Strong case: 3 for, 0 against", score: 3,
+           for: [{ text: "Minnesota allow 47.5 rebounds a game, 1st most of 30", kind: "matchup" },
+                 { text: "Minutes up: 38.0 a game over his last 5 vs 33.0 this season", kind: "minutes" },
+                 { text: "The price (55%) is below his history (71%)", kind: "price" }],
+           against: [], context: [{ text: "He has had 2 days of rest", kind: "rest" }] },
 });
 
 const calls: string[] = [];
@@ -116,6 +121,8 @@ beforeEach(() => {
           model: "gpt-test", generated_at: "2026-11-19T15:00:00Z", cached: false });
       case "/api/games/news":
         return json({ configured: false, items: [] });
+      case "/api/games/slate/KXNBA":
+        return json({ status: "idle" });
       default:
         return json({ error: { code: "NOT_FOUND", message: "nope" } }, 404);
     }
@@ -132,7 +139,7 @@ describe("<GamesPage>", () => {
   it("lists games by league and opens one with lines, injuries and an empty slip", async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    expect(screen.getByText("Pick a game")).toBeInTheDocument();
+    expect(await screen.findByText("Not built yet")).toBeInTheDocument();
     expect(screen.getByText("Nothing on the docket")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "NHL" })).toHaveAttribute("aria-pressed", "false");
     await user.click(screen.getByRole("button", { name: /NYK @ MIN/ }));
@@ -200,6 +207,10 @@ describe("<GamesPage>", () => {
     await user.click(within(slipEl).getByRole("button", { name: "Karl-Anthony Towns: 12+ rebounds" }));
     expect(within(slipEl).getByRole("img", { name: /Last 2 games: the YES side happened 1 times; line 11.5/ })).toBeInTheDocument();
     expect(within(slipEl).getByText("12/14")).toBeInTheDocument();
+    // the brief: lean chip on the leg, the case for it in the drawer
+    expect(within(slipEl).getAllByText("strong case").length).toBeGreaterThan(0);
+    expect(within(slipEl).getByText(/Minnesota allow 47.5 rebounds a game/)).toBeInTheDocument();
+    expect(within(slipEl).getByText("1 more fact (neutral)")).toBeInTheDocument();
     expect(within(slipEl).getByRole("link", { name: "ESPN" })).toHaveAttribute("rel", "noopener noreferrer");
     await user.click(within(slipEl).getByRole("button", { name: "Headlines here" }));
     expect(await within(slipEl).findByText(/Headline search is off/)).toBeInTheDocument();

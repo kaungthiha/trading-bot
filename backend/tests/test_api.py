@@ -20,6 +20,7 @@ WRITE_ROUTES = {
     ("/api/research/jobs", "post"),
     ("/api/research/jobs/{job_id}/cancel", "post"),
     ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
+    ("/api/games/slate/{prefix}", "post"),  # build tonight's combo briefs (ESPN only)
 }
 
 

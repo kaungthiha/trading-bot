@@ -185,8 +185,40 @@ def joint(rows_by_leg: dict[str, dict[str, GameRow]],
 
 
 class EvidenceService:
-    def __init__(self, source: EspnSource) -> None:
+    def __init__(self, source: EspnSource, briefs: bool = False) -> None:
         self.source = source
+        self.briefs = briefs
+        self._tables: dict[str, dict[str, dict[str, float]]] = {}
+
+    def _table(self, league: str) -> dict[str, dict[str, float]]:
+        if league not in self._tables:
+            try:
+                self._tables[league] = self.source.opponent_stats(league)
+            except AdapterError:
+                self._tables[league] = {}  # the brief says nothing about the matchup
+        return self._tables[league]
+
+    def _brief(self, lg: dict[str, Any], spec: dict[str, Any], league: str, team: str | None,
+               names: dict[str, str], rows: list[GameRow], summary: dict[str, Any],
+               market: float | None, injuries: list[dict[str, str]]) -> dict[str, Any]:
+        from app.sportsdata import briefs as B
+
+        codes = list(names)
+        opp = next((c for c in codes if c != team), None) if team in codes else None
+        ids = {c: ref["id"] for c in codes if (ref := self._team_ref(league, c, names))}
+        opp_rows = None
+        if spec["kind"] != "player_stat" and opp in ids:
+            try:
+                opp_rows = self.source.team_log(league, ids[opp])
+            except AdapterError:
+                opp_rows = None
+        ctx = B.Ctx(league=league, side=lg["side"], team=team, opp=opp,
+                    home=(team == codes[1]) if team in codes and len(codes) == 2 else None,
+                    game_date=B.game_date(lg["game_key"]), names=names,
+                    table=self._table(league),
+                    injuries=None if league in COLLEGE else injuries, team_ids=ids,
+                    opp_rows=opp_rows)
+        return B.brief(spec, rows, summary, market, ctx)
 
     def _team_ref(self, league: str, code: str, names: dict[str, str]) -> dict[str, str] | None:
         try:
@@ -262,9 +294,13 @@ class EvidenceService:
             if spec["kind"] == "player_stat":
                 inj = next((i for i in injuries.get(league, [])
                             if i["player"].lower() == spec["player"].lower()), None)
-            out.append({**base, "supported": True, "subject": subject, "kind": spec["kind"],
-                        "line": line_of(spec), "stat": spec.get("stat"),
-                        "injury": inj, **leg_summary(rows, pred, value, market)})
+            summary = leg_summary(rows, pred, value, market)
+            item = {**base, "supported": True, "subject": subject, "kind": spec["kind"],
+                    "line": line_of(spec), "stat": spec.get("stat"), "injury": inj, **summary}
+            if self.briefs:
+                item["brief"] = self._brief(lg, spec, league, team_code, names, rows, summary,
+                                            market, injuries.get(league, []))
+            out.append(item)
             if team_code:
                 groups[(lg["game_key"], team_code, league)].append(
                     (lg["ticker"], {r.event_id: r for r in rows}, pred))

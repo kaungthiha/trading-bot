@@ -6,10 +6,10 @@ import { ControlBar } from "../ControlBar";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { PageHead } from "../Hairline";
 import { useDataRefresh } from "../useDataRefresh";
-import { EmptyState } from "./Figure";
 import { parseGameRef } from "./format";
 import { GameBoard } from "./GameBoard";
 import { GameList } from "./GameList";
+import { SlatePanel } from "./SlatePanel";
 
 interface Props {
   gameRef: string | null;
@@ -30,9 +30,7 @@ export function GamesPage({ gameRef, onOpenGame }: Props) {
         <GameList selected={gameRef} onSelect={onOpenGame} tick={tick} />
         <ErrorBoundary resetKey={gameRef ?? ""}>
           {g ? <GameBoard prefix={g.prefix} gameKey={g.key} tick={tick} />
-            : <div className="board"><EmptyState figure="loupe" title="Pick a game">
-                Every market for that game on one screen: winner, spread, totals, quarters and each
-                player's props.</EmptyState></div>}
+            : <div className="board"><SlatePanel prefix="KXNBA" /></div>}
         </ErrorBoundary>
       </div>
     </div>

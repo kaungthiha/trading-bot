@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, ApiError } from "../../api/client";
 import type { LegEvidence, NewsResult } from "../../api/types";
 import { CHART } from "../../styles/palette";
+import { BriefCard } from "./BriefCard";
 import { Figure } from "./Figure";
 import { pct } from "./format";
 
@@ -73,6 +74,7 @@ export function LegResearch({ ev, loading }: { ev: LegEvidence | undefined; load
   const newsUrl = `https://news.google.com/search?q=${encodeURIComponent(q)}`;
   return (
     <div className="research">
+      {ev.brief && <BriefCard brief={ev.brief} />}
       <MiniBars ev={ev} />
       <div className="win-row">
         <Win label="L5" w={ev.windows?.last5} />
@@ -110,7 +112,7 @@ export function LegResearch({ ev, loading }: { ev: LegEvidence | undefined; load
           ))}
         </ul>
       )}
-      <p className="small muted fine">Box scores don't know tonight's matchup, minutes or rest. Use them to sanity-check a price, not as a forecast.</p>
+      <p className="small muted fine">The brief sorts facts from box scores, ESPN's team table and injury report. It isn't a forecast: check the news before you rely on it.</p>
     </div>
   );
 }

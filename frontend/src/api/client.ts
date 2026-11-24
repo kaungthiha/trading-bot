@@ -10,6 +10,7 @@ import type {
   ComboResult,
   ComboStudy,
   GameIdeas,
+  SlateState,
   IdeasAi,
   OpenReview,
   ExpectedValue,
@@ -174,6 +175,10 @@ export const api = {
   news: (q: string) => postJson<NewsResult>("/api/games/news", { q }, "research"),
   ideas: (prefix: string, key: string) =>
     getJson<GameIdeas>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/ideas`),
+  slate: (prefix: string) => getJson<SlateState>(`/api/games/slate/${encodeURIComponent(prefix)}`),
+  // POST + header: starts a background build (ESPN only, free), so only a click starts one.
+  buildSlate: (prefix: string) =>
+    postJson<SlateState>(`/api/games/slate/${encodeURIComponent(prefix)}`, {}, "slate"),
   ideasAi: (prefix: string, key: string) =>
     postJson<IdeasAi>(`/api/games/${encodeURIComponent(prefix)}/${encodeURIComponent(key)}/ideas/ai`, {}, "review"),
   reviewStatus: () => getJson<ReviewStatus>("/api/games/review/status"),
