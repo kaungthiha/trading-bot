@@ -43,15 +43,16 @@ PATHS = {
     "schedules": ("nflverse_schedules", "download_schedule_release"),
     "stats_team": ("nflverse_team_stats", "download_team_stats_release"),
     "injuries": ("nflverse_injuries", "download_injury_report_release"),
+    "stats_player": ("nflverse_player_stats", "download_player_stats_release"),
 }
 PATH = re.compile(
     r"^/nflverse/nflverse-data/releases/download/"
     r"(schedules/games\.csv|stats_team/stats_team_week_20\d{2}\.csv|"
-    r"injuries/injuries_20\d{2}\.csv)$"
+    r"injuries/injuries_20\d{2}\.csv|stats_player/stats_player_week_20\d{2}\.csv)$"
 )
 ASSET_HOSTS = {"release-assets.githubusercontent.com", "objects.githubusercontent.com"}
 TTL = timedelta(hours=12)
-MAX_BYTES = 6_000_000
+MAX_BYTES = 12_000_000  # the weekly player file is ~5 MB
 ATTRIBUTION = "Data: nflverse (CC BY 4.0)"
 PAGE = "https://github.com/nflverse/nflverse-data/releases"
 ET = ZoneInfo("America/New_York")
@@ -158,6 +159,8 @@ class TeamWeek:
     opponent: str
     epa: float  # passing + rushing EPA (offense)
     plays: float  # dropbacks (attempts + sacks) + carries
+    # Offensive totals (what this team's opponent allowed), for prop context.
+    stats: dict[str, float] = field(default_factory=dict, compare=False, hash=False)
 
 
 @dataclass(frozen=True)
@@ -349,6 +352,70 @@ def parse_weeks(text: str) -> list[TeamWeek]:
                 plays=_num(r.get("attempts"))
                 + _num(r.get("sacks_suffered"))
                 + _num(r.get("carries")),
+                stats={k: _num(r.get(k)) for k in TEAM_STATS},
+            )
+        )
+    return out
+
+
+TEAM_STATS = (
+    "passing_yards",
+    "rushing_yards",
+    "completions",
+    "attempts",
+    "carries",
+    "passing_tds",
+    "rushing_tds",
+    "passing_interceptions",
+)
+PLAYER_STATS = (
+    "completions",
+    "attempts",
+    "passing_yards",
+    "passing_tds",
+    "passing_interceptions",
+    "carries",
+    "rushing_yards",
+    "rushing_tds",
+    "receptions",
+    "targets",
+    "receiving_yards",
+    "receiving_tds",
+    "special_teams_tds",
+    "fumble_recovery_tds",
+    "def_tds",
+)
+
+
+@dataclass(frozen=True)
+class PlayerWeek:
+    player_id: str
+    name: str  # display name, e.g. "Matthew Stafford"
+    short: str  # e.g. "M.Stafford"
+    position: str
+    team: str
+    opponent: str
+    week: int
+    game_id: str
+    stats: dict[str, float] = field(compare=False, hash=False)
+
+
+def parse_players(text: str) -> list[PlayerWeek]:
+    out = []
+    for r in csv.DictReader(io.StringIO(text)):
+        if r.get("season_type") not in ("REG", "POST") or not r.get("player_id"):
+            continue
+        out.append(
+            PlayerWeek(
+                player_id=str(r["player_id"])[:20],
+                name=str(r.get("player_display_name", ""))[:60],
+                short=str(r.get("player_name", ""))[:40],
+                position=str(r.get("position", ""))[:4],
+                team=str(r.get("team", ""))[:4],
+                opponent=str(r.get("opponent_team", ""))[:4],
+                week=_int(r.get("week")) or 0,
+                game_id=str(r.get("game_id", ""))[:40],
+                stats={k: _num(r.get(k)) for k in PLAYER_STATS},
             )
         )
     return out
@@ -391,6 +458,7 @@ class Nflverse:
             headers={"User-Agent": "kalshi-research-terminal (local, non-commercial)"},
         )
         self._cache: dict[int, SeasonData] = {}
+        self._players: dict[int, tuple[list[PlayerWeek], datetime | None, datetime]] = {}
         self._lock = threading.Lock()
 
     def close(self) -> None:
@@ -464,6 +532,24 @@ class Nflverse:
                     data.errors.append(f"nflverse injury report unavailable ({e})")
             self._cache[season] = data
             return data
+
+    def players(self, season: int) -> tuple[list[PlayerWeek], datetime | None]:
+        """Weekly player stats (loaded only for prop investigations; cached 12 h)."""
+        if not self.allowed("stats_player"):
+            raise AdapterError("nflverse player stats are switched off or not permitted")
+        now = self._now()
+        with self._lock:
+            hit = self._players.get(season)
+            if hit and now - hit[2] < TTL:
+                return hit[0], hit[1]
+            text, lm = self._get(f"{ROOT}stats_player/stats_player_week_{season}.csv")
+            rows = parse_players(text)
+            if not rows:
+                raise AdapterError(
+                    "nflverse player stats had no rows", AdapterErrorCode.BAD_RESPONSE
+                )
+            self._players[season] = (rows, lm, now)
+            return rows, lm
 
 
 def is_out(status: str) -> bool:

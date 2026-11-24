@@ -518,8 +518,9 @@ What it uses:
   lineup source is connected. There's no validated NHL model, so **no estimate or edge is
   shown**; the stats are context. Kalshi settles game winner and puck line on the official
   final result (overtime and shootout included), and totals count a shootout as one goal.
-- **NFL** (game winner, spread, game and team totals; halves, quarters and player props aren't
-  covered): from **nflverse** release files, each with its own rights entry: the schedule
+- **NFL** (game winner, spread, game and team totals, and player stat props such as passing,
+  rushing and receiving yards, receptions and touchdowns; halves, quarters, first touchdown,
+  ladders and longest-play props aren't covered): from **nflverse** release files, each with its own rights entry: the schedule
   (kickoff, scores, rest days, roof, listed QB; the sportsbook line columns are never read),
   weekly team stats (points and EPA per play) and the weekly injury report. Credited "Data:
   nflverse (CC BY 4.0)". Season form counts **only games played before this kickoff**. Weather

@@ -16,7 +16,8 @@ Built 2026-11-23. **No Brave request was made by this work.** Every Brave, GitHu
 | `KXNFLTOTAL` | combined points over a line | yes |
 | `KXNFLTEAMTOTAL` | one team's points over a line | yes |
 | `KXNFL1H…`, `…1Q…`, `KXNFL2QBTTS` | halves and quarters | no: "data is full-game only" |
-| `KXNFLPASSYDS`, `…RSH…`, `…REC…`, `…TD`, `KXNFLFIRSTTD` | player props | no |
+| `KXNFLPASSYDS`, `RSHYDS`, `RECYDS`, `REC`, `PASSTDS`, `TD`, `PASSATT`, `PASSCOMP`, `PASSINT`, `RSHATT`, `RRYDS` (also `…PROT` and `…PRECISE`) | player stat props ("Josh Allen: 250+") | **yes (Nov 23)**; see *Player props* |
+| `KXNFLFIRSTTD`, ladders, escalators, longest plays, D/ST touchdowns, kicking | other props | no: "this prop type isn't covered" |
 | season, award and draft markets | no game date | no |
 
 **Lines:** the line comes from Kalshi's `floor_strike`; the ticker number is the line plus 0.5 (`SPREAD-BUF8` means by over 7.5).
@@ -143,6 +144,43 @@ Results must be about football. This drops, for example, MLB "Giants" stories an
 - **Backend:** 491 pass (472 before); ruff clean.
 - **Frontend:** 142 pass (an NFL support and line test added); typecheck, build and bundle scan clean.
 
+## Player props (added Nov 23)
+
+**Data:** nflverse's weekly player stats, `stats_player/stats_player_week_{season}.csv`.
+- It's nflverse's own CC BY 4.0 aggregate, with a separate registry entry (`nflverse_player_stats`).
+- It's downloaded only when a prop is investigated, and cached 12 hours.
+
+**Settlement** (read from Kalshi's rules, Nov 23):
+- The player's official stats count.
+- If he's active but never plays a live snap, the market settles at a fair price.
+- Protected (`…PROT`) contracts also settle at a fair price if he plays in the first half but not after it, unless he already reached the line.
+- Touchdown props count touchdowns he scores (rushing, receiving or returns), not ones he throws.
+
+**Mapping:**
+- **Player:** the name comes from the contract ("Josh Allen: 250+") and the team from the ticker code.
+- **Name matches:** two players with the same name are resolved by team, or refused. Buffalo's QB and Jacksonville's LB, both named Josh Allen, are a real case (tested).
+- **Line:** from `floor_strike`, so 250+ is over 249.5.
+
+**What a result shows:**
+1. **Player status, pinned first:**
+   - this week's injury-report status, or "report not out yet";
+   - for a quarterback prop, whether the schedule lists someone else as the starter;
+   - the inactive/fair-price rule.
+2. **Frequency:** how often he reached the line before this game, with his average and last five games.
+   - A player has a row only in games with a recorded stat. Team games without one (inactive, or no catch or carry) are shown, for example "2 of 9 games with a stat line (2 of 10 team games…)".
+   - The price lens counts those games as **misses**, the cautious reading.
+3. **Opponent context:** what the opponent allows per game in the matching team stat, against the league average.
+
+**Price lens:** the frequency appears as history, with an 80% Wilson range and a "small sample" note. **No conservative edge is ever computed** (no validated model).
+
+**Verified live (Nov 23):**
+- Jared Goff reached 250+ passing yards in 7 of 10 games, and Chicago allows 234 a game against a 234 league average.
+- Davis Allen reached 20+ receiving yards in 2 of 9 games with a stat line (2 of 10 team games).
+- Jordan Love's rushing prop was hit in 0 of 10 games.
+- A D/ST touchdown market was refused.
+
+**Tests:** `backend/tests/test_nfl_props.py` (7).
+
 ## Gaps
 
 - **Lineups:** no official NFL lineup source, so "confirmed" is unreachable by design.
@@ -152,4 +190,4 @@ Results must be about football. This drops, for example, MLB "Giants" stories an
   - no recent-form window.
 - **Not checked:** travel, coaching changes and late scratches.
 - **Weather:** retractable-roof games aren't checked (open or closed isn't published in the data).
-- **Not covered:** player props, halves and quarters.
+- **Not covered:** halves and quarters; first touchdown, ladders, escalators, longest plays, D/ST and kicking props.

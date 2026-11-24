@@ -146,7 +146,7 @@ PHANTOM = re.compile(
 # No official lineup source exists for hockey or football, so "confirmed" is never true.
 CONFIRMED = re.compile(r"\bconfirm(ed|s|ation)?\b", re.I)
 # Deterministic findings that always stay in the summary (decide whether stats mean anything).
-PINNED_PREFIXES = ("Starting goalies", "Starting quarterbacks", "Team news")
+PINNED_PREFIXES = ("Starting goalies", "Starting quarterbacks", "Team news", "Player status")
 NO_CONFIRM_SPORTS = ("hockey", "football")
 NUM = re.compile(r"\d+(?:\.\d+)?")
 CTRL = re.compile(r"[\x00-\x1f\x7f]+")
@@ -368,8 +368,12 @@ def apply(
         g
         for g in r.summary.gaps
         if g.startswith(
-            ("The price is stale", "Who's playing tonight", "Who starts in goal",
-             "Who starts at quarterback")
+            (
+                "The price is stale",
+                "Who's playing tonight",
+                "Who starts in goal",
+                "Who starts at quarterback",
+            )
         )
     ]
     stance = (

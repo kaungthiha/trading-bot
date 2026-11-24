@@ -6,6 +6,8 @@ import type { ComboLeg, InvestigationHypothesis, LegEvidence, MarketKind } from 
  * ticker; never from the team name alone. */
 
 const PROP = /^(PTS|REB|AST|3PT|BLK|STL|PRA|STOCK|2D|3D)/;
+/** NFL stat props the backend covers ("Josh Allen: 250+"); PROT = protected, PRECISE = every yard. */
+const NFL_PROP = /^(PASSYDS|RSHYDS|RECYDS|REC|PASSTDS|TD|PASSATT|PASSCOMP|PASSINT|RSHATT|RRYDS)(PROT|PRECISE)?$/;
 // Halves, quarters and hockey periods: full-game data can't check them (NFL "2QBTTS" too).
 const PERIOD = /^(1H|2H|1Q|2Q|3Q|4Q|1P|2P|3P)/;
 
@@ -28,6 +30,7 @@ export function marketKindFromSeries(series: string): MarketKind {
   if (rest.endsWith("TOTAL")) return "total";
   if (rest === "GAME") return "moneyline";
   if (rest === "BTTS") return "btts";
+  if (pre === "KXNFL") return NFL_PROP.test(rest) ? "player_prop" : "other";
   if (PROP.test(rest)) return "player_prop";
   return "other";
 }
@@ -54,7 +57,7 @@ export const LEAGUE_NAME: Record<string, string> = {
   UCL: "Champions League", MLS: "MLS",
 };
 const SUPPORTED_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total", "player_prop"]);
-/** NHL and NFL: game winner, spread and totals only (no periods, halves or player props yet). */
+/** NHL: game winner, puck line and totals only (no periods or player props yet). */
 const TEAM_KINDS = new Set<MarketKind>(["moneyline", "spread", "total", "team_total"]);
 
 export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: string } {
@@ -69,8 +72,12 @@ export function supportFor(leg: ComboLeg): { ok: true } | { ok: false; reason: s
   if (league === "NHL" && !TEAM_KINDS.has(kind)) {
     return { ok: false, reason: "Only NHL game winner, puck line and totals can be investigated (no periods or player props yet)." };
   }
-  if (league === "NFL" && !TEAM_KINDS.has(kind)) {
-    return { ok: false, reason: "Only NFL game winner, spread and totals can be investigated (no halves, quarters or player props yet)." };
+  if (league === "NFL" && !TEAM_KINDS.has(kind) && kind !== "player_prop") {
+    return { ok: false, reason: "Only NFL game winner, spread, totals and player stat props can be investigated (no halves, quarters, first touchdown, ladders or longest plays)." };
+  }
+  // Defense/special-teams touchdown markets share the TD series but aren't player props.
+  if (league === "NFL" && /DST-\d+$/.test(leg.ticker)) {
+    return { ok: false, reason: "Defense/special-teams touchdown markets aren't covered." };
   }
   if (SOCCER.includes(league)) {
     if (!SOCCER_KINDS.has(kind)) {

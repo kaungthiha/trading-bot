@@ -18,7 +18,7 @@ None came from tests or scripts.
 | NBA, WNBA | winner, spread, totals, player props | ESPN box scores, injury report | Only with 15+ games, a fresh quote and a normal lineup |
 | NCAA men's and women's | winner, spread, totals | ESPN box scores (no injury report exists) | Never (lineup unknown) |
 | **NHL (new)** | winner, puck line, game total, team total | MoneyPuck season data | Never (no validated model) |
-| **NFL (added Nov 23)** | winner, spread, game total, team total | nflverse schedule, team stats, injury report; Open-Meteo weather | Never (no validated model); see `NFL.md` |
+| **NFL (added Nov 23)** | winner, spread, game total, team total, player stat props | nflverse schedule, team and player stats, injury report; Open-Meteo weather | Never (no validated model); see `NFL.md` |
 | **Soccer (added Nov 23)** | winner (incl. Tie), spread, totals, both teams to score | football-data.org results (keyed; not MLS) | Never (no validated model); see `SOCCER.md` |
 
 **NHL is not supported for:**

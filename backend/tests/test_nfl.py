@@ -240,8 +240,11 @@ def test_unsupported_markets_say_why_and_settlement_is_exact() -> None:
     ev = f"X-{KEY}"
     assert "Half and quarter" in (nfl.unsupported_reason("KXNFL1HTEAMTOTAL", ev) or "")
     assert "Half and quarter" in (nfl.unsupported_reason("KXNFL2QBTTS", ev) or "")
-    for prop in ("KXNFLPASSYDS", "KXNFLRSHYDS", "KXNFLRECYDS", "KXNFLFIRSTTD", "KXNFLTD"):
-        assert "Player props" in (nfl.unsupported_reason(prop, ev) or ""), prop
+    for prop in ("KXNFLPASSYDS", "KXNFLRSHYDS", "KXNFLRECYDS", "KXNFLTD", "KXNFLRECPROT"):
+        assert nfl.unsupported_reason(prop, ev) is None, prop  # stat props are covered
+        assert nfl.market_kind(prop) == "player_prop"
+    for prop in ("KXNFLFIRSTTD", "KXNFLLADDERRECYDS", "KXNFLESCALATORREC", "KXNFLLONGREC"):
+        assert "prop type isn't covered" in (nfl.unsupported_reason(prop, ev) or ""), prop
     assert "Only NFL game winner" in (nfl.unsupported_reason("KXNFLWINMARGIN", ev) or "")
     assert nfl.unsupported_reason("KXNFLGAME", ev) is None
     assert "single-game" in (nfl.unsupported_reason("KXNFLGAME", "KXNFLGAME-27") or "")

@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SOURCES_VERSION = "2026-11-23.4"
+SOURCES_VERSION = "2026-11-23.5"
 REVIEWED = "2026-11-21"
 NFL_REVIEWED = "2026-11-23"
 
@@ -232,6 +232,27 @@ SOURCES: dict[str, DataSource] = {
             "nflverse's own aggregates (nflfastR calculate_stats) in the CC BY 4.0 repository. "
             "Used for points-independent efficiency (EPA per play), point in time.",
             ("Team stats in different summary levels created with nflfastR::calculate_stats()",),
+        ),
+        DataSource(
+            "nflverse_player_stats",
+            "nflverse player stats release (stats_player_week_{season}.csv)",
+            "football (NFL)",
+            "weekly player stat lines (passing, rushing, receiving, touchdowns)",
+            "app.sportsdata.nflverse",
+            "https://github.com/nflverse/nflverse-data/releases/tag/stats_player",
+            "structured_dataset_allowed",
+            ("download_player_stats_release",),
+            "Data: nflverse (CC BY 4.0), linked to the release page",
+            "In-memory cache only (refreshed at most every 12 hours)",
+            NFL_REVIEWED,
+            "nflverse's own aggregates (nflfastR calculate_stats) in the CC BY 4.0 repository, "
+            "used for player-prop frequencies, point in time. Downloaded only when a prop is "
+            "investigated. A player has a row only for games with a recorded stat, so games "
+            "without one (inactive, or no catch/carry) are reported, never silently skipped.",
+            (
+                "Player stats in different summary levels created with "
+                "`nflfastR::calculate_stats()`",
+            ),
         ),
         DataSource(
             "nflverse_injuries",

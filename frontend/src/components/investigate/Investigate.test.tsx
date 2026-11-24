@@ -90,7 +90,7 @@ describe("hypotheses are exact", () => {
     }
   });
 
-  it("supports NFL game winner, spread and totals with the right lines, not halves or props", () => {
+  it("supports NFL game winner, spread, totals and stat props with the right lines, not halves or exotic props", () => {
     const ev = "26NOV26KCBUF";
     const win = { ticker: `KXNFLGAME-${ev}-BUF`, side: "yes" as const, label: "Buffalo", event: `KXNFLGAME-${ev}` };
     expect(supportFor(win).ok).toBe(true);
@@ -102,7 +102,16 @@ describe("hypotheses are exact", () => {
     const tt = { ticker: `KXNFLTEAMTOTAL-${ev}-KC21`, side: "yes" as const, label: "KC over 20.5", event: `KXNFLTEAMTOTAL-${ev}` };
     expect(supportFor(tt).ok).toBe(true);
     expect(buildHypothesis(tt, undefined, null)).toMatchObject({ market_type: "team_total", threshold: 20.5 });
-    for (const t of ["KXNFL1HTEAMTOTAL", "KXNFL2QBTTS", "KXNFLPASSYDS", "KXNFLFIRSTTD", "KXNFLTOTALPRECISE"]) {
+    // Player stat props: covered, with the line from the ticker ("250" = over 249.5).
+    const prop = { ticker: `KXNFLPASSYDS-${ev}-BUFJALLEN17-250`, side: "yes" as const, label: "Josh Allen: 250+", event: `KXNFLPASSYDS-${ev}` };
+    expect(supportFor(prop).ok).toBe(true);
+    expect(buildHypothesis(prop, undefined, null)).toMatchObject({ sport: "football", market_type: "player_prop", threshold: 249.5 });
+    for (const s of ["KXNFLRECPROT", "KXNFLTD", "KXNFLRRYDS", "KXNFLPASSYDSPRECISE"]) {
+      expect(supportFor({ ticker: `${s}-${ev}-KCTKELCE87-2`, side: "yes", label: s, event: `${s}-${ev}` }).ok, s).toBe(true);
+    }
+    const dst = supportFor({ ticker: `KXNFLTD-${ev}-KCKCDST-1`, side: "yes", label: "D/ST", event: `KXNFLTD-${ev}` });
+    expect(dst.ok).toBe(false);
+    for (const t of ["KXNFL1HTEAMTOTAL", "KXNFL2QBTTS", "KXNFLLONGREC", "KXNFLFIRSTTD", "KXNFLTOTALPRECISE", "KXNFLLADDERRECYDS"]) {
       const r = supportFor({ ticker: `${t}-${ev}-KC10`, side: "yes", label: t, event: `${t}-${ev}` });
       expect(r.ok, t).toBe(false);
     }

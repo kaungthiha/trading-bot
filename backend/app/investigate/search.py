@@ -39,17 +39,29 @@ PLAUSIBLE_BY_LEAGUE = {
     "NCAA men's": {**PLAUSIBLE, "total": (100, 200), "team_total": (40, 120), "spread": (0.5, 55)},
     "NCAA women's": {**PLAUSIBLE, "total": (90, 190), "team_total": (35, 120), "spread": (0.5, 60)},
     # Hockey: totals around 5.5-6.5, puck lines 1.5-3.5.
-    "NHL": {"total": (3.5, 10.5), "team_total": (0.5, 6.5), "spread": (0.5, 4.5),
-            "player_prop": (0.5, 6.5)},
+    "NHL": {
+        "total": (3.5, 10.5),
+        "team_total": (0.5, 6.5),
+        "spread": (0.5, 4.5),
+        "player_prop": (0.5, 6.5),
+    },
     # Football: totals around 35-55, spreads up to about 20, team totals 10-35.
-    "NFL": {"total": (20.5, 75.5), "team_total": (3.5, 50.5), "spread": (0.5, 30.5),
-            "player_prop": (0.5, 450.5)},
+    "NFL": {
+        "total": (20.5, 75.5),
+        "team_total": (3.5, 50.5),
+        "spread": (0.5, 30.5),
+        "player_prop": (0.5, 450.5),
+    },
 }
 # Soccer: goals. Totals 0.5-5.5, team totals 0.5-3.5, winning margins 0.5-3.5.
 SOCCER_LEAGUES = ("EPL", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League", "MLS")
 for _lg in SOCCER_LEAGUES:
-    PLAUSIBLE_BY_LEAGUE[_lg] = {"total": (0.5, 8.5), "team_total": (0.5, 5.5),
-                                "spread": (0.5, 4.5), "player_prop": (0.5, 5.5)}
+    PLAUSIBLE_BY_LEAGUE[_lg] = {
+        "total": (0.5, 8.5),
+        "team_total": (0.5, 5.5),
+        "spread": (0.5, 4.5),
+        "player_prop": (0.5, 5.5),
+    }
 COLLEGE = {"NCAA men's": "basketball", "NCAA women's": "women's basketball"}
 BASKETBALL = re.compile(r"basketball|hoops|\bmbb\b|\bwbb\b|\bcbb\b|ncaab|ncaaw|march madness", re.I)
 WOMEN = re.compile(r"\bwomen|\bwbb\b|\blady\b|ncaaw", re.I)
@@ -107,6 +119,20 @@ STAT_WORD = {
     "STL": "steals",
     "PRA": "points rebounds assists",
 }
+# NFL prop series -> stat words for news queries (longest keys first when matching).
+NFL_STAT = {
+    "PASSYDS": "passing yards",
+    "RSHYDS": "rushing yards",
+    "RECYDS": "receiving yards",
+    "RRYDS": "rushing receiving yards",
+    "PASSTDS": "passing touchdowns",
+    "PASSATT": "pass attempts",
+    "PASSCOMP": "completions",
+    "PASSINT": "interceptions",
+    "RSHATT": "carries",
+    "REC": "receptions",
+    "TD": "anytime touchdown",
+}
 MONTHS = {
     m: i
     for i, m in enumerate(
@@ -150,8 +176,11 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
     line = "" if h.threshold is None else f" {h.threshold:g}"
     if h.league == "NHL":
         # Goalie first: who starts is the biggest unknown in a hockey game.
-        qs = [f"{a} {b} NHL starting goalie confirmed", f"{a} vs {b} NHL preview",
-              f"{own} NHL injury update"]
+        qs = [
+            f"{a} {b} NHL starting goalie confirmed",
+            f"{a} vs {b} NHL preview",
+            f"{own} NHL injury update",
+        ]
         if h.market_type in ("total", "team_total"):
             qs.append(f"{a} {b} NHL over under{line}")
         elif h.market_type == "spread":
@@ -159,10 +188,24 @@ def plan_queries(h: S.Hypothesis, teams: list[dict[str, Any]], max_n: int) -> li
         else:
             qs.append(f"{a} vs {b} NHL prediction")
         return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
+    if h.league == "NFL" and h.market_type == "player_prop" and h.subject:
+        # The player's status first (inactives decide most props), then the matchup.
+        stat = next(
+            (w for k, w in NFL_STAT.items() if f"KXNFL{k}" in h.ticker.split("-")[0]), "stats"
+        )
+        qs = [
+            f"{h.subject} injury status",
+            f"{a} vs {b} NFL preview",
+            f"{h.subject} {stat} prop{line}",
+        ]
+        return list(dict.fromkeys(q.strip() for q in qs))[:max_n]
     if h.league == "NFL":
         # Quarterback first: who starts moves an NFL line more than anything else.
-        qs = [f"{a} {b} NFL starting quarterback", f"{a} vs {b} NFL preview",
-              f"{own} NFL injury report"]
+        qs = [
+            f"{a} {b} NFL starting quarterback",
+            f"{a} vs {b} NFL preview",
+            f"{own} NFL injury report",
+        ]
         if h.market_type in ("total", "team_total"):
             qs.append(f"{a} {b} NFL over under{line}")
         elif h.market_type == "spread":

@@ -71,12 +71,19 @@ def suffix(series: str) -> str:
 
 
 def market_kind(series: str) -> str:
-    return KINDS.get(suffix(series), "other")
+    from app.investigate import nfl_props
+
+    rest = suffix(series)
+    if rest in KINDS:
+        return KINDS[rest]
+    return "player_prop" if nfl_props.prop_base(rest) else "other"
 
 
 def unsupported_reason(series: str, event_ticker: str) -> str | None:
+    from app.investigate import nfl_props
+
     rest = suffix(series)
-    if rest in KINDS:
+    if rest in KINDS or nfl_props.prop_base(rest):
         return (
             None
             if re.search(r"-\d{2}[A-Z]{3}\d{2}", event_ticker)
@@ -85,8 +92,11 @@ def unsupported_reason(series: str, event_ticker: str) -> str | None:
     if rest.startswith(PERIODS):
         return "Half and quarter markets aren't covered: the data is full-game only."
     if PROPS.match(rest):
-        return "Player props aren't covered for the NFL yet."
-    return "Only NFL game winner, spread and totals can be investigated."
+        return (
+            "This NFL prop type isn't covered (first touchdown, ladders, escalators, longest "
+            "plays, kicking and defensive props)."
+        )
+    return "Only NFL game winner, spread, totals and player stat props can be investigated."
 
 
 @dataclass
@@ -196,6 +206,22 @@ def build(
     if why:
         raise service.Unsupported(why)
     kind = market_kind(series)
+    if kind == "player_prop":
+        from app.investigate import nfl_props
+
+        return nfl_props.build(
+            session,
+            nv_src,
+            m,
+            e,
+            series,
+            side,
+            label,
+            now,
+            cache_hours,
+            gatherer=gatherer,
+            synthesizer=synthesizer,
+        )
     errors: list[str] = []
     key = m.event_ticker.split("-", 1)[1]
     names = games.list_games_teams(session, PREFIX, key)
