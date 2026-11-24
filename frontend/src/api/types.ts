@@ -951,6 +951,18 @@ export interface InvestigationResult {
 }
 export interface ResearchPreflight {
   quote: InvestigationQuote; model: string | null; cached: boolean; unsupported: string | null; usage: ResearchUsage;
+  /** A job already queued or running for this pick (resume it instead of running again). */
+  job?: ResearchJob | null;
+}
+/** A background investigation (Phase 6). Only an explicit POST creates one; polling is free. */
+export interface ResearchJob {
+  id: string; kind: "investigate" | "refresh"; ticker: string; side: Side;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  phase: "queued" | "starting" | "searching" | "summarising" | "saving" | "done" | "failed" | "cancelled";
+  /** Jobs ahead of this one (0 when running). */
+  position: number;
+  created_at: string; started_at: string | null; finished_at: string | null;
+  error: string | null; result: InvestigationResult | null;
 }
 export interface ResearchUsage {
   /** used_* are app-wide totals across every Brave feature (what the caps apply to). */

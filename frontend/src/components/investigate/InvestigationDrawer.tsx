@@ -8,7 +8,7 @@ import { useNow } from "../shell/Topbar";
 import { exact, rel } from "../today/time";
 import { hypothesisKey, MARKET_LABEL } from "./hypothesis";
 import "./investigate.css";
-import { investigation, type Preflight, useInvestigation } from "./store";
+import { investigation, type Preflight, type Progress, useInvestigation } from "./store";
 
 /** Hard limits on what the summary may show, whatever the source returns. */
 export function clampSummary(r: InvestigationResult["summary"]) {
@@ -144,6 +144,18 @@ function FullResearch({ r, h }: { r: InvestigationResult; h: InvestigationHypoth
   );
 }
 
+/** What a background run is doing right now. */
+export function phaseText(p: Progress | undefined): string {
+  if (!p) return "Investigating…";
+  switch (p.phase) {
+    case "queued": return p.position > 0 ? `Waiting: ${p.position} investigation${p.position === 1 ? "" : "s"} ahead…` : "Waiting to start…";
+    case "searching": return "Searching news…";
+    case "summarising": return "Summarising with your local model (can take a minute)…";
+    case "saving": return "Saving…";
+    default: return "Investigating…";
+  }
+}
+
 const PURPOSE_LABEL: Record<string, string> = {
   research: "Investigate", news: "Headlines here", headlines: "AI review headlines",
 };
@@ -190,7 +202,13 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
   }, [entry?.status]);
   useEffect(() => {
     let cancel = false;
-    src.preflight(h).then((p) => { if (!cancel) setPre(p); }, () => { if (!cancel) setPre(null); });
+    src.preflight(h).then((p) => {
+      if (cancel) return;
+      setPre(p);
+      // A run already queued or running for this pick (drawer closed and reopened, or another
+      // tab): follow it instead of offering Run again. Following is free (GET only).
+      if (p.job && !investigation.get().entries[hypothesisKey(h)]) void investigation.resume(h, p.job.id);
+    }, () => { if (!cancel) setPre(null); });
     return () => { cancel = true; };
   }, [h, src]);
   // After a run, re-read the request counts (free: no search) so the usage line is current.
@@ -256,7 +274,13 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
           </div>
         )}
         {entry?.status === "running" && (
-          <p className="inv-running" role="status" aria-live="polite"><span className="shimmer" aria-hidden="true" /> Investigating…</p>
+          <div className="inv-running" role="status" aria-live="polite">
+            <p><span className="shimmer" aria-hidden="true" /> {phaseText(entry.progress)}</p>
+            {entry.progress && <p className="small muted">Runs in the background: you can close this and come back.</p>}
+            {entry.progress?.phase === "queued" && src.cancel && (
+              <button type="button" className="link-button small" onClick={() => void investigation.cancel(h)}>Cancel</button>
+            )}
+          </div>
         )}
         {entry?.status === "error" && (
           <div role="alert" className="inv-error">

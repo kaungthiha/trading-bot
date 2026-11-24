@@ -196,6 +196,30 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
   - `POST /api/research/investigations/{id}/excerpts/{U1..}/remove`.
 - **Tests:** `backend/tests/test_excerpts.py` (8) and 2 drawer tests.
 
+## Background jobs (Phase 6; built Nov 23)
+
+**Purpose:** long runs (news search plus the local model) no longer hold a request open. Run and Refresh in the drawer queue a job and the drawer shows its stage:
+- waiting (with the number ahead);
+- searching news;
+- summarising with your local model;
+- saving.
+
+**Rules (`app/investigate/jobs.py`):**
+- **Only an explicit click starts work:** `POST /api/research/jobs` with the CSRF header.
+  - Polling (`GET /api/research/jobs/{id}`), preflight, opening the drawer and new quotes never start a job or a search (tested: Brave stays at 0 requests through repeated preflights and polls).
+- **One worker:** the local model summarises one result at a time anyway, and Brave requests stay sequential under the app-wide cap.
+- **No duplicates:** the same pick already queued or running is joined, not repeated, so a double click can't spend twice.
+- **Capacity:** at most 10 waiting jobs; more get a "try again soon" answer.
+- **Cancelling:** a waiting job can be cancelled; a running one can't, because a model call can't be interrupted cleanly.
+- **Reopening:** close the drawer and the job keeps going. Reopen it and preflight reports the active job, so the drawer follows it instead of offering Run again (following is free).
+- **Storage:** jobs live in memory for an hour after finishing.
+  - Results are saved to the database as before, so a restart loses only the job status, never a finished result.
+  - A lost job says so ("the app may have restarted").
+- **Errors:** expected failures (unsupported market, not found) say why; unexpected ones are logged and reported without internals.
+- **Compatibility:** the old synchronous `POST /api/research/investigations` and `/refresh` still work.
+- **Excerpt edits** stay synchronous: a re-summary is one model call.
+- **Tests:** `backend/tests/test_research_jobs.py` (5) and 2 drawer tests.
+
 ## Phase 5: evaluation (`app/investigate/evaluate.py`)
 
 - **`krt research-eval`:** offline report over saved investigations. It covers:
@@ -236,7 +260,7 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 
 - **NFL and soccer:** connected on Nov 23 (`NFL.md`, `SOCCER.md`). StatsBomb still needs its licence read.
 - **User-provided excerpts (Phase 4 stream 3):** built Nov 23 (see above).
-- **Background job queue for long model runs (optional Phase 6):** not built.
+- **Background job queue for long model runs (optional Phase 6):** built Nov 23 (see above).
 - **No official NHL lineup source:** "confirmed" is unreachable by design until one is licensed.
 - **NHL injuries, rest and travel:** not checked.
 - **NHL player props:** not supported.

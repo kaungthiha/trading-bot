@@ -59,6 +59,7 @@ import type {
   SignalLineage,
   ExcerptInput,
   InvestigationResult,
+  ResearchJob,
   ResearchPreflight,
   ResearchUsage,
 } from "./types";
@@ -242,6 +243,13 @@ export const api = {
   researchPreflight: (ticker: string, side: Side) =>
     getJson<ResearchPreflight>(`/api/research/preflight${qs({ ticker, side })}`),
   researchUsage: () => getJson<ResearchUsage>("/api/research/usage"),
+  /** Queue an investigation (explicit click only); returns at once. */
+  startResearchJob: (body: { kind: "investigate" | "refresh"; ticker: string; side: Side; label?: string | null;
+    investigation_id?: string | null }) => postJson<ResearchJob>("/api/research/jobs", body, "research"),
+  /** Job status: free, never starts work. */
+  researchJob: (id: string) => getJson<ResearchJob>(`/api/research/jobs/${encodeURIComponent(id)}`),
+  cancelResearchJob: (id: string) =>
+    postJson<ResearchJob>(`/api/research/jobs/${encodeURIComponent(id)}/cancel`, {}, "research"),
   /** Your pasted excerpt: kept locally, link never fetched, no search spent. */
   addExcerpt: (id: string, body: ExcerptInput) =>
     postJson<InvestigationResult>(`/api/research/investigations/${encodeURIComponent(id)}/excerpts`, body, "research"),

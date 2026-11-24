@@ -7,7 +7,8 @@ because later phases make them spend metered searches. GETs never compute anythi
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Annotated, Any
+from types import SimpleNamespace
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Header, Path, Query, Request
 from pydantic import BaseModel, Field
@@ -16,7 +17,7 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import excerpts, nfl, nhl, search, service, soccer, sources, synth
+from app.investigate import excerpts, jobs, nfl, nhl, search, service, soccer, sources, synth
 from app.investigate.ledger import ledger_for
 from app.investigate.schemas import Result
 from app.sportsdata.espn import EspnSource
@@ -165,7 +166,9 @@ def _run(
     side: str,
     label: str | None,
     refresh: bool,
+    on_phase: Any = None,
 ) -> Result:
+    """on_phase(name): progress hook for background jobs ("searching", "summarising")."""
     if not games.TICKER_RE.match(ticker):
         raise ApiError(422, ErrorCode.VALIDATION_ERROR, "Bad ticker")
     service.purge_expired_news(session, now)
@@ -178,6 +181,20 @@ def _run(
         if hit is not None:
             return hit
     synth_chat, client = _synthesizer(settings)
+    gather = _gatherer(request, settings, now)
+    if on_phase is not None:
+        inner_gather, inner_chat = gather, synth_chat
+
+        def gather(h: Any, teams: list[dict[str, Any]]) -> search.Gathered:
+            on_phase("searching")
+            return inner_gather(h, teams)
+
+        if inner_chat is not None:
+
+            def synth_chat(*a: Any, **kw: Any) -> Any:
+                on_phase("summarising")
+                return inner_chat(*a, **kw)
+
     try:
         r = service.build(
             session,
@@ -187,7 +204,7 @@ def _run(
             label,
             now,
             settings.research_search_cache_hours,
-            gatherer=_gatherer(request, settings, now),
+            gatherer=gather,
             synthesizer=synth_chat,
             mp_src=_moneypuck(request, settings) if nhl.is_nhl(ticker) else None,
             nv_src=_nflverse(request, settings) if nfl.is_nfl(ticker) else None,
@@ -242,12 +259,30 @@ def refresh(
     old = service.load(session, inv_id)
     if old is None:
         raise ApiError(404, ErrorCode.NOT_FOUND, "Investigation not found")
+    return _refresh(session, settings, request, clock.now(), old)
+
+
+def _refresh(
+    session: Any, settings: Any, request: Any, now: Any, old: Result, on_phase: Any = None
+) -> Result:
     h = old.hypothesis
-    new = _run(session, settings, request, clock.now(), h.ticker, h.side, h.label, refresh=True)
+    new = _run(
+        session,
+        settings,
+        request,
+        now,
+        h.ticker,
+        h.side,
+        h.label,
+        refresh=True,
+        on_phase=on_phase,
+    )
     if not excerpts.excerpts_of(old):
         return new
     # The user's excerpts are their own notes: keep them across a refresh (no search spent).
     chat, client = _synthesizer(settings)
+    if on_phase is not None and chat is not None:
+        on_phase("summarising")
     try:
         new = excerpts.carry(old, new, chat)
     finally:
@@ -313,6 +348,114 @@ def remove_excerpt(
     return _edit(
         session, settings, clock, inv_id, lambda r, chat: excerpts.remove(r, excerpt_id, chat)
     )
+
+
+# --- background jobs (Phase 6) ---------------------------------------------------------
+
+
+class JobIn(BaseModel):
+    kind: Literal["investigate", "refresh"]
+    ticker: str = Field(min_length=3, max_length=160)
+    side: str = Field(pattern=r"^(yes|no)$")
+    label: str | None = Field(default=None, max_length=200)
+    investigation_id: str | None = Field(
+        default=None, min_length=1, max_length=36, pattern=r"^[A-Za-z0-9-]+$"
+    )
+
+
+def _queue(request: Request) -> jobs.JobQueue:
+    q = getattr(request.app.state, "research_jobs", None)
+    if q is None:
+        q = request.app.state.research_jobs = jobs.JobQueue(request.app.state.clock.now)
+    return q
+
+
+@router.post("/jobs", status_code=202)
+def start_job(
+    body: JobIn,
+    settings: SettingsDep,
+    request: Request,
+    x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None,
+) -> dict[str, Any]:
+    """Queue an investigation (or refresh) and return at once; poll GET /jobs/{id}. The only
+    way to start background work: an explicit POST with the CSRF header."""
+    _csrf(x_krt_request)
+    if not games.TICKER_RE.match(body.ticker):
+        raise ApiError(422, ErrorCode.VALIDATION_ERROR, "Bad ticker")
+    if body.kind == "refresh" and not body.investigation_id:
+        raise ApiError(422, ErrorCode.VALIDATION_ERROR, "A refresh needs investigation_id")
+    app = request.app
+    shim = SimpleNamespace(app=app)  # the helpers only read app.state
+
+    def work(job: jobs.Job) -> Result:
+        def phase(name: str) -> None:
+            job.phase = name
+
+        with app.state.session_factory() as session:
+            now = app.state.clock.now()
+            if body.kind == "refresh":
+                old = service.load(session, body.investigation_id or "")
+                if old is None:
+                    raise ApiError(404, ErrorCode.NOT_FOUND, "Investigation not found")
+                if (old.hypothesis.ticker, old.hypothesis.side) != (body.ticker, body.side):
+                    raise ApiError(
+                        422, ErrorCode.VALIDATION_ERROR, "Refresh doesn't match the pick"
+                    )
+                r = _refresh(session, settings, shim, now, old, on_phase=phase)
+            else:
+                r = _run(
+                    session,
+                    settings,
+                    shim,
+                    now,
+                    body.ticker,
+                    body.side,
+                    body.label,
+                    refresh=False,
+                    on_phase=phase,
+                )
+            job.phase = "saving"
+            return r
+
+    try:
+        job = _queue(request).submit(body.kind, body.ticker, body.side, work)
+    except jobs.QueueFull as e:
+        raise ApiError(429, ErrorCode.VALIDATION_ERROR, str(e)) from e
+    return _queue(request).view(job)
+
+
+JobPath = Annotated[str, Path(min_length=36, max_length=36, pattern=r"^[a-f0-9-]{36}$")]
+
+
+@router.get("/jobs/{job_id}")
+def get_job(job_id: JobPath, request: Request) -> dict[str, Any]:
+    """Job status (and the result once done). Free: polling never starts any work."""
+    q = _queue(request)
+    job = q.get(job_id)
+    if job is None:
+        raise ApiError(
+            404,
+            ErrorCode.NOT_FOUND,
+            "This job isn't known (the app may have restarted); run the investigation again.",
+        )
+    return q.view(job)
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(
+    job_id: JobPath,
+    request: Request,
+    x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None,
+) -> dict[str, Any]:
+    """Cancel a job that hasn't started. A running job can't be interrupted."""
+    _csrf(x_krt_request)
+    q = _queue(request)
+    job = q.get(job_id)
+    if job is None:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Job not found")
+    if not q.cancel(job_id):
+        raise ApiError(409, ErrorCode.VALIDATION_ERROR, "Only a waiting job can be cancelled")
+    return q.view(job)
 
 
 @router.get("/usage")
@@ -382,4 +525,9 @@ def preflight(
         is not None,
         "unsupported": unsupported,
         "usage": usage(settings, request),
+        # A job already queued or running for this pick (e.g. the drawer was closed): the
+        # drawer resumes it instead of offering Run again.
+        "job": (lambda j: None if j is None else _queue(request).view(j))(
+            _queue(request).active_for(ticker, side)
+        ),
     }

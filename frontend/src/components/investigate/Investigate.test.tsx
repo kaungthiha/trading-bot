@@ -2,13 +2,13 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ComboLeg, InvestigationHypothesis, LegEvidence } from "../../api/types";
+import type { ComboLeg, InvestigationHypothesis, LegEvidence, ResearchJob } from "../../api/types";
 import { slip } from "../games/slip";
 import { fixtureInvestigation } from "./fixture";
 import { buildHypothesis, hypothesisKey, MARKET_LABEL, supportFor } from "./hypothesis";
 import { InvestigateButton } from "./InvestigateButton";
 import { clampSummary, InvestigationHost } from "./InvestigationDrawer";
-import { fixtureSource, investigation } from "./store";
+import { fixtureSource, investigation, type Progress, type RunOptions } from "./store";
 
 const WIN: ComboLeg = { ticker: "KXNBAGAME-26NOV19GSWMEM-GSW", side: "yes", label: "Golden State wins", event: "KXNBAGAME-26NOV19GSWMEM" };
 const SPREAD: ComboLeg = { ticker: "KXNBASPREAD-26NOV19GSWMEM-MEM4", side: "yes", label: "Memphis wins by over 4.5 points", event: "KXNBASPREAD-26NOV19GSWMEM" };
@@ -302,6 +302,15 @@ describe("API source (Phase B)", () => {
         headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body ? JSON.parse(String(init.body)) : null });
       if (u.pathname === "/api/research/preflight") return new Response(JSON.stringify(pre), { status: 200 });
       const h = buildHypothesis(REB12, towns, null);
+      const job = { id: "job-1", kind: "investigate", ticker: h.ticker, side: h.side, created_at: "", started_at: null,
+        finished_at: null, error: null };
+      // Background jobs: the POST answers at once (running); the first poll has the result.
+      if (u.pathname === "/api/research/jobs") {
+        return new Response(JSON.stringify({ ...job, status: "running", phase: "searching", position: 0, result: null }), { status: 202 });
+      }
+      if (u.pathname.startsWith("/api/research/jobs/")) {
+        return new Response(JSON.stringify({ ...job, status: "done", phase: "done", position: 0, result: result(h) }), { status: 200 });
+      }
       return new Response(JSON.stringify(result(h)), { status: 200 });
     }));
   }
@@ -352,6 +361,59 @@ describe("API source (Phase B)", () => {
     await waitFor(() => expect(within(dlg).queryByText(/1 excerpt you pasted/)).not.toBeInTheDocument());
   });
 
+  it("background run: shows each stage, can cancel while waiting, and resumes a running job", async () => {
+    const user = userEvent.setup();
+    let progress: ((p: Progress) => void) | undefined;
+    let finish: (() => void) | undefined;
+    const cancelled: string[] = [];
+    const runs: RunOptions[] = [];
+    let preJob: ResearchJob | null = null;
+    investigation.useSource({
+      ...fixtureSource,
+      preview: false,
+      preflight: async (h) => ({ ...(await fixtureSource.preflight(h)), job: preJob }),
+      run: (h, opts) => {
+        runs.push(opts ?? {});
+        progress = opts?.onProgress;
+        return new Promise((resolve) => { finish = () => resolve(fixtureInvestigation(h)); });
+      },
+      cancel: async (id) => { cancelled.push(id); },
+    });
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    await user.click(await within(dlg).findByRole("button", { name: "Run investigation" }));
+    expect(within(dlg).getByText("Investigating…")).toBeInTheDocument();
+    act(() => progress!({ jobId: "job-9", phase: "queued", position: 2 }));
+    expect(within(dlg).getByText("Waiting: 2 investigations ahead…")).toBeInTheDocument();
+    expect(within(dlg).getByText(/you can close this and come back/)).toBeInTheDocument();
+    await user.click(within(dlg).getByRole("button", { name: "Cancel" }));
+    expect(cancelled).toEqual(["job-9"]);
+    act(() => progress!({ jobId: "job-9", phase: "searching", position: 0 }));
+    expect(within(dlg).getByText("Searching news…")).toBeInTheDocument();
+    expect(within(dlg).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument(); // running: can't cancel
+    act(() => progress!({ jobId: "job-9", phase: "summarising", position: 0 }));
+    expect(within(dlg).getByText(/Summarising with your local model/)).toBeInTheDocument();
+    await act(async () => { finish!(); });
+    expect(await within(dlg).findByText("View full research")).toBeInTheDocument();
+    expect(runs).toHaveLength(1);
+    // Reopening while a job is running: follow it (no Run button, no new job counted).
+    investigation.reset();
+    investigation.useSource({
+      ...fixtureSource, preview: false,
+      preflight: async (h) => ({ ...(await fixtureSource.preflight(h)), job: preJob }),
+      run: (_h, opts) => { runs.push(opts ?? {}); return new Promise(() => {}); },
+    });
+    preJob = { id: "job-7", kind: "investigate", ticker: WIN.ticker, side: "yes", status: "running", phase: "searching",
+      position: 0, created_at: "", started_at: null, finished_at: null, error: null, result: null };
+    render(<Harness />);
+    await user.click(screen.getAllByRole("button", { name: /Investigate YES/ }).at(-1)!);
+    const dlg2 = screen.getAllByRole("dialog").at(-1)!;
+    await waitFor(() => expect(runs.at(-1)?.jobId).toBe("job-7"));
+    expect(within(dlg2).queryByRole("button", { name: "Run investigation" })).not.toBeInTheDocument();
+    expect(investigation.get().runs).toBe(0); // resuming isn't a new run
+  });
+
   it("the sample source has no paste box", async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -374,6 +436,7 @@ describe("API source (Phase B)", () => {
       return r;
     });
     investigation.useSource(apiSource);
+    investigation.setPollInterval(5);
     const user = userEvent.setup();
     render(<Harness leg={REB12} ev={towns} />);
     await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
@@ -387,12 +450,15 @@ describe("API source (Phase B)", () => {
     expect(price).toHaveTextContent("+3.4 pts raw, not an edge");
     expect(price).toHaveTextContent("Not enough evidence to estimate an edge");
     const post = calls.find((c) => c.method === "POST")!;
-    expect(post.url).toBe("/api/research/investigations");
+    expect(post.url).toBe("/api/research/jobs");
     expect(post.headers["X-KRT-Request"]).toBe("research");
-    expect(post.body).toEqual({ ticker: REB12.ticker, side: "yes", label: REB12.label });
+    expect(post.body).toEqual({ kind: "investigate", ticker: REB12.ticker, side: "yes", label: REB12.label, investigation_id: null });
+    expect(calls.some((c) => c.method === "GET" && c.url === "/api/research/jobs/job-1")).toBe(true); // polled, free
     await user.click(within(dlg).getByRole("button", { name: "Refresh research" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "POST")).toHaveLength(2));
-    expect(calls.filter((c) => c.method === "POST")[1]!.url).toBe("/api/research/investigations/inv-1/refresh");
+    const again = calls.filter((c) => c.method === "POST")[1]!;
+    expect(again.url).toBe("/api/research/jobs");
+    expect(again.body).toMatchObject({ kind: "refresh", investigation_id: "inv-1" });
   });
 
   it("an unsupported answer from the server disables Run and says why", async () => {

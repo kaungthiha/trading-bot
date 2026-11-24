@@ -52,6 +52,8 @@ WRITE_ROUTES = {
     ("/api/research/investigations/{inv_id}/refresh", "post"),
     ("/api/research/investigations/{inv_id}/excerpts", "post"),
     ("/api/research/investigations/{inv_id}/excerpts/{excerpt_id}/remove", "post"),
+    ("/api/research/jobs", "post"),
+    ("/api/research/jobs/{job_id}/cancel", "post"),
     ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
 }
 

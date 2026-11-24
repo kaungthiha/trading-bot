@@ -580,6 +580,10 @@ Setup and spending caps:
   nothing.
 - **Ollama:** the same local model as the other AI features (`KRT_LLM_PROVIDER=ollama`,
   `KRT_OLLAMA_MODEL`). An investigation's summary is capped at 90 seconds, one at a time.
+- **Runs in the background:** *Run investigation* queues the work and the drawer shows what it's
+  doing (waiting, searching news, summarising). You can close the drawer and come back; a
+  double click joins the same run, and a waiting run can be cancelled. Only that click starts
+  work: opening the drawer or polling never searches.
 
 Only clicking *Run investigation* or *Refresh research* can spend a search. Opening the
 drawer, expanding the full research and reloading never do. Nothing here places orders.
