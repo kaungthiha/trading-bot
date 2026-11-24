@@ -273,6 +273,8 @@ def test_team_names_resolve_including_kalshi_quirks() -> None:
     sa = ["FC Internazionale Milano", "AC Milan"]
     assert best("INT", "Inter", sa) == "FC Internazionale Milano"
     assert best("ACM", "Milan", sa) == "AC Milan"
+    cl = ["SK Slavia Praha", "AC Sparta Praha", "Villarreal CF"]
+    assert best("SLA", "Slavia Prague", cl) == "SK Slavia Praha"
     # A code alone still matches, but a full name beats it.
     assert fd.team_score("ARS", "Gunners", fd.Team(1, "Arsenal FC", "Arsenal", "ARS")) == 0.9
 

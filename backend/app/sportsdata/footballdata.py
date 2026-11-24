@@ -187,6 +187,8 @@ ALIASES = {
     "man united": "manchester united",
     "spurs": "tottenham",
     "cologne": "koln",
+    "prague slavia": "slavia praha",
+    "prague sparta": "sparta praha",
 }
 
 
