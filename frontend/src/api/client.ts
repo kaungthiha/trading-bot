@@ -57,6 +57,7 @@ import type {
   SetupStatus,
   Signal,
   SignalLineage,
+  ExcerptInput,
   InvestigationResult,
   ResearchPreflight,
   ResearchUsage,
@@ -241,6 +242,12 @@ export const api = {
   researchPreflight: (ticker: string, side: Side) =>
     getJson<ResearchPreflight>(`/api/research/preflight${qs({ ticker, side })}`),
   researchUsage: () => getJson<ResearchUsage>("/api/research/usage"),
+  /** Your pasted excerpt: kept locally, link never fetched, no search spent. */
+  addExcerpt: (id: string, body: ExcerptInput) =>
+    postJson<InvestigationResult>(`/api/research/investigations/${encodeURIComponent(id)}/excerpts`, body, "research"),
+  removeExcerpt: (id: string, excerptId: string) =>
+    postJson<InvestigationResult>(
+      `/api/research/investigations/${encodeURIComponent(id)}/excerpts/${encodeURIComponent(excerptId)}/remove`, {}, "research"),
   investigate: (ticker: string, side: Side, label?: string) =>
     postJson<InvestigationResult>("/api/research/investigations", { ticker, side, label: label ?? null }, "research"),
   refreshInvestigation: (id: string) =>

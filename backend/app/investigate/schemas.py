@@ -8,9 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Side = Literal["yes", "no"]
-MarketKind = Literal[
-    "moneyline", "spread", "total", "team_total", "player_prop", "btts", "other"
-]
+MarketKind = Literal["moneyline", "spread", "total", "team_total", "player_prop", "btts", "other"]
 ClaimKind = Literal["factual", "statistical", "analyst_opinion", "prediction", "interpretation"]
 Stance = Literal["supports", "opposes", "neutral"]
 
@@ -54,9 +52,12 @@ class Source(BaseModel):
     author: str | None = None
     published_at: str | None = None
     retrieved_at: str
-    access: Literal["headline", "snippet", "full_text", "internal"]
+    # user_provided: text the user pasted (Phase 4 stream 3); never fetched by the app.
+    access: Literal["headline", "snippet", "full_text", "internal", "user_provided"]
     duplicate_of: str | None = None
     line_match: Literal["exact", "different_line", "past_matchup", "unknown"] = "unknown"
+    # Only for user_provided sources: the pasted text itself (the user's own local note).
+    excerpt: str | None = Field(default=None, max_length=4000)
 
 
 class Price(BaseModel):
@@ -92,6 +93,17 @@ class Details(BaseModel):
     rules_excerpt: str | None = None
 
 
+class ExcerptBase(BaseModel):
+    """The summary and details from before any user excerpt, so excerpt changes rebuild
+    from a clean state (see app.investigate.excerpts)."""
+
+    summary: Summary
+    details: Details
+    model: str | None
+    partial_reasons: list[str]
+    errors: list[str]
+
+
 class Processing(BaseModel):
     model: str | None
     searches: int
@@ -113,3 +125,4 @@ class Result(BaseModel):
     details: Details
     sources: list[Source]
     processing: Processing
+    excerpt_base: ExcerptBase | None = None

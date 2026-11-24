@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SOURCES_VERSION = "2026-11-23.2"
+SOURCES_VERSION = "2026-11-23.3"
 REVIEWED = "2026-11-21"
 NFL_REVIEWED = "2026-11-23"
 
@@ -324,6 +324,23 @@ SOURCES: dict[str, DataSource] = {
             "n/a",
             REVIEWED,
             "At most titles and links; feed terms not reviewed, so not connected.",
+        ),
+        DataSource(
+            "user_excerpt",
+            "Excerpts you paste into an investigation",
+            "all",
+            "text you copied from something you read, with its source and date",
+            "app.investigate.excerpts",
+            "n/a",
+            "manual_user_input",
+            ("process_pasted_text_locally",),
+            "The source name and link you give",
+            "Kept with the investigation until you remove it (your own local note)",
+            NFL_REVIEWED,
+            "Processed on this computer only (deterministic checks; the local model if you "
+            "use one). The link is never fetched, and a paste is not permission to crawl the "
+            "publisher. Always shown as user-provided and unverified until another source "
+            "agrees; at most 5 per investigation, 4,000 characters each.",
         ),
         DataSource(
             "football_data_org",

@@ -77,3 +77,13 @@
 .idea-actions { display: inline-flex; align-items: center; gap: 0.4rem; }
 .idea-actions .inv-trigger, .row-actions .inv-trigger, .thesis-card .inv-trigger { margin-left: 0; }
 .thesis-card .inv-trigger { margin-top: 0.2rem; }
+
+/* Pasted excerpts (user-provided, unverified) */
+.inv-excerpt { margin-top: 0.75rem; }
+.inv-excerpt > summary { cursor: pointer; width: fit-content; }
+.inv-excerpt-form { display: grid; gap: 0.3rem; max-width: 40rem; margin-top: 0.4rem; }
+.inv-excerpt-form label { font-size: 0.85rem; margin-top: 0.3rem; }
+.inv-excerpt-form textarea, .inv-excerpt-form input { font: inherit; width: 100%; box-sizing: border-box; }
+.inv-excerpt-form button { justify-self: start; margin-top: 0.4rem; }
+.inv-excerpt-item { margin: 0.2rem 0 0 0.2rem; }
+.inv-excerpt-item blockquote { margin: 0.3rem 0; padding-left: 0.6rem; border-left: 2px solid var(--line, #ccc); white-space: pre-wrap; }

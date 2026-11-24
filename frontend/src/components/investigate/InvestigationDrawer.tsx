@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { InvestigationFinding, InvestigationHypothesis, InvestigationResult, InvestigationSource, ResearchUsage } from "../../api/types";
+import { ExcerptBox, ExcerptText } from "./ExcerptBox";
 import { StatusLabel } from "../design/StatusLabel";
 import { Term } from "../Term";
 import { useNow } from "../shell/Topbar";
@@ -22,6 +23,7 @@ const STANCE: Record<InvestigationFinding["stance"], { label: string; cls: strin
 };
 const ACCESS: Record<InvestigationSource["access"], string> = {
   headline: "headline only", snippet: "headline and snippet", full_text: "full article (licensed)", internal: "app data",
+  user_provided: "you pasted · unverified",
 };
 const LINE: Record<InvestigationSource["line_match"], string | null> = {
   exact: null, unknown: null, different_line: "different line: not direct support", past_matchup: "past matchup: not direct support",
@@ -40,10 +42,11 @@ function SourceMarks({ ids, sources, verified }: { ids: string[]; sources: Inves
     <>
       {known.map((i) => {
         const s = sources[i]!;
-        return (
+        const label = `Source ${i + 1}: ${s.publisher}, ${s.title}`;
+        return s.url ? (
           <a key={s.id} className="inv-mark" href={s.url} target="_blank" rel="noopener noreferrer nofollow"
-            aria-label={`Source ${i + 1}: ${s.publisher}, ${s.title}`}>[{i + 1}]</a>
-        );
+            aria-label={label}>[{i + 1}]</a>
+        ) : <span key={s.id} className="inv-mark" aria-label={label}>[{i + 1}]</span>;
       })}
       {(!verified || (ids.length > 0 && known.length === 0)) && <span className="inv-unverified">unverified</span>}
     </>
@@ -89,7 +92,7 @@ function PriceLens({ r }: { r: InvestigationResult }) {
   );
 }
 
-function FullResearch({ r }: { r: InvestigationResult }) {
+function FullResearch({ r, h }: { r: InvestigationResult; h: InvestigationHypothesis }) {
   const p = r.price_assessment;
   const now = useNow();
   return (
@@ -120,12 +123,13 @@ function FullResearch({ r }: { r: InvestigationResult }) {
           <ol className="inv-sources">
             {r.sources.map((s) => (
               <li key={s.id}>
-                <a href={s.url} target="_blank" rel="noopener noreferrer nofollow">{s.title}</a>
+                {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer nofollow">{s.title}</a> : <span>{s.title}</span>}
                 <span className="small muted"> · {s.publisher}{s.author ? `, ${s.author}` : ""}
                   {s.published_at && <> · published {rel(s.published_at, now)}</>} · retrieved {rel(s.retrieved_at, now)}
                   {" · "}{ACCESS[s.access]}</span>
                 {s.duplicate_of && <span className="small inv-dup"> · same report as {s.duplicate_of}: not independent</span>}
                 {LINE[s.line_match] && <span className="small inv-dup"> · {LINE[s.line_match]}</span>}
+                {s.access === "user_provided" && <ExcerptText r={r} h={h} s={s} />}
               </li>
             ))}
           </ol>
@@ -280,7 +284,8 @@ export function InvestigationDrawer({ h }: { h: InvestigationHypothesis }) {
               {result.stale_at && Date.parse(result.stale_at) < now && <> · <StatusLabel tone="stale">stale</StatusLabel></>}
               {" · "}<button type="button" className="link-button small" onClick={() => investigation.run(h, { refresh: true })}>Refresh research</button>
             </p>
-            <FullResearch r={result} />
+            <FullResearch r={result} h={h} />
+            {src.addExcerpt && <ExcerptBox r={result} h={h} />}
           </section>
         )}
         {u?.configured && <BraveUsage u={u} />}

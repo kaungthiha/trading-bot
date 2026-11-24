@@ -135,7 +135,7 @@ def evaluate(
             if bad:
                 rep.mapping_errors.append(bad)
         start = (starts or {}).get(h.event_ticker)
-        news = [s for s in r.sources if s.access != "internal"]
+        news = [s for s in r.sources if s.access not in ("internal", "user_provided")]
         rep.news_sources += len(news)
         rep.duplicates += sum(1 for s in news if s.duplicate_of)
         if start is not None:

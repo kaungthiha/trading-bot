@@ -195,7 +195,11 @@ def coverage(
     """One line on what the result rests on: structured datasets (not counting the Kalshi
     quote), commentary links, and the lineup/goalie state. Ordered by impact, not count."""
     data = [s for s in r.sources if s.access == "internal" and s.id != "K1"]
-    links = [s for s in r.sources if s.access != "internal" and s.duplicate_of is None]
+    links = [
+        s
+        for s in r.sources
+        if s.access not in ("internal", "user_provided") and s.duplicate_of is None
+    ]
     parts = [
         f"{len(data)} factual dataset{'s' if len(data) != 1 else ''}",
         f"{len(links)} commentary link{'s' if len(links) != 1 else ''}",
@@ -742,6 +746,16 @@ def save(session: Session, key: str, r: S.Result) -> None:
     session.commit()
 
 
+def update(session: Session, r: S.Result) -> None:
+    """Rewrite one stored investigation in place (same id), e.g. after an excerpt change."""
+    row = session.get(Investigation, r.investigation_id)
+    if row is None:
+        raise NotFound("Investigation not found")
+    row.result_json = r.model_dump_json()
+    row.status = r.status
+    session.commit()
+
+
 def load(session: Session, inv_id: str) -> S.Result | None:
     row = session.get(Investigation, inv_id)
     return None if row is None else S.Result.model_validate(json.loads(row.result_json))
@@ -759,11 +773,15 @@ _EXTERNAL_MARKERS = ('"access":"headline"', '"access":"snippet"', '"access":"ful
 
 def strip_news(r: S.Result) -> S.Result:
     """A copy of r with no external sources and nothing written from them. Internal data
-    (box scores, injury report, price assessment) is kept."""
+    (box scores, injury report, price assessment) and the user's own excerpts are kept;
+    an excerpt-based summary is rebuilt without the model (it may have used headlines)."""
+    from app.investigate import excerpts
+
     out = r.model_copy(deep=True)
-    internal = {s.id for s in out.sources if s.access == "internal"}
+    internal = {s.id for s in out.sources if s.access in ("internal", "user_provided")}
     if len(internal) == len(out.sources):
         return out
+    out = excerpts.restore_base(out)
     out.sources = [s for s in out.sources if s.id in internal]
     used_model = out.processing.model is not None
 
@@ -798,7 +816,7 @@ def strip_news(r: S.Result) -> S.Result:
         # Recount: the commentary links are gone; the lineup/goalie note stays as it was.
         tail = out.summary.coverage.split(" · ")[2:]
         out.summary.coverage = " · ".join(coverage(out).split(" · ")[:2] + tail)
-    return out
+    return excerpts.decorate(out)
 
 
 def purge_expired_news(session: Session, now: datetime) -> int:

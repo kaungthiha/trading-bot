@@ -15,6 +15,8 @@ WRITE_ROUTES = {
     ("/api/history/open/review", "post"),  # local AI read of open positions (CSRF)
     ("/api/research/investigations", "post"),  # on-demand pick research (CSRF)
     ("/api/research/investigations/{inv_id}/refresh", "post"),
+    ("/api/research/investigations/{inv_id}/excerpts", "post"),
+    ("/api/research/investigations/{inv_id}/excerpts/{excerpt_id}/remove", "post"),
     ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
 }
 

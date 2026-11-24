@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { api } from "../../api/client";
-import type { InvestigationHypothesis, InvestigationQuote, InvestigationResult, ResearchUsage } from "../../api/types";
+import type { ExcerptInput, InvestigationHypothesis, InvestigationQuote, InvestigationResult, ResearchUsage } from "../../api/types";
 import { type FixtureScenario, fixtureInvestigation, fixtureUsage } from "./fixture";
 import { hypothesisKey } from "./hypothesis";
 
@@ -21,6 +21,9 @@ export interface ResearchSource {
   usage(): Promise<ResearchUsage>;
   preflight(h: InvestigationHypothesis): Promise<Preflight>;
   run(h: InvestigationHypothesis, opts?: { refreshId?: string }): Promise<InvestigationResult>;
+  /** Pasted excerpts (absent on the sample source: the paste box is hidden). */
+  addExcerpt?(id: string, body: ExcerptInput): Promise<InvestigationResult>;
+  removeExcerpt?(id: string, excerptId: string): Promise<InvestigationResult>;
   readonly preview: boolean; // true = sample data, labelled in the UI
 }
 
@@ -43,6 +46,8 @@ export const apiSource: ResearchSource = {
   preflight: (h) => api.researchPreflight(h.ticker, h.side),
   run: (h, opts) => (opts?.refreshId ? api.refreshInvestigation(opts.refreshId)
     : api.investigate(h.ticker, h.side, h.label)),
+  addExcerpt: (id, body) => api.addExcerpt(id, body),
+  removeExcerpt: (id, excerptId) => api.removeExcerpt(id, excerptId),
 };
 
 type Entry = { status: "running" } | { status: "done"; result: InvestigationResult } | { status: "error"; message: string };
@@ -88,6 +93,10 @@ export const investigation = {
     ).finally(() => { inflight.delete(key); });
     inflight.set(key, job);
     return job;
+  },
+  /** Replace a finished result (after adding or removing an excerpt). */
+  update(h: InvestigationHypothesis, result: InvestigationResult) {
+    set({ entries: { ...state.entries, [hypothesisKey(h)]: { status: "done", result } } });
   },
   /** Tests / Phase C wiring. */
   useSource(s: ResearchSource) { source = s; },

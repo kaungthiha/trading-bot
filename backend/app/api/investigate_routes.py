@@ -16,7 +16,7 @@ from app.api.errors import ApiError, ErrorCode
 from app.api.routes import ClockDep, SessionDep, SettingsDep
 from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
-from app.investigate import nfl, nhl, search, service, soccer, sources, synth
+from app.investigate import excerpts, nfl, nhl, search, service, soccer, sources, synth
 from app.investigate.ledger import ledger_for
 from app.investigate.schemas import Result
 from app.sportsdata.espn import EspnSource
@@ -243,7 +243,76 @@ def refresh(
     if old is None:
         raise ApiError(404, ErrorCode.NOT_FOUND, "Investigation not found")
     h = old.hypothesis
-    return _run(session, settings, request, clock.now(), h.ticker, h.side, h.label, refresh=True)
+    new = _run(session, settings, request, clock.now(), h.ticker, h.side, h.label, refresh=True)
+    if not excerpts.excerpts_of(old):
+        return new
+    # The user's excerpts are their own notes: keep them across a refresh (no search spent).
+    chat, client = _synthesizer(settings)
+    try:
+        new = excerpts.carry(old, new, chat)
+    finally:
+        if client is not None:
+            client.close()
+    service.update(session, new)
+    return new
+
+
+def _edit(session: Any, settings: Any, clock: Any, inv_id: str, change: Any) -> Result:
+    """Apply an excerpt change to a stored investigation. Free: no search, no data request;
+    only the local model when it's the configured provider."""
+    service.purge_expired_news(session, clock.now())
+    r = service.load(session, inv_id)
+    if r is None:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Investigation not found")
+    chat, client = _synthesizer(settings)
+    try:
+        out = change(r, chat)
+    except excerpts.Unsupported as e:
+        raise ApiError(422, ErrorCode.VALIDATION_ERROR, str(e)) from e
+    except KeyError as e:
+        raise ApiError(404, ErrorCode.NOT_FOUND, "Excerpt not found") from e
+    finally:
+        if client is not None:
+            client.close()
+    service.update(session, out)
+    return out
+
+
+@router.post("/investigations/{inv_id}/excerpts", response_model=Result)
+def add_excerpt(
+    inv_id: IdPath,
+    body: excerpts.ExcerptIn,
+    session: SessionDep,
+    settings: SettingsDep,
+    clock: ClockDep,
+    x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None,
+) -> Result:
+    """Add text the user pasted. The link is stored for the user, never fetched."""
+    _csrf(x_krt_request)
+    if "user_excerpt" in sources.disabled(settings):
+        raise ApiError(
+            403,
+            ErrorCode.VALIDATION_ERROR,
+            "Excerpts are switched off (KRT_RESEARCH_DISABLED_SOURCES).",
+        )
+    return _edit(
+        session, settings, clock, inv_id, lambda r, chat: excerpts.add(r, body, clock.now(), chat)
+    )
+
+
+@router.post("/investigations/{inv_id}/excerpts/{excerpt_id}/remove", response_model=Result)
+def remove_excerpt(
+    inv_id: IdPath,
+    excerpt_id: Annotated[str, Path(pattern=r"^U[0-9]{1,2}$")],
+    session: SessionDep,
+    settings: SettingsDep,
+    clock: ClockDep,
+    x_krt_request: Annotated[str | None, Header(alias="X-KRT-Request")] = None,
+) -> Result:
+    _csrf(x_krt_request)
+    return _edit(
+        session, settings, clock, inv_id, lambda r, chat: excerpts.remove(r, excerpt_id, chat)
+    )
 
 
 @router.get("/usage")

@@ -145,7 +145,7 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 - **Three evidence streams:**
   - **Structured facts:** K1 Kalshi, E1/E2 ESPN, M1 MoneyPuck.
   - **Published opinion:** N\* sources, metadata and snippets only.
-  - **User excerpts:** registered as `manual_user_input` but **not built yet**: there's no paste box.
+  - **User excerpts (built Nov 23):** see *User-provided excerpts* below.
 - **Model limits:**
   - The model is told it only sees headlines and snippets.
   - Any finding or takeaway implying it read an article ("according to the article", "full article") is dropped.
@@ -155,6 +155,46 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
   - Basketball shows "injury report checked" or "lineup unknown (no injury report)".
   - It's recounted when news expires.
 - **Layout unchanged:** two sentences, up to three findings, price lens, one open question, full research collapsed.
+
+## User-provided excerpts (Phase 4, stream 3; built Nov 23)
+
+**What it is:** a paste box in the drawer, under the result ("Add an excerpt you've read"). You give:
+- the text (20 to 4,000 characters);
+- a source name;
+- optionally a link and a published date.
+
+**Rules (`app/investigate/excerpts.py`, source `user_excerpt`, status `manual_user_input`):**
+- **Local only:** never fetched and never searched.
+  - The link is stored for you and **never opened by the app** (tested: any real HTTP request fails the tests).
+  - Adding or removing an excerpt spends no Brave request and makes no data download.
+- **Always unverified:** each excerpt is shown as "user-provided, unverified" until another source agrees.
+  - Each one gets a finding that never quotes it back.
+  - A local-model claim that rests only on excerpts (`U1`, `U2`…) is always marked unverified.
+  - A claim that also cites app data or news is treated as corroborated.
+- **Deterministic checks**, the same rules as news:
+  - doesn't read like this sport;
+  - mentions a different line;
+  - dated after the game;
+  - dated well before the game (maybe an earlier meeting).
+- **Local model, if configured:** it re-summarises with the excerpt text (up to 1,500 characters).
+  - News snippets aren't stored, so news counts as headlines only in that re-summary, and the method says so.
+  - The prompt says excerpts are data, to be quoted sparingly and never presented as fact.
+  - If the model fails, the app's own summary stays.
+- **Clean rebuilds:** the result keeps a snapshot of its pre-excerpt summary and details. Every add or remove rebuilds from it, so model claims don't pile up, and removing the last excerpt restores the original exactly (tested).
+- **Retention:** an excerpt is your own local note, so it isn't on Brave's clock.
+  - It stays until you remove it, and carries over when you refresh the research.
+  - The news purge still removes everything written from news, including from the snapshot (tested), and keeps the excerpts.
+- **Limits:**
+  - at most 5 per investigation;
+  - both endpoints are POSTs with the CSRF header;
+  - links must be `http(s)`;
+  - control characters are stripped.
+- **Owner switch:** `KRT_RESEARCH_DISABLED_SOURCES=user_excerpt` turns the paste box's endpoint off.
+- **Coverage line:** for example "1 factual dataset · 2 commentary links · 1 excerpt you pasted · …".
+- **Endpoints:**
+  - `POST /api/research/investigations/{id}/excerpts`;
+  - `POST /api/research/investigations/{id}/excerpts/{U1..}/remove`.
+- **Tests:** `backend/tests/test_excerpts.py` (8) and 2 drawer tests.
 
 ## Phase 5: evaluation (`app/investigate/evaluate.py`)
 
@@ -195,7 +235,7 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 ## Known gaps and next steps
 
 - **NFL and soccer:** connected on Nov 23 (`NFL.md`, `SOCCER.md`). StatsBomb still needs its licence read.
-- **User-provided excerpts (Phase 4 stream 3):** not built.
+- **User-provided excerpts (Phase 4 stream 3):** built Nov 23 (see above).
 - **Background job queue for long model runs (optional Phase 6):** not built.
 - **No official NHL lineup source:** "confirmed" is unreachable by design until one is licensed.
 - **NHL injuries, rest and travel:** not checked.

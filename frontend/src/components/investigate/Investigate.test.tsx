@@ -307,6 +307,61 @@ describe("API source (Phase B)", () => {
   }
   afterEach(() => vi.unstubAllGlobals());
 
+  it("pasted excerpts: added, shown as unverified, never linked when no URL, removable", async () => {
+    const user = userEvent.setup();
+    const text = "Coach says Curry will play tonight after a full practice; the line moved late.";
+    const added: unknown[] = [];
+    const withExcerpt = (r: ReturnType<typeof fixtureInvestigation>) => ({
+      ...r,
+      sources: [...r.sources, { id: "U1", url: "", title: "Excerpt you pasted from The Athletic", publisher: "The Athletic",
+        author: null, published_at: "2026-11-19", retrieved_at: new Date().toISOString(), access: "user_provided" as const,
+        duplicate_of: null, line_match: "unknown" as const, excerpt: text }],
+      summary: { ...r.summary, coverage: "1 factual dataset · 0 commentary links · 1 excerpt you pasted" },
+    });
+    let base: ReturnType<typeof fixtureInvestigation> | null = null;
+    investigation.useSource({
+      ...fixtureSource,
+      run: async (h) => { base = fixtureInvestigation(h); return base; },
+      addExcerpt: async (id, body) => { added.push({ id, body }); return withExcerpt(base!); },
+      removeExcerpt: async () => base!,
+    });
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    await user.click(await within(dlg).findByRole("button", { name: "Run investigation" }));
+    await user.click(await within(dlg).findByText(/Add an excerpt you've read/));
+    const add = within(dlg).getByRole("button", { name: "Add excerpt" });
+    expect(add).toBeDisabled(); // needs 20+ characters and a source
+    expect(within(dlg).getByText(/the app never\s+opens the link/)).toBeInTheDocument();
+    await user.type(within(dlg).getByLabelText("Excerpt"), text);
+    await user.type(within(dlg).getByLabelText("Source"), "The Athletic");
+    await user.type(within(dlg).getByLabelText(/Published/), "2026-11-19");
+    await user.click(add);
+    expect(await within(dlg).findByText(/Excerpt added\. It's marked unverified/)).toBeInTheDocument();
+    expect(added).toEqual([{ id: base!.investigation_id,
+      body: { text, source: "The Athletic", url: null, published_on: "2026-11-19" } }]);
+    expect(within(dlg).getByText(/1 excerpt you pasted/)).toBeInTheDocument();
+    expect(within(dlg).getByText(/Add an excerpt you've read \(1 added\)/)).toBeInTheDocument();
+    // In the sources list: labelled, not a link (no URL given), text available, removable.
+    await user.click(within(dlg).getByText("View full research"));
+    expect(within(dlg).getByText(/you pasted · unverified/)).toBeInTheDocument();
+    expect(within(dlg).queryByRole("link", { name: "Excerpt you pasted from The Athletic" })).not.toBeInTheDocument();
+    await user.click(within(dlg).getByText("Show your excerpt"));
+    expect(within(dlg).getByText(text)).toBeInTheDocument();
+    await user.click(within(dlg).getByRole("button", { name: "Remove your excerpt from The Athletic" }));
+    await waitFor(() => expect(within(dlg).queryByText(/1 excerpt you pasted/)).not.toBeInTheDocument());
+  });
+
+  it("the sample source has no paste box", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: /Investigate YES/ }));
+    const dlg = screen.getByRole("dialog");
+    await user.click(await within(dlg).findByRole("button", { name: "Run investigation" }));
+    await within(dlg).findByText("View full research");
+    expect(within(dlg).queryByText(/Add an excerpt you've read/)).not.toBeInTheDocument();
+  });
+
   it("runs with the CSRF header and the exact contract, and refreshes by id", async () => {
     const { apiSource } = await import("./store");
     stub({ quote: { ask: 0.66, side: "yes", observed_at: new Date().toISOString(), fresh: true, snapshot_ref: "c" },

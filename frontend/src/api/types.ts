@@ -917,9 +917,14 @@ export interface InvestigationFinding {
 }
 export interface InvestigationSource {
   id: string; url: string; title: string; publisher: string; author: string | null;
-  published_at: string | null; retrieved_at: string; access: "headline" | "snippet" | "full_text" | "internal";
+  published_at: string | null; retrieved_at: string;
+  /** user_provided: text you pasted (never fetched by the app; unverified until corroborated). */
+  access: "headline" | "snippet" | "full_text" | "internal" | "user_provided";
   duplicate_of: string | null; line_match: "exact" | "different_line" | "past_matchup" | "unknown";
+  /** Only for user_provided sources: the text you pasted. */
+  excerpt?: string | null;
 }
+export interface ExcerptInput { text: string; source: string; url?: string | null; published_on?: string | null }
 export interface InvestigationPrice {
   ask: number | null; model_p: number | null; model_band: [number, number] | null; model_name: string | null;
   raw_diff: number | null; conservative_edge: number | null; break_even: number | null;
@@ -941,6 +946,8 @@ export interface InvestigationResult {
     rules_excerpt?: string | null };
   sources: InvestigationSource[];
   processing: { model: string | null; searches: number; cache: "hit" | "miss" | "none"; errors: string[]; partial_reasons: string[] };
+  /** Server-side snapshot used to rebuild after excerpt changes; not shown. */
+  excerpt_base?: unknown;
 }
 export interface ResearchPreflight {
   quote: InvestigationQuote; model: string | null; cached: boolean; unsupported: string | null; usage: ResearchUsage;

@@ -544,6 +544,12 @@ What it uses:
   storage, so once a saved investigation is older than `KRT_RESEARCH_SEARCH_CACHE_HOURS`
   (default 6), its articles and the summary written from them are deleted from the database.
   The box-score check, injury report and price stay. Refresh to search again.
+- **Excerpts you paste (optional):** under a result, *Add an excerpt you've read* takes a
+  passage from an article you read, plus its source and (optionally) link and date. It stays on
+  this computer, the app never opens the link, it costs no search, and it's always shown as
+  *user-provided, unverified* until another source agrees. It's checked for the wrong sport,
+  a different line, or a date after the game. If Ollama is on, the summary is rewritten with it.
+  Excerpts stay until you remove them (also after a refresh).
 - **Your local model (optional, Ollama):** writes the summary from that evidence. Its output is
   checked: unknown sources are removed, numbers not in the evidence are marked unverified, hype
   and injected instructions are dropped. If Ollama is off, you get the app's own summary.
