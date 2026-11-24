@@ -135,10 +135,30 @@ Four queries:
 
 Results must be about hockey. This drops, for example, MLB "Rangers" stories and NFL "Jets" stories. Hockey-sized line ranges apply.
 
+### Rest and lineup (added Nov 23)
+From MoneyPuck's season game-by-game logs. These are the goalie and skater zips its data page lists, hosted on its download host, `peter-tanner.com`. Allowed operation: `download_listed_game_logs`.
+- **Downloads:** only those two URLs (allow-listed), at most once per 12 hours, size-capped (15 MB zip, one CSV of at most 150 MB) and streamed.
+- **Point in time:** only games before this one count.
+- **Rest:** days since each team's last game, a back-to-back, "game N in 4 nights", and whether Kalshi lists a game for the team the next day.
+- **Last start in goal:** the goalie with the most ice time in the last game, and whether that was last night. A short relief appearance doesn't count as the start.
+- **Missed games:** regulars (the top 12 skaters by ice time with enough games) who missed the team's most recent games.
+  - The reason is unknown (injury, illness, rest or a scratch), and the result says so.
+  - Players who have since played for another team are left out (moved, not absent).
+- **Injury reports:** on an explicit run only. A news headline or snippet that ties a rostered player to injury wording is shown as a report with its source, never as an official list.
+- **In the summary:** a "Rest and lineup" finding sits third, after the goalie line and the main number.
+- **Goalie line:** shows each team's last start, for example `[last start: Swayman, last night]`. If space is short, season options are dropped so the "neither is confirmed" disclaimer always remains.
+- **If the logs fail:** if the skater log fails, rest still shows and the line says "lineups not checked". If both fail, the old gap returns.
+- **Verified live (Nov 23):** 32 teams, 754 game lineups and 787 players parsed in 1.2 s. On real catalog games it showed, for example:
+  - Vegas's Hanifin missing the last 6;
+  - Edmonton's third game in 4 nights;
+  - last starts such as Vladar for Philadelphia and Lindgren for Washington.
+  - All 51 catalog NHL games kept the disclaimer.
+- **Tests:** `backend/tests/test_nhl_rest.py` (8).
+
 ### Not checked (shown as gaps)
-- rest and travel;
-- injuries (no permitted NHL schedule or injury source);
-- who starts in goal, beyond news reports.
+- travel;
+- an official injury report (none is permitted): absences come from game logs and news;
+- who starts in goal, beyond news reports and last starts.
 
 ## Phase 4: evidence streams and synthesis
 
@@ -262,6 +282,6 @@ Results must be about hockey. This drops, for example, MLB "Rangers" stories and
 - **User-provided excerpts (Phase 4 stream 3):** built Nov 23 (see above).
 - **Background job queue for long model runs (optional Phase 6):** built Nov 23 (see above).
 - **No official NHL lineup source:** "confirmed" is unreachable by design until one is licensed.
-- **NHL injuries, rest and travel:** not checked.
+- **NHL travel and an official injury report:** not available. Rest, missed games and news injury reports were added Nov 23.
 - **NHL player props:** not supported.
 - **Season-level stats are coarse:** there's no recent-form window, because MoneyPuck's game-by-game files weren't wired in, to keep downloads to the two listed files.

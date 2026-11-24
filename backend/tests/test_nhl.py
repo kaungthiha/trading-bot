@@ -48,11 +48,28 @@ GOALIES_CSV = """playerId,season,name,team,position,situation,games_played,xGoal
 
 
 class MPServer:
-    def __init__(self, last_modified: str = "Thu, 19 Nov 2026 11:40:00 GMT") -> None:
+    """moneypuck.com season files, and the game-log zips on its download host (404 unless a
+    test passes logs={"goalies": bytes, "skaters": bytes})."""
+
+    def __init__(
+        self,
+        last_modified: str = "Thu, 19 Nov 2026 11:40:00 GMT",
+        logs: dict[str, bytes] | None = None,
+    ) -> None:
         self.paths: list[str] = []
+        self.log_paths: list[str] = []
         self.lm = last_modified
+        self.logs = logs or {}
 
     def handler(self, req: httpx.Request) -> httpx.Response:
+        if req.url.host == "peter-tanner.com":
+            self.log_paths.append(req.url.path)
+            kind = req.url.path.split("/")[-2]
+            if kind in self.logs and req.url.path.endswith("/2026.zip"):
+                return httpx.Response(
+                    200, content=self.logs[kind], headers={"last-modified": self.lm}
+                )
+            return httpx.Response(404)
         self.paths.append(req.url.path)
         assert req.url.host == "moneypuck.com"
         if req.url.path.endswith("/2026/regular/teams.csv"):

@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ from app.catalog import games
 from app.db.models import CatalogEvent, CatalogMarket
 from app.investigate import common, registry, sources
 from app.investigate import schemas as S
-from app.investigate.search import Gathered
+from app.investigate.search import MONTHS, Gathered, game_date
 from app.sportsdata import moneypuck as mp
 
 PREFIX = "KXNHL"
@@ -60,6 +60,11 @@ GOALIE_STATES = ("confirmed", "expected", "unknown", "conflicting", "not_applica
 NO_MODEL = (
     "No validated NHL probability model yet: the season figures are context, not an estimate, "
     "so no edge is calculated."
+)
+INJURY = (
+    r"(injur|day-to-day|week-to-week|injured reserve|\bIR\b|\bLTIR\b|will miss|won't play|"
+    r"sidelined|ruled out|out (?:for|indefinitely|tonight|with|vs\.?|against)|upper-body|"
+    r"lower-body|surgery|illness|concussion|suspend)"
 )
 STARTS = (
     r"(will start|to start|starts|starting|expected to start|projected to start|gets the "
@@ -140,6 +145,54 @@ def goalie_status(
     return out
 
 
+def injury_reports(
+    names: dict[str, list[str]], news: Gathered | None
+) -> dict[str, list[tuple[str, list[str]]]]:
+    """Per team: rostered players a news headline/snippet ties to injury wording, with the
+    source ids. Reported, never official (no permitted NHL injury report exists)."""
+    out: dict[str, list[tuple[str, list[str]]]] = {}
+    if news is None:
+        return out
+    texts = [
+        (x.id, f"{x.title}. {news.snippets.get(x.id, '')}")
+        for x in news.sources
+        if not x.duplicate_of
+    ]
+    for code, roster in names.items():
+        for full_name in roster:
+            last = full_name.split()[-1] if full_name else ""
+            if len(last) < 3:
+                continue
+            pat = re.compile(
+                rf"\b{re.escape(last)}\b[^.]{{0,60}}?{INJURY}|{INJURY}[^.]{{0,40}}?\b{re.escape(last)}\b",
+                re.I,
+            )
+            ids = [sid for sid, t in texts if pat.search(t)]
+            if ids:
+                out.setdefault(code, []).append((full_name, ids[:3]))
+    return out
+
+
+def plays_tomorrow(session: Session, code: str, day: date) -> bool:
+    """Whether Kalshi lists a game for this team the next day (its own public listings)."""
+    from sqlalchemy import select
+
+    nxt = day + timedelta(days=1)
+    mon = next(k for k, v in MONTHS.items() if v == nxt.month)
+    stamp = f"{nxt:%y}{mon}{nxt:%d}"
+    keys = session.scalars(
+        select(CatalogEvent.event_ticker).where(
+            CatalogEvent.series_ticker == f"{PREFIX}GAME",
+            CatalogEvent.event_ticker.like(f"{PREFIX}GAME-{stamp}%"),
+        )
+    ).all()
+    return any(code in games.list_games_teams(session, PREFIX, k.split("-", 1)[1]) for k in keys)
+
+
+def _mmss(secs: float) -> str:
+    return f"{int(secs // 60)}:{int(secs % 60):02d}"
+
+
 def _pct1(x: float | None) -> str:
     return "—" if x is None else f"{x * 100:.0f}%"
 
@@ -209,6 +262,15 @@ def build(
             season = mp_src.season(mp.season_of(start))
         except AdapterError as exc:
             errors.append(f"MoneyPuck season data unavailable right now ({exc}).")
+    # Game logs: rest days, last night's goalie, regulars who missed recent games.
+    game_day = (game_date(m.event_ticker) or start).date()
+    logs: mp.GameLogs | None = None
+    if mp_src is not None and getattr(mp_src, "logs_enabled", lambda: False)():
+        try:
+            logs = mp_src.game_logs(mp.season_of(start))
+            errors.extend(logs.errors)
+        except AdapterError as exc:
+            errors.append(f"MoneyPuck game logs unavailable right now ({exc}).")
     ts = {c: season.teams.get(mp.mp_code(c)) for c in codes} if season else {}
     have = season is not None and all(ts.get(c) for c in codes) and len(codes) == 2
     if season is not None and not have:
@@ -237,38 +299,80 @@ def build(
             )
         )
 
+    if logs is not None:
+        srcs.append(
+            S.Source(
+                id="M2",
+                url=mp.PAGE,
+                title=f"MoneyPuck {logs.season}-{str(logs.season + 1)[-2:]} game logs (goalies, "
+                f"skaters). {mp.ATTRIBUTION}",
+                publisher="MoneyPuck.com",
+                published_at=service._iso(logs.data_as_of),
+                retrieved_at=service._iso(logs.retrieved_at) or now.isoformat(),
+                access="internal",
+                line_match="exact",
+            )
+        )
+
     # --- news (only on an explicit run; snippets stay in memory) -------------------------
     news: Gathered | None = gatherer(hyp, teams) if gatherer is not None else None
     if news is not None:
         srcs.extend(news.sources)
         errors.extend(news.errors)
     goalies = goalie_status(codes, season, news)
+    rests = {c: logs.rest(c, game_day) for c in codes} if logs else {}
+    lineups_known = bool(logs and logs.lineups)
+    missing = {c: logs.absences(c, game_day) for c in codes} if lineups_known and logs else {}
+    roster = (
+        {c: logs.roster(c, game_day) for c in codes}
+        if logs
+        else {c: [g.name for g in goalies[c].options] for c in codes}
+    )
+    reported = injury_reports(roster, news)
+    tomorrow = {c: plays_tomorrow(session, c, game_day) for c in codes}
 
     # --- findings ---------------------------------------------------------------------------
     findings: list[S.Finding] = []
 
-    def gtext(g: GoalieRead) -> str:
+    def gtext(g: GoalieRead, options: bool = True) -> str:
         t = full.get(g.team, g.team)
         if g.state == "expected":
             return f"{t}: {g.name} reported as the starter (news, not an official confirmation)"
         if g.state == "conflicting":
             return f"{t}: reports name different starters"
         opts = ", ".join(f"{o.name.split()[-1]} {o.games} GP" for o in g.options[:2])
-        return f"{t}: unknown" + (f" (season options: {opts})" if opts else "")
+        return f"{t}: unknown" + (f" (season options: {opts})" if opts and options else "")
+
+    def goalie_line() -> str:
+        # The disclaimer must survive the length cap: drop season options first.
+        tail = ". No official lineup source is connected, so neither is confirmed."
+        for options in (True, False):
+            body = "Starting goalies — " + "; ".join(
+                gtext(goalies[c], options) + last_start(c) for c in codes
+            )
+            if len(body) + len(tail) <= 400:
+                return body + tail
+        return body[: 400 - len(tail)] + tail
+
+    def last_start(c: str) -> str:
+        r = rests.get(c)
+        if r is None or not r.last_starter:
+            return ""
+        who = r.last_starter.split()[-1]
+        return f" [last start: {who}{', last night' if r.starter_last_night else ''}]"
 
     gstates = {g.state for g in goalies.values()}
     findings.append(
         S.Finding(
-            text=(
-                "Starting goalies — " + "; ".join(gtext(goalies[c]) for c in codes) + ". "
-                "No official lineup source is connected, so neither is confirmed."
-            )[:400],
+            text=goalie_line(),
             kind="factual"
             if "expected" in gstates or "conflicting" in gstates
             else "interpretation",
             stance="neutral",
             source_ids=sorted(
-                {i for g in goalies.values() for i in g.source_ids} | ({"M1"} if season else set())
+                {i for g in goalies.values() for i in g.source_ids}
+                | ({"M1"} if season else set())
+                | ({"M2"} if logs else set())
             )[:6],
             verified=True,
         )
@@ -376,7 +480,11 @@ def build(
             S.Finding(
                 text=(
                     f"Season figures cover {ta.games} and {tb.games} games and don't include "
-                    "rest, travel or tonight's lineup."
+                    + (
+                        "travel or tonight's lineup."
+                        if logs
+                        else "rest, travel or tonight's lineup."
+                    )
                 ),
                 kind="interpretation",
                 stance="neutral",
@@ -394,6 +502,60 @@ def build(
                 verified=True,
             )
         )
+
+    def rest_text(c: str) -> str:
+        r = rests.get(c)
+        bits = []
+        if r is None or r.days_off is None:
+            bits.append("last game unknown")
+        elif r.days_off == 0:
+            bits.append("back-to-back (played last night)")
+        else:
+            bits.append(f"{r.days_off} day{'s' if r.days_off != 1 else ''} off")
+        if r is not None and r.games_last_4_nights >= 3:
+            bits.append(f"game {r.games_last_4_nights} in 4 nights")
+        if tomorrow.get(c):
+            bits.append("plays again tomorrow")
+        return ", ".join(bits)
+
+    def lineup_text(c: str) -> str:
+        if not lineups_known:
+            return "lineups not checked"
+        gone = missing.get(c, [])[:3]
+        if not gone:
+            return "no regular missed the last game"
+        return "missed recent games: " + ", ".join(
+            f"{a.name.split()[-1]} ({a.position}, {_mmss(a.toi_per_game)} a game, last {a.missed})"
+            for a in gone
+        )
+
+    def news_text(c: str) -> str:
+        rows = reported.get(c, [])[:3]
+        if not rows:
+            return ""
+        return "; news reports an injury: " + ", ".join(
+            f"{n.split()[-1]} ({'/'.join(ids)})" for n, ids in rows
+        )
+
+    if logs is not None or reported:
+        lineup_finding = S.Finding(
+            text=(
+                "Rest and lineup — "
+                + "; ".join(
+                    f"{full[c]}: {rest_text(c)}; {lineup_text(c)}{news_text(c)}" for c in codes
+                )
+                + ". Missed games come from game logs (reason not given: injury, illness, "
+                "rest or a scratch); news reports aren't an official injury list."
+            )[:400],
+            kind="factual",
+            stance="neutral",
+            source_ids=sorted(
+                ({"M2"} if logs else set())
+                | {i for rows in reported.values() for _, ids in rows for i in ids}
+            )[:6],
+            verified=True,
+        )
+        findings.insert(2 if len(findings) >= 2 else len(findings), lineup_finding)
     leak = season is not None and season.data_as_of is not None and season.data_as_of > start
     if leak:
         findings.append(
@@ -453,7 +615,10 @@ def build(
     takeaway = f"{first} {second}"
     gaps = ["Who starts in goal tonight (no official lineup source is connected)."]
     gaps.append(
-        "Rest, travel and injuries aren't checked (no permitted NHL schedule or injury source yet)."
+        "Travel isn't checked, and there's no official injury report: absences come from game "
+        "logs (reason unknown) and news reports."
+        if logs
+        else "Rest, travel and injuries aren't checked (MoneyPuck game logs unavailable)."
     )
     if news is None or not news.attempted:
         gaps.append("News and late lineup changes were not checked.")
@@ -487,6 +652,11 @@ def build(
                 "non-commercial use, credited; refreshed at most twice a day.",
                 "Goalie status: from news headlines/snippets only (reported, never confirmed); "
                 "unknown when nothing names a starter.",
+                f"Rest and lineup: MoneyPuck game logs ({mp.ATTRIBUTION}): days since each "
+                "team's last game, last start in goal, and regulars (top 12 skaters by ice time) "
+                "who missed the team's most recent games before this one; players who moved "
+                "teams are left out. Kalshi's own listings for a game the next day. Injury "
+                "mentions from news headlines/snippets only.",
                 "Price: the slip check's fee schedule and all-in price; no estimate or edge.",
                 (
                     f"News: Brave News Search, {news.queries} quer"

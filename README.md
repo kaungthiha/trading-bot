@@ -510,7 +510,10 @@ What it uses:
 - **NHL** (game winner, puck line, game and team totals; periods, overtime and player props
   aren't covered): season stats from **MoneyPuck** (expected-goals share, goals for/against,
   goalie save % and goals saved above expected; free for non-commercial use, credited "Data:
-  MoneyPuck.com"). ESPN and the NHL's own endpoints aren't used for hockey. The starting goalie
+  MoneyPuck.com"), plus MoneyPuck's game logs for **rest** (days off, back-to-backs, game N in
+  4 nights, a game tomorrow), each team's last start in goal, and **regulars who missed recent
+  games** (reason not given). News headlines that tie a player to an injury are shown as reports,
+  not an official list. ESPN and the NHL's own endpoints aren't used for hockey. The starting goalie
   is *unknown*, *expected (reported by news)* or *conflicting*, never *confirmed*: no official
   lineup source is connected. There's no validated NHL model, so **no estimate or edge is
   shown**; the stats are context. Kalshi settles game winner and puck line on the official

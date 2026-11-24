@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SOURCES_VERSION = "2026-11-23.3"
+SOURCES_VERSION = "2026-11-23.4"
 REVIEWED = "2026-11-21"
 NFL_REVIEWED = "2026-11-23"
 
@@ -120,14 +120,16 @@ SOURCES: dict[str, DataSource] = {
             "app.sportsdata.moneypuck",
             "https://moneypuck.com/data.htm",
             "structured_dataset_allowed",
-            ("download_listed_season_csv",),
+            ("download_listed_season_csv", "download_listed_game_logs"),
             "Data: MoneyPuck.com (credited wherever its numbers appear)",
             "In-memory cache only (refreshed at most every 12 hours)",
             REVIEWED,
             "Allowed for non-commercial use with credit: this app is one person's local "
-            "research tool and doesn't sell or republish the data. Only the two listed "
-            "season CSVs (teams, goalies) are downloaded, at most twice a day; no other "
-            "MoneyPuck page is fetched (its page says non-approved scraping is blocked). "
+            "research tool and doesn't sell or republish the data. Only files the data page "
+            "lists are downloaded, at most twice a day: the two season CSVs (teams, goalies) "
+            "and, since Nov 23, the season's goalie and skater game-by-game zips (linked from "
+            "the same page on MoneyPuck's download host peter-tanner.com) for rest days and "
+            "missed games. No other page is fetched (non-approved scraping is blocked). "
             "Owner to confirm the personal, non-commercial reading; any commercial use "
             "needs MoneyPuck's permission.",
             (
