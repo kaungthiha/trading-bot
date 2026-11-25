@@ -200,3 +200,15 @@
 .slate-leg-top button { margin-left: auto; }
 .slate-risks summary, .slate-pool summary { cursor: pointer; }
 .slate-pool-list > li { border-top: 1px solid var(--line); padding: 0.4rem 0; }
+.engine { padding: 0.35rem 0.55rem; border-radius: 4px; margin: 0.4rem 0; }
+.engine.model { background: var(--blue-tint); color: var(--blue-ink); }
+.engine.rules { background: var(--line); color: var(--muted); }
+.slate-summary { margin: 0.4rem 0; font-size: 0.9rem; }
+.slate-case { margin: 0.2rem 0; }
+.slate-notes { margin: 0.5rem 0; }
+.slate-notes h4 { margin: 0 0 0.2rem; }
+.slate-notes ul { margin: 0; padding-left: 1.1rem; }
+.slate-notes.conflicts h4 { color: var(--red-ink); }
+.cites a, .cites span { margin-left: 0.25rem; font-size: 0.75rem; }
+.slate-reviews ul.news { margin: 0.15rem 0 0.4rem; padding-left: 1rem; }
+.slate-rules, .slate-reviews { margin: 0.4rem 0; }

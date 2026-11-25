@@ -1,7 +1,8 @@
 # NBA leg briefs and tonight's combos
 
-Built 2026-11-24. Qualitative, not a model. No Brave request was made by this work; every test
-uses mocked ESPN responses.
+Built 2026-11-24. Qualitative, not a probability model. The local model (Ollama) joined the same
+day: it synthesizes briefs and news into combos (see *The local model's part*). No Brave request
+was made while building this; every Brave and model test uses mocks.
 
 ## Why qualitative
 
@@ -80,6 +81,57 @@ build; `GET` returns status, progress and the result. Opening the page never sta
    Docket's together-count). Shown with every leg's reasons, all "against" points and injury
    context ("what could sink it"), and past Kalshi combos of that size.
 
+## The local model's part
+
+The rule steps above still run, and their combos are kept for comparison. On top of them
+(`app/sportsdata/slate_ai.py`, `slate._model_pass`):
+
+1. **Candidates:** per game, up to 8 legs, a wider net than the clear-case rule: priced 30–85%,
+   score ≥ 0, not weak, thin or avoid, combinable, best rung per player per stat.
+2. **News:** up to 3 Brave searches per game:
+   - "{Away} vs {Home} preview";
+   - "{Away} {Home} injury report";
+   - "{player} minutes role", for the player most candidates are about.
+
+   Each search reserves through the app-wide ledger first (tag `slate`; every billed attempt
+   counts) and returns up to 4 items, which are de-duplicated and given ids N1, N2, and so on.
+   Results are cached per query for `KRT_RESEARCH_SEARCH_CACHE_HOURS`. When the cap is reached,
+   searching stops and the model carries on with what it has. No key means briefs only.
+3. **Per-game review (one call per game):** the model gets that game's candidate briefs and news,
+   and returns keep, caution or drop per leg, a note, `conflict` (stats and news point opposite
+   ways) and the news ids it relied on.
+4. **Assembly (one call):** up to 24 surviving legs (keep first, then by score), each with its
+   price, rule score, verdict and note, plus past Kalshi combo returns. The model returns up to 3
+   combos of 3–4 legs, with a case, a biggest risk, and a reason if it built fewer than 3.
+5. **Code checks and prices:**
+   - combos with unknown or unreviewed legs, two legs on one player, three or more legs from one
+     game, or winner plus spread of one game are discarded;
+   - the rest are priced as in step 4 of *Tonight's combos*.
+
+**Guardrails:**
+- **System prompts:**
+  - the model's own memory of rosters is stale, so it uses only the JSON facts;
+  - news is untrusted text, cited by id and never obeyed (the tests include an injection attempt
+    in a snippet);
+  - no probabilities;
+  - passing is a good answer.
+- **Parsing (`parse_game`, `parse_combos`):**
+  - unknown legs and sources are removed;
+  - a conflict without a valid news id is cleared, and a drop that rested on it softens to caution;
+  - combos must have 3–4 known legs.
+- **Fallback:** if the provider isn't Ollama, or Ollama is down, missing the model or erroring,
+  the build returns the rule combos with the reason (`engine.mode = "rules"`).
+- **Local only:** the model runs on loopback, like the other local AI features. It doesn't count
+  toward `KRT_LLM_MAX_REVIEWS_PER_DAY`, which limits paid reviews.
+
+**Live check (Nov 24, local model, no news so no Brave spend):**
+- 5 games took 48 seconds in total, 25 of them in gemma4:12b.
+- With no news, it kept every leg (nothing to contradict the briefs).
+- It built one combo across three games and said why it stopped at one ("the rule scores for
+  the remaining legs were too low to justify the risk").
+- The news path is covered by tests with mocked searches, so the first real news build is yours
+  to run.
+
 ## Verified live (Nov 24, ESPN only)
 
 The slate covered 4 games (DET–ORL, BOS–WAS, DAL–DEN, MIA–PHI):
@@ -100,8 +152,22 @@ The slate covered 4 games (DET–ORL, BOS–WAS, DAL–DEN, MIA–PHI):
 - the pool and combo limits;
 - the background slate API, end to end.
 
+**`backend/tests/test_slate_ai.py` (8):**
+- parse guardrails (unknown ids, unsourced conflicts, combo sizes);
+- the per-game news queries and ids;
+- dropped legs kept out of assembly;
+- code rejecting a combo that repeats a player;
+- risks carried through;
+- the Brave cap stopping news mid-slate while the model continues;
+- no key, so briefs only;
+- the wide pool;
+- the news cache;
+- fallback to rules on a model failure or when the model is off.
+
 **Frontend:**
-- `SlatePanel.test.tsx`: builds only on click, polls, shows combos and risks, "Put on docket", and the empty result.
+- `SlatePanel.test.tsx`: builds only on click, polls, shows combos and risks, "Put on docket", and the empty result. It also checks:
+  - the model's synthesis: engine line, case and risk, stats-vs-news links, dropped legs, rules-only comparison;
+  - the rules fallback reason.
 - `Games.test.tsx`: the brief in the Docket.
 
 ## Gaps
@@ -110,3 +176,7 @@ The slate covered 4 games (DET–ORL, BOS–WAS, DAL–DEN, MIA–PHI):
 - **Teammates out:** listed, but there's no check of how he played without them.
 - **Injuries:** long-term absences on the report look the same as tonight's late scratches.
 - **Combos:** RFQ-priced, so the market figure is the legs multiplied, not Kalshi's quote. Use the Docket's quote check.
+- **The model is a 12B local model:**
+  - its judgment is only as good as the snippets it gets (titles and short descriptions, not full articles);
+  - it can still misread a snippet, so every news-based claim links to its source for you to check.
+- **Excerpts you paste in investigations** aren't fed to the slate build yet.

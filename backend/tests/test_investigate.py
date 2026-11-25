@@ -156,7 +156,8 @@ def test_usage_reports_app_caps_without_claiming_a_brave_balance(api: TestClient
         "daily_cap": 60,
         "used_month": 0,
         "monthly_cap": 800,
-        "by_purpose": {p: {"today": 0, "month": 0} for p in ("research", "news", "headlines")},
+        "by_purpose": {p: {"today": 0, "month": 0}
+                       for p in ("research", "news", "headlines", "slate")},
         "max_searches_per_investigation": 5,
     }
     assert not any("balance" in k or "dollar" in k or "remaining" in k for k in u)

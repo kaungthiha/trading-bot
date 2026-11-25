@@ -210,6 +210,9 @@ def test_slate_api_builds_in_the_background(settings: Settings) -> None:
         res = st["result"]
         assert [g["game_key"] for g in res["games"]] == [KEY]
         assert res["briefed"] > 0 and sum(res["leans"].values()) == res["briefed"]
+        # Provider "openai" here: the builder's model is local-only, so rules alone, and why.
+        assert res["engine"]["mode"] == "rules" and "locally" in res["engine"]["reason"]
+        assert res["news_info"]["status"] == "off" and res["news"] == []
         for x in res["pool"]:
             assert slate.LEG_MIN <= x["price"] <= slate.LEG_MAX
             assert x["brief"]["lean"] in ("strong", "mixed")

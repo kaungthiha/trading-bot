@@ -104,6 +104,54 @@ def _slate(request: Request, prefix: str) -> SlateRunner:
     return st.slate
 
 
+def _slate_helpers(state: Any, settings: Any) -> Any:
+    """(model, why it's off, news(query), close) for one build, opened in the build thread.
+    The model runs locally only. News spends Brave searches under the app-wide cap (tag
+    "slate") and is cached per query; with no key, the model works from the briefs alone."""
+    from app.investigate.ledger import ledger_for
+    from app.sportsdata.llm import make_client
+    from app.sportsdata.slate import NewsCache
+    from app.sportsdata.slate_ai import SlateModel
+
+    model, off = None, None
+    if settings.llm_provider != "ollama":
+        off = "The combo builder's model runs locally only (KRT_LLM_PROVIDER=ollama)"
+    else:
+        client = make_client(settings)
+        ping = client.ping()
+        if ping["reachable"] and ping["has_model"]:
+            model = SlateModel(client)
+        else:
+            client.close()
+            off = (f"Ollama has no model {settings.ollama_model!r}" if ping["reachable"]
+                   else "Ollama isn't running on this machine")
+    news, closers = None, [model.close] if model else []
+    key = settings.brave_search_api_key
+    if model is not None and key is not None:
+        current = {"q": ""}
+        client_news = NewsSearch(key.get_secret_value(), timeout=settings.http_timeout_seconds,
+                                 on_attempt=ledger_for(state).attempt_hook(
+                                     "slate", lambda: current["q"]))
+        closers.append(client_news.close)
+        if getattr(state, "slate_news", None) is None:
+            state.slate_news = NewsCache(settings.research_search_cache_hours, state.clock.now)
+
+        def fetch(q: str) -> list[dict[str, str]]:
+            current["q"] = q
+            return [{"title": it["title"], "source": it["source"], "age": it["age"],
+                     "snippet": it["description"], "url": it["url"]}
+                    for it in client_news.search(f"{q} NBA", count=4)]
+
+        def news(q: str) -> list[dict[str, str]]:
+            return state.slate_news.get(q, fetch)
+
+    def close() -> None:
+        for c in closers:
+            c()
+
+    return model, off, news, close
+
+
 @router.get("/slate/{prefix}")
 def slate_state(prefix: Prefix, request: Request) -> dict[str, Any]:
     """The latest slate build (status, progress, result). Never starts one."""
@@ -118,7 +166,8 @@ def slate_build(prefix: Prefix, settings: SettingsDep, request: Request,
     if x_krt_request != "slate":
         raise ApiError(403, ErrorCode.VALIDATION_ERROR, "Missing X-KRT-Request header")
     runner = _slate(request, prefix)
-    return runner.start(prefix, _espn(request, settings.sports_evidence_enabled))
+    src = _espn(request, settings.sports_evidence_enabled)
+    return runner.start(prefix, src, lambda: _slate_helpers(request.app.state, settings))
 
 
 class NewsIn(BaseModel):

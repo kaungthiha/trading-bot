@@ -1,15 +1,31 @@
 import { useEffect, useState } from "react";
 
 import { api, ApiError } from "../../api/client";
-import type { SlateCombo, SlateResult, SlateState } from "../../api/types";
+import type { SlateCombo, SlateNote, SlateResult, SlateState } from "../../api/types";
 import { EmptyState } from "../Hairline";
 import { BriefCard, LeanChip } from "./BriefCard";
 import { ago, pct } from "./format";
 import { slip, useSlip } from "./slip";
 
 const POLL_MS = 2000;
+type NewsById = Map<string, SlateResult["news"][number]>;
 const legOf = (x: { ticker: string; side: "yes" | "no"; label: string; event_ticker: string }) =>
   ({ ticker: x.ticker, side: x.side, label: x.label, event: x.event_ticker });
+
+/** News ids as links to the source article (third-party text, shown as text). */
+function Cites({ ids, news }: { ids: string[]; news: NewsById }) {
+  if (ids.length === 0) return null;
+  return (
+    <span className="cites">
+      {ids.map((id) => {
+        const n = news.get(id);
+        return n
+          ? <a key={id} href={n.url} target="_blank" rel="noopener noreferrer nofollow" title={`${n.title} (${n.source})`}>{id}</a>
+          : <span key={id}>{id}</span>;
+      })}
+    </span>
+  );
+}
 
 function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
   const put = () => { slip.clear(); c.legs.forEach((x) => slip.add(legOf(x))); };
@@ -23,6 +39,8 @@ function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
         </span>
         <button type="button" className="link-button small" onClick={put}>Put on docket</button>
       </header>
+      {c.case && <p className="small slate-case"><b>Case:</b> {c.case}</p>}
+      {c.risk && <p className="small slate-case"><b>Biggest risk:</b> {c.risk}</p>}
       <ol className="slate-legs">
         {c.legs.map((x) => (
           <li key={x.ticker}>
@@ -38,8 +56,8 @@ function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
         ))}
       </ol>
       {c.risks.length > 0 && (
-        <details className="slate-risks small" open>
-          <summary>What could sink it ({c.risks.length})</summary>
+        <details className="slate-risks small">
+          <summary>Everything against it ({c.risks.length})</summary>
           <ul className="brief-list against">
             {c.risks.map((r) => <li key={`${r.leg}-${r.text}`}><span aria-hidden="true">−</span> <b>{r.leg}:</b> {r.text}</li>)}
           </ul>
@@ -53,25 +71,89 @@ function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
   );
 }
 
+function Notes({ title, items, news, cls }: { title: string; items: SlateNote[]; news: NewsById; cls: string }) {
+  if (items.length === 0) return null;
+  return (
+    <section className={`slate-notes ${cls}`} aria-label={title}>
+      <h4 className="small">{title} ({items.length})</h4>
+      <ul className="small">
+        {items.map((x) => (
+          <li key={x.bet}><b>{x.bet}</b> <span className="muted">({x.game})</span>: {x.note || "no reason given"} <Cites ids={x.sources} news={news} /></li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Engine({ r }: { r: SlateResult }) {
+  const e = r.engine, ni = r.news_info;
+  if (e.mode === "rules") {
+    return <p className="small engine rules"><b>Rules only.</b> {e.reason ?? "The local model wasn't used."}</p>;
+  }
+  const news = ni.status === "no_key" ? "no Brave key, so briefs only (no news)"
+    : `${ni.searched} news search${ni.searched === 1 ? "" : "es"}, ${ni.items} item${ni.items === 1 ? "" : "s"}`
+      + (ni.status === "budget" ? ` (stopped: ${ni.message ?? "Brave cap reached"})` : "");
+  return (
+    <p className="small engine model">
+      <b>Synthesized by your local model</b> ({e.model}, {e.seconds}s) · {news}. Code computed every number and
+      enforced the combo limits; the model weighed the briefs against the news.
+    </p>
+  );
+}
+
 function Result({ r }: { r: SlateResult }) {
   const legs = useSlip();
   const on = new Set(legs.map((l) => l.ticker));
+  const news: NewsById = new Map(r.news.map((n) => [n.id, n]));
   const [lo, hi] = r.rules.leg_price;
+  const model = r.engine.mode === "local_model";
   return (
     <>
+      <Engine r={r} />
       <p className="small muted">
         {r.briefed} legs briefed across {r.games.length} game{r.games.length === 1 ? "" : "s"}
         {" "}· {r.leans.strong ?? 0} strong, {r.leans.mixed ?? 0} mixed, {r.leans.weak ?? 0} weak
         {" "}· built {ago(r.generated_at)}
       </p>
       {r.skipped.length > 0 && <p className="small inj-note">Skipped: {r.skipped.map((s) => s.game).join(", ")}</p>}
+      {r.summary && <p className="slate-summary">{r.summary}</p>}
       {r.combos.length === 0 ? (
-        <EmptyState figure="sieve" title="No combo passed tonight">
-          Not enough legs had a clear case (at least {r.rules.min_score} more points for than against, at most one
-          against, priced {Math.round(lo * 100)}–{Math.round(hi * 100)}%). Passing is a fine outcome.
+        <EmptyState figure="sieve" title="No combo tonight">
+          {model ? (r.pass_reason || "The model passed.")
+            : <>Not enough legs had a clear case (at least {r.rules.min_score} more points for than against, at most one
+              against, priced {Math.round(lo * 100)}–{Math.round(hi * 100)}%).</>} Passing is a fine outcome.
         </EmptyState>
       ) : (
         <ol className="slate-combos">{r.combos.map((c, i) => <ComboCard key={c.legs.map((x) => x.ticker).join()} c={c} n={i + 1} />)}</ol>
+      )}
+      {model && r.combos.length > 0 && r.pass_reason && <p className="small muted">Fewer than three: {r.pass_reason}</p>}
+      <Notes title="Stats vs news" items={r.conflicts} news={news} cls="conflicts" />
+      <Notes title="Dropped by the model" items={r.dropped} news={news} cls="dropped" />
+      {r.reviews.length > 0 && (
+        <details className="slate-reviews">
+          <summary className="small">What the news says, game by game ({r.news.length} items)</summary>
+          <ul className="small">
+            {r.reviews.map((g) => (
+              <li key={g.game}><b>{g.game}:</b> {g.note}
+                {g.news.length > 0 && (
+                  <ul className="news">
+                    {g.news.map((id) => news.get(id)).filter((n) => n != null).map((n) => (
+                      <li key={n.id}><span className="muted">{n.id}</span>{" "}
+                        <a href={n.url} target="_blank" rel="noopener noreferrer nofollow">{n.title}</a>{" "}
+                        <span className="muted">{n.source} · {n.age}</span></li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {r.rule_combos.length > 0 && (
+        <details className="slate-rules">
+          <summary className="small">Rules-only combos, for comparison ({r.rule_combos.length})</summary>
+          <ol className="slate-combos">{r.rule_combos.map((c, i) => <ComboCard key={c.legs.map((x) => x.ticker).join()} c={c} n={i + 1} />)}</ol>
+        </details>
       )}
       {r.pool.length > 0 && (
         <details className="slate-pool">
@@ -97,8 +179,9 @@ function Result({ r }: { r: SlateResult }) {
   );
 }
 
-/** Tonight's NBA slate: 3-4 leg combos built only from legs with a clear case, each leg shown
- * with the facts for it and everything against the combo. Built on click, in the background. */
+/** Tonight's NBA slate. Code briefs every leg; the local model weighs the briefs against each
+ * game's news and assembles 3-4 leg combos; code enforces the limits and prices them. Falls
+ * back to rule-only combos when the model is off. Built on click, in the background. */
 export function SlatePanel({ prefix = "KXNBA" }: { prefix?: string }) {
   const [st, setSt] = useState<SlateState | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -133,16 +216,17 @@ export function SlatePanel({ prefix = "KXNBA" }: { prefix?: string }) {
         </button>
       </header>
       <p className="small muted">
-        Each leg gets a brief: recent form against its price, minutes, what tonight's opponent allows, head-to-head,
-        rest, injuries. Combos use only legs with a clear case. These are leads to research, not forecasts.
+        Code briefs every leg (form against its price, minutes, what tonight's opponent allows, head-to-head, rest,
+        injuries). Your local model then reads each game's news, flags where it contradicts the numbers, and builds
+        the combos. Up to 3 Brave searches per game (cached, under the app-wide cap). Leads to research, not forecasts.
       </p>
       {err && <p role="alert" className="small">{err}</p>}
-      {building && <p className="small" aria-live="polite">{st?.progress ?? "Starting"}… (first build reads every game's box scores: about a minute)</p>}
+      {building && <p className="small" aria-live="polite">{st?.progress ?? "Starting"}… (a few minutes with the local model)</p>}
       {st?.status === "failed" && <p role="alert" className="small">Build failed: {st.error}</p>}
       {r ? <Result r={r} /> : !building && st?.status !== "failed" && (
         <EmptyState figure="loupe" title="Not built yet">
-          Build reads ESPN box scores for every game tonight (free, no search spend), then suggests up to three
-          combos. Or pick a game on the left for one game's markets.
+          Build reads ESPN box scores and recent news for every game tonight, then the local model suggests up to
+          three combos. Or pick a game on the left for one game's markets.
         </EmptyState>
       )}
     </section>

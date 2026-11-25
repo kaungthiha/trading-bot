@@ -826,11 +826,19 @@ export interface SlateCombo {
   together: { team: string; lift: number; games: number }[];
   risks: { leg: string; text: string }[];
   past: { bucket: string; n: number; return_per_dollar: number | null } | null;
+  source: "model" | "rules"; case?: string; risk?: string;
 }
+export interface SlateNote { bet: string; game: string; note: string; sources: string[] }
 export interface SlateResult {
   prefix: string; generated_at: string;
   games: { game_key: string; title: string; occurs_at: string }[];
-  combos: SlateCombo[]; pool: (SlateLeg & { brief: Brief })[];
+  engine: { mode: "local_model" | "rules"; model: string | null; seconds: number; reason: string | null };
+  summary: string; pass_reason: string;
+  combos: SlateCombo[]; rule_combos: SlateCombo[]; pool: (SlateLeg & { brief: Brief })[];
+  reviews: { game: string; note: string; news: string[] }[];
+  dropped: SlateNote[]; conflicts: SlateNote[];
+  news: { id: string; game: string; title: string; source: string; age: string; url: string }[];
+  news_info: { searched: number; items: number; status: "ok" | "no_key" | "budget" | "off"; message?: string };
   briefed: number; leans: Partial<Record<BriefLean, number>>;
   skipped: { game: string; reason: string }[];
   rules: { leg_price: [number, number]; min_score: number; max_per_game: number };

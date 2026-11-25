@@ -666,14 +666,27 @@ A strong case means several facts point the same way and at most one against. It
 research, not a forecast. Details: `docs/investigate/NBA_BRIEFS.md`.
 
 **Tonight's combos (Games page, NBA).** With no game selected, the Games page offers **Build
-tonight's combos**. It briefs the most-traded legs of every game in the next 30 hours (both
-sides; about 30 seconds, ESPN only, no search spend), then suggests up to three 3–4 leg combos
-built only from clear-case legs: priced 40–80%, at least two more points for than against, at
-most one against, combinable on Kalshi. One leg per player and at most two per game, and never
-winner plus spread of one game. Each combo lists every leg's reasons, **what could sink it**, the
-market price (adjusted where same-game legs historically landed together), and what past Kalshi
-combos of that size paid back. "Put on docket" loads it for the usual slip check. A build only
-starts on a click.
+tonight's combos**. A build only starts on a click, runs in the background, and takes a few
+minutes. The work is split so that code computes every number and the model does the judging:
+1. **Code briefs** the most-traded legs of every game in the next 30 hours (both sides) and
+   picks up to 8 candidates per game (priced 30–85%, no weak, thin or injured cases).
+2. **News:** up to **3 Brave searches per game**: a preview, the injury news, and the role of the
+   player most candidates are about. They count against the app-wide cap (tag "slate"), are
+   cached for `KRT_RESEARCH_SEARCH_CACHE_HOURS`, and stop cleanly when the cap is reached. With
+   no Brave key the model works from the briefs alone.
+3. **Your local model** (Ollama) reads each game's briefs next to its news and marks every leg
+   keep, caution or drop. It flags **stats vs news** conflicts (a minutes limit, a returning
+   starter, a style change), which must cite a news item or they're cleared. It then assembles
+   up to three 3–4 leg combos from the survivors, each with a plain **case** and **biggest risk**.
+4. **Code checks and prices** what the model proposes. Combos that break a hard limit (one leg
+   per player, at most two per game, never winner plus spread of one game, only reviewed legs)
+   are discarded. Each combo shows the market price (adjusted where same-game legs historically
+   landed together), every leg's reasons, everything against it, and what past Kalshi combos of
+   that size paid back.
+The page also shows the legs the model dropped and why, the news game by game (linked), and the
+rules-only combos for comparison. If Ollama isn't running (or the provider is OpenAI: this
+runs locally only), you get the rules-only combos and the reason. "Put on docket" loads a combo
+for the usual slip check.
 
 **Local AI (Ollama): second opinion and Coach.** The app uses a model running on your own
 machine (default `gemma4:12b`). It is free and private, and the app only connects to

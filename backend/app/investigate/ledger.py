@@ -27,7 +27,7 @@ from sqlalchemy.engine import Engine
 _LOCK = threading.Lock()
 
 # Purpose tags (breakdown only). Unknown tags are allowed but still count toward the total.
-PURPOSES = ("research", "news", "headlines")
+PURPOSES = ("research", "news", "headlines", "slate")
 
 
 class BudgetExhausted(RuntimeError):
