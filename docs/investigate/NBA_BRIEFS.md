@@ -88,10 +88,18 @@ The rule steps above still run, and their combos are kept for comparison. On top
 
 1. **Candidates:** per game, up to 8 legs, a wider net than the clear-case rule: priced 30–85%,
    score ≥ 0, not weak, thin or avoid, combinable, best rung per player per stat.
-2. **News:** up to 3 Brave searches per game:
+2. **News:** up to 6 Brave searches per game (`KRT_SLATE_NEWS_PER_GAME`, 0–10):
    - "{Away} vs {Home} preview";
    - "{Away} {Home} injury report";
-   - "{player} minutes role", for the player most candidates are about.
+   - "{player} props", one per player behind the candidate legs, most legs first (or
+     "{Home} rotation" when there are no player legs). Prop articles are used for their facts
+     (minutes, role, matchup), not their picks.
+
+   **Your history:** before the model runs, every briefed leg is checked against the user's own
+   past legs and lessons (`app/history/legs.py`: same bet on the same player lost before, a
+   player who keeps sinking them, a leg type that loses more than their others, matching
+   lessons). The warnings go into the facts as `your_history`, the lessons as `your_lessons`
+   for the assembler, and onto the page as ⚠ lines.
 
    Each search reserves through the app-wide ledger first (tag `slate`; every billed attempt
    counts) and returns up to 4 items, which are de-duplicated and given ids N1, N2, and so on.

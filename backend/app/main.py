@@ -18,6 +18,7 @@ from app.api.games_routes import router as games_router
 from app.api.history_routes import router as history_router
 from app.api.investigate_routes import router as investigate_router
 from app.api.jobs_routes import router as jobs_router
+from app.api.journal_routes import router as journal_router
 from app.api.ops_routes import router as ops_router
 from app.api.paper_routes import router as paper_router
 from app.api.research_routes import router as research_router
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None, clock: Clock | None = None,
     app.include_router(jobs_router)
     app.include_router(catalog_router)
     app.include_router(history_router)
+    app.include_router(journal_router)
     app.include_router(games_router)
     app.include_router(investigate_router)
     return app

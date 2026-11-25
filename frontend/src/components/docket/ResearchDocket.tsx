@@ -15,6 +15,8 @@ import { useNow } from "../shell/Topbar";
 import { MustHappen, MyEvidence, PriceImplies, risks, WhereWrong } from "./Breakdown";
 import "./docket.css";
 import { FromHistory } from "./FromHistory";
+import { LogBet } from "./LogBet";
+import { PastMistakes } from "./PastMistakes";
 import { SaveOrPass, SavedList } from "./SaveOrPass";
 import { useScanTime } from "./scanTime";
 import { Tip } from "../design/Tip";
@@ -207,6 +209,7 @@ export function ResearchDocket() {
               )}
             </div>
 
+            <PastMistakes legs={legs} />
             <MustHappen legs={legs} />
             <WhereWrong items={riskItems} loading={evLoading || comboLoading} />
             <PriceImplies legs={legs} combo={comboNow} adjusted={adj} scanAt={scanAt} now={now} />
@@ -217,6 +220,7 @@ export function ResearchDocket() {
               <SlipCheck legs={legs} quote={quote} onQuote={setQuote} refPrice={adj ?? fair} />
             </section>
             <SecondOpinion legs={legs} quoteCents={q > 0 && q < 1 ? Math.round(q * 100) : undefined} />
+            <LogBet legs={legs} fair={adj ?? fair} quoteCents={quote} />
             <SaveOrPass legs={legs} fair={fair} />
           </>
         )}

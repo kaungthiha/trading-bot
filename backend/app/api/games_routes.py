@@ -101,6 +101,7 @@ def _slate(request: Request, prefix: str) -> SlateRunner:
     st = request.app.state
     if getattr(st, "slate", None) is None:
         st.slate = SlateRunner(st.session_factory, st.clock.now)
+        st.slate.news_per_game = st.settings.slate_news_per_game
     return st.slate
 
 

@@ -1,0 +1,28 @@
+/* Daily review and bet queue (My trades). */
+.dr-days { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.75rem; }
+.dr-days button { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 0.2rem 0.65rem; cursor: pointer; color: var(--ink); font: inherit; font-size: 0.82rem; }
+.dr-days button[aria-pressed="true"] { border-color: var(--ink); font-weight: 600; }
+.dr-bets, .bq-list, .dr-lessons, .dr-subjects { list-style: none; padding: 0; margin: 0; }
+.dr-bet { border-top: 1px solid var(--line); padding: 0.35rem 0; }
+.dr-bet summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; cursor: pointer; }
+.dr-bet-title { font-weight: 550; }
+.dr-pnl { margin-left: auto; }
+.dr-legs { list-style: none; padding-left: 0.25rem; margin: 0.3rem 0; }
+.dr-leg { padding: 0.08rem 0; }
+.dr-mark { display: inline-block; width: 1em; text-align: center; color: var(--muted); }
+.dr-leg.won .dr-mark { color: var(--ok-ink); }
+.dr-leg.lost .dr-mark { color: var(--red-ink); font-weight: 700; }
+.dr-note { border-left: 2px solid var(--line-2); padding-left: 0.5rem; margin: 0.3rem 0; }
+.dr-review h4 { margin: 0.6rem 0 0.2rem; }
+.dr-review .cite { font-size: 0.75rem; margin-left: 0.2rem; }
+.dr-lessons li, .dr-subjects li { padding: 0.25rem 0; border-top: 1px solid var(--line); }
+.dr-add { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.dr-add input:first-child { flex: 1 1 18rem; }
+.dr-cats { width: 100%; border-collapse: collapse; }
+.dr-cats th, .dr-cats td { text-align: left; padding: 0.15rem 0.3rem; border-bottom: 1px solid var(--line); }
+.dr-pattern td { background: var(--amber-tint); }
+.dr-cats .badge { margin-left: 0.35rem; }
+.bq-entry { border-top: 1px solid var(--line); padding: 0.5rem 0; }
+.bq-entry.skipped { opacity: 0.8; }
+.bq-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.bq-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }

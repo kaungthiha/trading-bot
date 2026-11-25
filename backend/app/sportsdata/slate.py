@@ -51,7 +51,7 @@ FRESH = timedelta(minutes=15)
 # Model path: a wider net per game, news per game, and a cap on what the final call sees.
 WIDE_MIN, WIDE_MAX = 0.30, 0.85
 WIDE_PER_GAME = 8
-NEWS_PER_GAME = 3
+NEWS_PER_GAME = 6               # preview, injuries, then props for the top players
 NEWS_PER_QUERY = 4
 ASSEMBLE_MAX = 24
 
@@ -165,7 +165,8 @@ def _combo(s: Session, src: EspnSource, legs: tuple[dict[str, Any], ...],
     return {
         "legs": [{k: x[k] for k in ("ticker", "side", "label", "bet", "event_ticker", "game",
                                     "price")} | {"headline": x["brief"]["headline"],
-                                                 "why": x["brief"]["for"][:3]}
+                                                 "why": x["brief"]["for"][:3],
+                                                 "history": x.get("history") or []}
                  for x in legs],
         "games": len({x["game_key"] for x in legs}),
         "market": round(market, 4), "adjusted": round(adj, 4),
@@ -195,8 +196,9 @@ def wide_pool(legs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def news_queries(names: list[str], cands: list[dict[str, Any]], n: int) -> list[str]:
-    """Up to n searches for one game: a preview, the injury news, and the role of the player
-    most candidate legs are about (or the home team's rotation)."""
+    """Up to n searches for one game: a preview, the injury news, then one prop search per
+    player the candidate legs are about (most legs first: their minutes, role, matchup and
+    what prop writers see), or the home team's rotation when there are no player legs."""
     if len(names) < 2 or n <= 0:
         return []
     a, b = names[0], names[1]
@@ -204,9 +206,9 @@ def news_queries(names: list[str], cands: list[dict[str, Any]], n: int) -> list[
     for x in cands:
         if x["kind"] == "player_stat" and x["subject"]:
             counts[x["subject"]] = counts.get(x["subject"], 0) + 1
-    who = max(counts, key=lambda k: counts[k]) if counts else None
-    qs = [f"{a} vs {b} preview", f"{a} {b} injury report",
-          f"{who} minutes role" if who else f"{b} rotation"]
+    players = sorted(counts, key=lambda k: -counts[k])
+    qs = [f"{a} vs {b} preview", f"{a} {b} injury report"]
+    qs += [f"{who} props" for who in players] or [f"{b} rotation"]
     return qs[:n]
 
 
@@ -219,9 +221,35 @@ def _game_facts(g: dict[str, Any], cands: list[dict[str, Any]],
         "legs": [{"id": x["id"], "bet": x["bet"], "price": x["price"],
                   "rule_lean": x["brief"]["lean"], "for": texts(x["brief"]["for"]),
                   "against": texts(x["brief"]["against"]),
-                  "context": texts(x["brief"]["context"])} for x in cands],
+                  "context": texts(x["brief"]["context"])}
+                 | ({"your_history": _hist(x)} if _hist(x) else {}) for x in cands],
         "news": [{k: n[k] for k in ("id", "title", "source", "age", "snippet")} for n in news],
     }
+
+
+def _hist(x: dict[str, Any], n: int = 3) -> list[str]:
+    """This user's own past record on bets like this leg (app.history.legs), as text."""
+    return [w["text"][:220] for w in (x.get("history") or [])[:n]]
+
+
+def attach_history(s: Session, legs: list[dict[str, Any]]) -> list[str]:
+    """Warn on legs that repeat your past mistakes; returns your general lessons. Never fatal:
+    no synced history just means no warnings."""
+    try:
+        from sqlalchemy import select
+
+        from app.db.models import CatalogMarket
+        from app.history.legs import Warner
+
+        titles = dict(s.execute(select(CatalogMarket.ticker, CatalogMarket.title).where(
+            CatalogMarket.ticker.in_([x["ticker"] for x in legs]))).all())
+        w = Warner(s)
+        for x in legs:
+            x["history"] = w.for_leg(x["ticker"], x["side"], titles.get(x["ticker"], ""))
+        return [ls.text for ls in w.lessons][:12]
+    except Exception:  # noqa: BLE001
+        log.warning("slate: history warnings unavailable", exc_info=True)
+        return []
 
 
 def _summary(x: dict[str, Any]) -> dict[str, Any]:
@@ -232,7 +260,8 @@ def _summary(x: dict[str, Any]) -> dict[str, Any]:
 def _model_pass(s: Session, src: EspnSource, gl: list[dict[str, Any]],
                 by_game: dict[str, list[dict[str, Any]]], study: dict[str, Any] | None,
                 model: SlateModel, news: Callable[[str], list[dict[str, str]]] | None,
-                news_per_game: int, progress: Callable[[str], None]) -> dict[str, Any]:
+                news_per_game: int, progress: Callable[[str], None],
+                lessons: list[str] | None = None) -> dict[str, Any]:
     """Per game: candidates + news -> the model's keep/caution/drop. Then one call assembles
     combos from the survivors; code enforces the hard limits and prices them."""
     from app.investigate.ledger import BudgetExhausted
@@ -294,7 +323,9 @@ def _model_pass(s: Session, src: EspnSource, gl: list[dict[str, Any]],
         a = model.assemble({
             "legs": [{"id": x["id"], "game": x["game"], "bet": x["bet"], "price": x["price"],
                       "rule_score": x["brief"]["score"], "verdict": x["review"]["verdict"],
-                      "note": x["review"]["note"]} for x in kept],
+                      "note": x["review"]["note"]}
+                     | ({"your_history": _hist(x, 2)} if _hist(x) else {}) for x in kept],
+            "your_lessons": (lessons or [])[:12],
             "past_combo_returns": {b["bucket"]: b.get("return_per_dollar")
                                    for b in (study or {}).get("by_legs", [])},
         }, set(by_id))
@@ -351,6 +382,7 @@ def build_slate(s: Session, src: EspnSource, prefix: str, now: datetime,
             log.warning("slate: %s failed: %s", g["game_key"], type(e).__name__)
             skipped.append({"game": g["title"], "reason": str(e)[:160]})
 
+    lessons = attach_history(s, legs)
     study = latest_study(s)
     pool = pick_pool(legs)
     rule_combos = [_combo(s, src, c, study) | {"source": "rules"} for c in combos_from(pool)]
@@ -361,7 +393,8 @@ def build_slate(s: Session, src: EspnSource, prefix: str, now: datetime,
                            "news_info": {"searched": 0, "items": 0, "status": "off"}}
     if model is not None:
         try:
-            out = _model_pass(s, src, gl, by_game, study, model, news, news_per_game, progress)
+            out = _model_pass(s, src, gl, by_game, study, model, news, news_per_game, progress,
+                              lessons)
             engine = {"mode": "local_model", "model": model.model,
                       "seconds": round(model.seconds, 1), "reason": None}
         except Exception as e:  # noqa: BLE001 - fall back to the rules, and say why
@@ -384,7 +417,10 @@ def build_slate(s: Session, src: EspnSource, prefix: str, now: datetime,
                  for n in out["news"]],
         "news_info": out["news_info"],
         "pool": [{k: x[k] for k in ("ticker", "side", "label", "bet", "event_ticker", "game",
-                                    "price", "brief")} for x in pool],
+                                    "price", "brief")} | {"history": x.get("history") or []}
+                 for x in pool],
+        "history_flags": sum(1 for x in legs if x.get("history")),
+        "lessons": lessons,
         "briefed": len(legs), "leans": leans, "skipped": skipped,
         "rules": {"leg_price": [LEG_MIN, LEG_MAX], "min_score": MIN_SCORE,
                   "max_per_game": MAX_PER_GAME},
@@ -422,6 +458,7 @@ class SlateRunner:
         self._now = now
         self._lock = threading.Lock()
         self._state: dict[str, dict[str, Any]] = {}
+        self.news_per_game = NEWS_PER_GAME
 
     def state(self, prefix: str) -> dict[str, Any]:
         with self._lock:
@@ -451,7 +488,8 @@ class SlateRunner:
             try:
                 with self._factory() as s:
                     res = build_slate(s, src, prefix, self._now(), progress, news=news,
-                                      model=model, model_off=off)
+                                      model=model, model_off=off,
+                                      news_per_game=self.news_per_game)
                 upd = {"status": "ready", "result": res, "error": None}
             except Exception as e:  # noqa: BLE001
                 log.exception("slate build failed")

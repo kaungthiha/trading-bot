@@ -21,6 +21,12 @@ WRITE_ROUTES = {
     ("/api/research/jobs/{job_id}/cancel", "post"),
     ("/api/games/{prefix}/{key}/ideas/ai", "post"),  # local AI picks from screened ideas
     ("/api/games/slate/{prefix}", "post"),  # build tonight's combo briefs (ESPN only)
+    ("/api/history/day/review", "post"),  # local AI review of one day (CSRF)
+    ("/api/history/lessons", "post"),  # your lessons (local only, CSRF)
+    ("/api/history/lessons/{lesson_id}/remove", "post"),
+    ("/api/journal", "post"),  # your bet queue (local only, CSRF; never places orders)
+    ("/api/journal/{entry_id}", "post"),
+    ("/api/journal/{entry_id}/remove", "post"),
 }
 
 

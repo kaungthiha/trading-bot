@@ -117,14 +117,15 @@ def test_model_pass_reviews_with_news_and_code_enforces_limits() -> None:
         combos=[["A", "D", "F"],          # A and F are the same player: rejected by code
                 ["A", "B", "C", "D"],     # C was dropped: not offered to the assembler
                 ["A", "D", "B"]])         # valid: 2 from g1, 1 from g2
-    out = slate._model_pass(None, None, GAMES, _by_game(), None, m, _news(log), 3,  # type: ignore[arg-type]
-                            lambda _: None)
-    # Three searches per game: preview, injuries, the most-covered player's role.
-    assert log[:3] == ["Away g1 vs Home g1 preview", "Away g1 Home g1 injury report",
-                       "A minutes role"]
-    assert out["news_info"] == {"searched": 9, "items": 9, "status": "ok"}
+    out = slate._model_pass(None, None, GAMES, _by_game(), None, m, _news(log), 6,  # type: ignore[arg-type]
+                            lambda _: None, ["Don't stack two threes overs."])
+    # Per game: preview, injuries, then one prop search per player behind the candidates.
+    assert log[:5] == ["Away g1 vs Home g1 preview", "Away g1 Home g1 injury report",
+                       "A props", "B props", "C props"]
+    assert out["news_info"] == {"searched": 12, "items": 12, "status": "ok"}
+    assert m.facts[-1]["your_lessons"] == ["Don't stack two threes overs."]
     first = m.facts[0]
-    assert [n["id"] for n in first["news"]] == ["N1", "N2", "N3"]
+    assert [n["id"] for n in first["news"]] == ["N1", "N2", "N3", "N4", "N5"]
     assert first["legs"][0]["for"] and "rule_lean" in first["legs"][0]
     assembled = {x["bet"] for x in m.facts[-1]["legs"]}
     assert "YES · C" not in assembled

@@ -212,3 +212,10 @@
 .cites a, .cites span { margin-left: 0.25rem; font-size: 0.75rem; }
 .slate-reviews ul.news { margin: 0.15rem 0 0.4rem; padding-left: 1rem; }
 .slate-rules, .slate-reviews { margin: 0.4rem 0; }
+
+/* Your history on a slate leg. */
+.slate-hist { list-style: none; padding: 0; margin: 0.2rem 0 0; }
+.slate-hist li { border-left: 2px solid var(--line-2); padding-left: 0.45rem; margin: 0.1rem 0; }
+.slate-hist li.warn-high { border-left-color: var(--red); }
+.slate-hist li.warn-med { border-left-color: var(--amber); }
+.slate-hist-note { color: var(--amber-ink); margin: 0.2rem 0; }

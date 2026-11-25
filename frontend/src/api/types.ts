@@ -821,12 +821,71 @@ export interface SlateLeg {
   price: number;
 }
 export interface SlateCombo {
-  legs: (SlateLeg & { headline: string; why: BriefPoint[] })[];
+  legs: (SlateLeg & { headline: string; why: BriefPoint[]; history?: HistoryWarning[] })[];
   games: number; market: number; adjusted: number; pays: number | null;
   together: { team: string; lift: number; games: number }[];
   risks: { leg: string; text: string }[];
   past: { bucket: string; n: number; return_per_dollar: number | null } | null;
   source: "model" | "rules"; case?: string; risk?: string;
+}
+/** Your past record on a bet like this one (backend: app/history/legs.py). */
+export interface HistoryWarning { level: "high" | "medium" | "info"; kind: "same_bet" | "subject" | "category" | "breaker" | "lesson"; text: string }
+export interface HistoryWarnings {
+  legs: Record<string, HistoryWarning[]>; general_lessons: { id: number; day: string; text: string }[]; history_legs: number;
+}
+export interface Lesson {
+  id: number; day: string; text: string; player: string | null; stat: string | null; side: Side | null;
+  author: "model" | "you"; created_at: string;
+}
+export interface DayLeg {
+  ticker: string; side: Side; title: string; status: "won" | "lost" | "open"; subject: string; category: string;
+  kind: string; line: number | null; stat: string | null; what_happened: string | null;
+}
+export interface DayBet {
+  ticker: string; combo: boolean; title: string; placed_at: string | null; side: Side | null;
+  contracts: string | null; avg_price: string | null; cost: string | null; max_payout: string | null;
+  status: "open" | "settled" | "closed"; pnl: string | null; sold_early: boolean;
+  legs: DayLeg[]; legs_lost: number; sunk_by_one: boolean;
+  journal: { note: string; source: string; my_price: string | null; market_price: string | null } | null;
+}
+export interface DaySummary { date: string; bets: number; settled: number; won: number; pnl: string; staked: string }
+export interface DayDetail {
+  date: string; bets: DayBet[];
+  totals: { bets: number; settled: number; won: number; pnl: string; staked: string; open: number; combos_sunk_by_one: number };
+  breakers: (DayLeg & { combos: number; sunk_alone: number })[];
+  winners: DayBet[]; losers: DayBet[];
+  skipped: { id: string; legs: ComboLeg[]; note: string }[];
+  box_scores: { checked: number; pending: number } | null;
+}
+export interface DayReview {
+  date: string; summary: string; went_right: string[];
+  went_wrong: { text: string; kind: "process" | "luck" | "unclear"; sources: string[] }[];
+  lessons: { text: string; player: string | null; stat: string | null; side: Side | null }[];
+  next_time: string[]; model: string | null; seconds: number | null; lessons_saved: number; cached: boolean;
+  news: { id: string; about: string; title: string; source: string; age: string; url: string }[];
+  news_info: { searched: number; items: number; status: "ok" | "off" | "no_key" | "budget"; message?: string };
+}
+export interface LegRecordSubject {
+  name: string; n: number; won: number; lost: number; combos_hurt: number;
+  recent_losses: { bet: string; date: string | null; what_happened: string | null }[];
+}
+export interface LegRecord {
+  legs: number; won?: number; lost?: number; overall_loss_rate: number | null; min_pattern?: number;
+  hurt?: LegRecordSubject[]; carried?: LegRecordSubject[];
+  by_category: { name: string; n: number; won: number; lost: number; loss_rate: number | null; pattern: boolean }[];
+}
+export type JournalStatus = "queued" | "placed" | "skipped";
+export interface JournalLeg extends ComboLeg { price?: number | null; status?: "won" | "lost" | "open" | "unknown" }
+export interface JournalEntry {
+  id: string; created_at: string; status: JournalStatus; source: "docket" | "slate" | "own"; note: string;
+  legs: JournalLeg[]; market_price: string | null; my_price: string | null; stake: string | null;
+  kalshi: { ticker: string; combo: boolean; status: string; pnl: string | null; staked: string | null;
+    avg_price: string | null; contracts: string | null; placed_at: string | null } | null;
+  legs_outcome: "won" | "lost" | null;
+}
+export interface JournalInput {
+  legs: JournalLeg[]; status?: JournalStatus; source?: "docket" | "slate" | "own";
+  market_price?: string | null; my_price?: string | null; stake?: string | null; note?: string;
 }
 export interface SlateNote { bet: string; game: string; note: string; sources: string[] }
 export interface SlateResult {
@@ -834,7 +893,8 @@ export interface SlateResult {
   games: { game_key: string; title: string; occurs_at: string }[];
   engine: { mode: "local_model" | "rules"; model: string | null; seconds: number; reason: string | null };
   summary: string; pass_reason: string;
-  combos: SlateCombo[]; rule_combos: SlateCombo[]; pool: (SlateLeg & { brief: Brief })[];
+  combos: SlateCombo[]; rule_combos: SlateCombo[]; pool: (SlateLeg & { brief: Brief; history?: HistoryWarning[] })[];
+  history_flags?: number; lessons?: string[];
   reviews: { game: string; note: string; news: string[] }[];
   dropped: SlateNote[]; conflicts: SlateNote[];
   news: { id: string; game: string; title: string; source: string; age: string; url: string }[];

@@ -30,7 +30,7 @@ def mocked(brave: Brave):  # type: ignore[no-untyped-def]
 
 def test_defaults_and_upper_bounds() -> None:
     s = Settings(_env_file=None)
-    assert (s.research_brave_daily_request_cap, s.research_brave_monthly_request_cap) == (60, 800)
+    assert (s.research_brave_daily_request_cap, s.research_brave_monthly_request_cap) == (100, 800)
     assert s.research_max_searches_per_investigation == 5
     assert s.research_max_sources_per_investigation == 7
     # Lower is fine; above the defaults (beyond the ~$4 of a $5 credit) is refused.
@@ -42,7 +42,7 @@ def test_defaults_and_upper_bounds() -> None:
     )
     for field, value in (
         ("research_brave_monthly_request_cap", 801),
-        ("research_brave_daily_request_cap", 61),
+        ("research_brave_daily_request_cap", 101),
         ("research_max_searches_per_investigation", 6),
     ):
         with pytest.raises(ValidationError):

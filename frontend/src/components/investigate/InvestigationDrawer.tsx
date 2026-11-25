@@ -157,7 +157,7 @@ export function phaseText(p: Progress | undefined): string {
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
-  research: "Investigate", news: "Headlines here", headlines: "AI review headlines", slate: "Tonight's combos",
+  research: "Investigate", news: "Headlines here", headlines: "AI review headlines", slate: "Tonight's combos", review: "Day review",
 };
 
 /** App-wide Brave request count (what the caps apply to), with a per-feature breakdown.

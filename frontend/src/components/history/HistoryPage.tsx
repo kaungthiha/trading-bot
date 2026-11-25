@@ -5,6 +5,8 @@ import type { CoachResult, ComboBreakdown, HistoryFill, HistoryGroup, HistoryRep
 import { formatPrice, formatUtc } from "../format";
 import { offReason } from "../games/SecondOpinion";
 import { EmptyState, Figure, PageHead } from "../Hairline";
+import { BetQueue } from "./BetQueue";
+import { DailyReview } from "./DailyReview";
 import { OpenPositions, Tile } from "./OpenPositions";
 import { PnlCharts } from "./PnlCharts";
 import { href } from "../../router";
@@ -23,7 +25,7 @@ const money = (s: string | null | undefined) => {
 const signClass = (s: string | null | undefined) =>
   s == null ? "" : Number(s) > 0 ? "ev-pos" : Number(s) < 0 ? "ev-neg" : "";
 
-type Tab = "overview" | "open" | "behavior" | "ledger";
+type Tab = "overview" | "review" | "queue" | "open" | "behavior" | "ledger";
 
 /** Your Kalshi history: P&L, open positions in context, behaviour, and a playbook. */
 export function HistoryPage() {
@@ -75,6 +77,8 @@ export function HistoryPage() {
   const has = !!(rep && sm && (rep.behavior.fills > 0 || sm.balance != null));
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "review", label: "Daily review" },
+    { id: "queue", label: "Bet queue" },
     { id: "open", label: `Open${sm ? ` (${sm.open_markets})` : ""}` },
     { id: "behavior", label: "Behavior" },
     { id: "ledger", label: "Ledger" },
@@ -109,6 +113,8 @@ export function HistoryPage() {
             ))}
           </div>
           <div className="subtab-panel" role="tabpanel" key={tab}>
+            {tab === "review" && <DailyReview />}
+            {tab === "queue" && <BetQueue />}
             {tab === "overview" && (
               <>
                 <div className="tiles">

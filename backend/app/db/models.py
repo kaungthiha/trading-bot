@@ -662,3 +662,59 @@ class SearchLedgerEntry(Base):
     at: Mapped[str] = mapped_column(String(32), index=True)
     purpose: Mapped[str] = mapped_column(String(16), index=True)
     query_hash: Mapped[str] = mapped_column(String(64))
+
+
+# --- Your bet journal, leg post-mortems and lessons (local only) ---------------------------
+
+
+class BetJournal(Base):
+    """A bet you queued from the Docket (or a slate combo), then placed or skipped. Matched to
+    the Kalshi market you actually bought once your history syncs (kalshi_ticker)."""
+
+    __tablename__ = "bet_journal"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    status: Mapped[str] = mapped_column(String(12))
+    legs_json: Mapped[str] = mapped_column(Text)
+    leg_key: Mapped[str] = mapped_column(String(2000), index=True)
+    market_price: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    my_price: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    stake: Mapped[Decimal | None] = mapped_column(DecimalString(), nullable=True)
+    source: Mapped[str] = mapped_column(String(16))
+    note: Mapped[str] = mapped_column(Text, default="")
+    kalshi_ticker: Mapped[str | None] = mapped_column(String(160), nullable=True)
+
+
+class LegOutcome(Base):
+    """What actually happened on a leg you traded: the player's stat line vs the line."""
+
+    __tablename__ = "leg_outcomes"
+
+    leg_ticker: Mapped[str] = mapped_column(String(160), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    subject: Mapped[str] = mapped_column(String(120))
+    stat: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    line: Mapped[float | None] = mapped_column(nullable=True)
+    actual: Mapped[float | None] = mapped_column(nullable=True)
+    minutes: Mapped[float | None] = mapped_column(nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    checked_at: Mapped[datetime] = mapped_column(UTCDateTime())
+
+
+class Lesson(Base):
+    """A lesson from a day's results (written by the local model or by you). Tagged lessons
+    (player/stat/side) warn you when a new bet matches them."""
+
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    day: Mapped[str] = mapped_column(String(10), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    player: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    stat: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    side: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    author: Mapped[str] = mapped_column(String(8))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)

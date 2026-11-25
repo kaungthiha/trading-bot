@@ -562,9 +562,9 @@ Setup and spending caps:
 - **Brave:** set `KRT_BRAVE_SEARCH_API_KEY` in `.env` (a key from https://brave.com/search/api/;
   at the time of writing $5 per 1,000 requests with $5 free credit a month, so check the
   current price there).
-- **One app-wide Brave cap** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (60) and
+- **One app-wide Brave cap** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (100) and
   `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (800) apply to the **total** of every Brave use:
-  Investigate, the "Headlines here" button and the AI reviews' headlines. Also
+  Investigate, "Headlines here", the AI reviews' headlines, tonight's combos and the day review. Also
   `KRT_RESEARCH_MAX_SEARCHES_PER_INVESTIGATION` (5), `KRT_RESEARCH_MAX_SOURCES_PER_INVESTIGATION`
   (7), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6). The defaults are also the maximums: 800 a month
   is about $4 at $5 per 1,000, below a $5 monthly credit. You can lower them; raising them
@@ -670,10 +670,14 @@ tonight's combos**. A build only starts on a click, runs in the background, and 
 minutes. The work is split so that code computes every number and the model does the judging:
 1. **Code briefs** the most-traded legs of every game in the next 30 hours (both sides) and
    picks up to 8 candidates per game (priced 30–85%, no weak, thin or injured cases).
-2. **News:** up to **3 Brave searches per game**: a preview, the injury news, and the role of the
-   player most candidates are about. They count against the app-wide cap (tag "slate"), are
-   cached for `KRT_RESEARCH_SEARCH_CACHE_HOURS`, and stop cleanly when the cap is reached. With
-   no Brave key the model works from the briefs alone.
+2. **News:** up to **6 Brave searches per game** (`KRT_SLATE_NEWS_PER_GAME`, 0–10): a preview,
+   the injury news, then one **prop search per player** behind the candidate legs (most legs
+   first). Prop articles are used for their facts (minutes, role, matchup), not their picks.
+   They count against the app-wide cap (tag "slate"), are cached for
+   `KRT_RESEARCH_SEARCH_CACHE_HOURS`, and stop cleanly when the cap is reached. With no Brave
+   key the model works from the briefs alone.
+   **Your history** joins in too: every briefed leg is checked against your own past legs and
+   lessons (see "Daily review" below), and the model sees those warnings next to the brief.
 3. **Your local model** (Ollama) reads each game's briefs next to its news and marks every leg
    keep, caution or drop. It flags **stats vs news** conflicts (a minutes limit, a returning
    starter, a style change), which must cite a news item or they're cleared. It then assembles
@@ -686,7 +690,8 @@ minutes. The work is split so that code computes every number and the model does
 The page also shows the legs the model dropped and why, the news game by game (linked), and the
 rules-only combos for comparison. If Ollama isn't running (or the provider is OpenAI: this
 runs locally only), you get the rules-only combos and the reason. "Put on docket" loads a combo
-for the usual slip check.
+for the usual slip check; "Add to bet queue" logs it to your bet queue. Legs that repeat one of
+your past mistakes carry a ⚠ line saying which.
 
 **Local AI (Ollama): second opinion and Coach.** The app uses a model running on your own
 machine (default `gemma4:12b`). It is free and private, and the app only connects to
@@ -747,7 +752,27 @@ What it does:
 - Its suggestions come from your own record and link to open markets on the Markets page.
   Each one says why it's listed. They are not predictions.
 
-The page has four tabs:
+The page has six tabs:
+- **Daily review** (pick a day; US Eastern, by the day you first bought):
+  - every bet that day: what you paid per contract, the cost, what it paid if right, P&L,
+    whether you sold early, your logged reason, and **every leg** with its result and **what
+    actually happened** ("had 31 points vs the 25+ line, 36 min"; "Final: CLE 108-122"). Box
+    scores come from ESPN (basketball), are looked up on first view and stored for good;
+  - **legs that sank you**, grouped (one player missing in three combos reads once), with
+    how many combos each was the only miss in;
+  - **Review this day with the local model:** it separates bad process from bad luck, explains
+    misses from the facts (overtime, a starter sitting, a blowout), and writes up to four
+    **lessons**. Recap news for the legs that sank you: up to 8 Brave searches (tag "review").
+  - **Lessons:** the model's and your own. A lesson tagged with a player (and stat/side), or with
+    a leg type (stat + side, e.g. unders on points, or TOTAL + under for game total unders),
+    warns you whenever a new bet matches it. Remove any you disagree with.
+  - your **record by leg**: players and teams who sank you most (with what they did), those
+    who never let you down, loss rate by leg type (flagged when 10+ points worse than your
+    overall with at least 10 legs), and your **top winners and losers** of all time.
+- **Bet queue:** bets you logged from the Docket ("Add to bet queue" / "I placed it", with the
+  price you'll pay, stake and reason) or from tonight's combos. Mark them placed or skipped;
+  after a sync each placed bet links to the Kalshi market you bought with the same legs (what
+  you actually paid vs planned, and the result). Skipped bets show whether they would have won.
 - **Overview:** headline numbers, the P&L chart, and your **playbook**. The playbook is a
   short list of rules drawn from your record, such as "Keep combos to 2–3 legs: 1 win in 18
   combos of 4+ legs". Each rule shows its evidence and how far to trust it. The **Coach**
@@ -776,6 +801,13 @@ The page has four tabs:
 - **Combo legs:** the legs of every combo you traded (table `combo_legs`), taken from
   Kalshi's public data during sync. A finished leg is fetched once and never again. The
   first sync after upgrading makes a few hundred public calls (about a minute).
+- **Leg outcomes, your bet queue and lessons** (tables `leg_outcomes`, `bet_journal`,
+  `lessons`): what each leg's player actually did, the bets you logged, and lessons. Local only.
+
+**Past mistakes on the Docket.** Each leg on the Docket is checked against your history: the
+same bet on the same player lost before (with what he did), a player who keeps sinking your
+combos, a leg type that loses noticeably more often than your others, the leg type that most
+often sank a combo by itself, and matching lessons. Counts, not predictions.
 
 ## Secrets and API keys
 - Copy `.env.example` to `.env` and fill in keys **only when a later milestone needs them**.

@@ -85,3 +85,14 @@ details.dk-section[open] > summary::before { transform: rotate(90deg); }
 .hist-label { font-size: 0.85rem; font-weight: 500; color: var(--ink); }
 details.dk-section.hist > summary { justify-content: flex-start; }
 details.dk-section.hist > summary .small { margin-left: auto; }
+
+/* Your past mistakes (warnings from your own history) and logging a bet. */
+.past-mistakes.has-high { border-left: 3px solid var(--red); padding-left: 0.6rem; }
+.pm-legs, .pm-list { list-style: none; padding: 0; margin: 0.2rem 0; }
+.pm-legs > li { margin-bottom: 0.4rem; }
+.pm-list li { border-left: 2px solid var(--line-2); padding: 0.1rem 0 0.1rem 0.45rem; margin: 0.15rem 0; }
+.pm-list li.warn-high { border-left-color: var(--red); }
+.pm-list li.warn-med { border-left-color: var(--amber); }
+.dk-log-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.dk-log-row label { display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 7rem; }
+.dk-log textarea { width: 100%; }

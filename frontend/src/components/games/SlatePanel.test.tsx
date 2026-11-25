@@ -39,7 +39,7 @@ const READY: SlateState = {
 };
 
 let state: SlateState = { status: "idle" };
-const posts: Record<string, string>[] = [];
+const posts: Record<string, string | undefined>[] = [];
 
 beforeEach(() => {
   slip.clear();
@@ -47,6 +47,10 @@ beforeEach(() => {
   state = { status: "idle" };
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input), "http://127.0.0.1").pathname;
+    if (path === "/api/journal" && init?.method === "POST") {
+      posts.push({ ...(init.headers as Record<string, string>), body: String(init.body) });
+      return new Response("{}", { status: 200 });
+    }
     if (path === "/api/games/slate/KXNBA") {
       if (init?.method === "POST") {
         posts.push(init.headers as Record<string, string>);
@@ -89,6 +93,8 @@ describe("<SlatePanel>", () => {
   it("shows the local model's synthesis: case, risk, conflicts with cited news, drops", async () => {
     const base = READY.result!;
     const modelCombo = { ...base.combos[0]!, source: "model" as const,
+      legs: base.combos[0]!.legs.map((x, i) => (i === 0 ? { ...x, history: [{ level: "high" as const, kind: "same_bet" as const,
+        text: "Overs on points for Cade Cunningham: you're 0-2 on this before." }] } : x)),
       case: "Three games, each leg with a clear case the news doesn't contradict.",
       risk: "Cunningham's knee: a minutes limit sinks leg 1." };
     state = { ...READY, result: { ...base,
@@ -115,6 +121,14 @@ describe("<SlatePanel>", () => {
     expect(screen.getByRole("region", { name: "Dropped by the model" })).toHaveTextContent("Both starters out per report");
     expect(screen.getByText(/Rules-only combos, for comparison \(1\)/)).toBeInTheDocument();
     expect(screen.getByText(/Fewer than three: Other legs leaned on stale minutes/)).toBeInTheDocument();
+    expect(screen.getByText(/1 leg repeats something from your history/)).toBeInTheDocument();
+    expect(screen.getByText(/you're 0-2 on this before/)).toBeInTheDocument();
+    const card = screen.getAllByRole("heading", { name: /Combo 1/ })[0]!.closest("li")!;
+    await userEvent.setup().click(within(card).getByRole("button", { name: "Add to bet queue" }));
+    expect(await within(card).findByText(/Queued/)).toBeInTheDocument();
+    const q = posts.at(-1)!;
+    expect(q["X-KRT-Request"]).toBe("journal");
+    expect(JSON.parse(q.body!)).toMatchObject({ source: "slate", status: "queued", market_price: "0.1010" });
   });
 
   it("says why it fell back to rules", async () => {

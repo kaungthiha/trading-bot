@@ -29,6 +29,13 @@ function Cites({ ids, news }: { ids: string[]; news: NewsById }) {
 
 function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
   const put = () => { slip.clear(); c.legs.forEach((x) => slip.add(legOf(x))); };
+  const [queued, setQueued] = useState<string | null>(null);
+  const queue = () => {
+    api.addBet({ legs: c.legs.map((x) => ({ ...legOf(x), price: x.price })), status: "queued", source: "slate",
+      market_price: c.adjusted.toFixed(4), note: c.case ?? "" })
+      .then(() => setQueued("Queued (My trades → Bet queue)"), (e) => setQueued(e instanceof ApiError ? e.message : "Couldn't queue"));
+  };
+  const flagged = c.legs.filter((x) => (x.history ?? []).length > 0).length;
   return (
     <li className="slate-combo">
       <header className="slate-combo-head">
@@ -38,7 +45,10 @@ function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
           {c.together.length > 0 && <span className="muted"> · same-game legs adjusted</span>}
         </span>
         <button type="button" className="link-button small" onClick={put}>Put on docket</button>
+        <button type="button" className="link-button small" onClick={queue} disabled={queued != null}>Add to bet queue</button>
+        {queued && <span role="status" className="small muted">{queued}</span>}
       </header>
+      {flagged > 0 && <p className="small slate-hist-note">⚠ {flagged} leg{flagged === 1 ? "" : "s"} repeat{flagged === 1 ? "s" : ""} something from your history. See below.</p>}
       {c.case && <p className="small slate-case"><b>Case:</b> {c.case}</p>}
       {c.risk && <p className="small slate-case"><b>Biggest risk:</b> {c.risk}</p>}
       <ol className="slate-legs">
@@ -52,6 +62,11 @@ function ComboCard({ c, n }: { c: SlateCombo; n: number }) {
             <ul className="brief-list for small">
               {x.why.map((p) => <li key={p.text}><span aria-hidden="true">+</span> {p.text}</li>)}
             </ul>
+            {(x.history ?? []).length > 0 && (
+              <ul className="slate-hist small" aria-label={`Your history on ${x.label}`}>
+                {(x.history ?? []).map((w) => <li key={w.text} className={w.level === "high" ? "warn-high" : w.level === "medium" ? "warn-med" : ""}>⚠ {w.text}</li>)}
+              </ul>
+            )}
           </li>
         ))}
       </ol>
@@ -96,7 +111,7 @@ function Engine({ r }: { r: SlateResult }) {
   return (
     <p className="small engine model">
       <b>Synthesized by your local model</b> ({e.model}, {e.seconds}s) · {news}. Code computed every number and
-      enforced the combo limits; the model weighed the briefs against the news.
+      enforced the combo limits; the model weighed the briefs against the news{r.lessons?.length ? `, your ${r.lessons.length} lesson${r.lessons.length === 1 ? "" : "s"}` : ""}{r.history_flags ? ` and your history (${r.history_flags} legs flagged)` : ""}.
     </p>
   );
 }
@@ -217,8 +232,9 @@ export function SlatePanel({ prefix = "KXNBA" }: { prefix?: string }) {
       </header>
       <p className="small muted">
         Code briefs every leg (form against its price, minutes, what tonight's opponent allows, head-to-head, rest,
-        injuries). Your local model then reads each game's news, flags where it contradicts the numbers, and builds
-        the combos. Up to 3 Brave searches per game (cached, under the app-wide cap). Leads to research, not forecasts.
+        injuries) and checks it against your own history. Your local model then reads each game's news (a preview, the
+        injury report, and prop news for each player in play), flags where it contradicts the numbers, and builds the
+        combos. Up to 6 Brave searches per game (cached, under the app-wide cap). Leads to research, not forecasts.
       </p>
       {err && <p role="alert" className="small">{err}</p>}
       {building && <p className="small" aria-live="polite">{st?.progress ?? "Starting"}… (a few minutes with the local model)</p>}
