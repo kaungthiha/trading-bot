@@ -169,12 +169,12 @@ class Settings(BaseSettings):
     # the TOTAL of every Brave caller (investigations, "Headlines here", AI-review headlines).
     # They are not your Brave balance or bill (the app can't see those). Only explicit clicks
     # spend; cache hits are free. The defaults are also the upper bounds: at Brave's published
-    # $5 per 1,000 requests, 800/month is about $4, leaving ~$1 of a $5 monthly credit as a
-    # reserve. You can lower them in .env; raising them needs a code change on purpose.
-    # The daily cap is looser (100) so a full NBA slate (6 searches a game) plus a day review
-    # fits in one night; the monthly cap still bounds the total spend.
+    # $5 per 1,000 requests, 2000/month is about $10, i.e. ~$5 beyond a $5 monthly credit
+    # (chosen on purpose by the user). You can lower them in .env; raising them needs a code
+    # change on purpose. The daily cap (100) lets a full NBA slate (6 searches a game) plus a
+    # day review fit in one night; the monthly cap bounds the total spend.
     research_brave_daily_request_cap: int = Field(default=100, ge=0, le=100)
-    research_brave_monthly_request_cap: int = Field(default=800, ge=0, le=800)
+    research_brave_monthly_request_cap: int = Field(default=2000, ge=0, le=2000)
     research_max_searches_per_investigation: int = Field(default=5, ge=0, le=5)
     research_max_sources_per_investigation: int = Field(default=7, ge=0, le=10)
     research_search_cache_hours: float = Field(default=6, ge=0.25, le=168)

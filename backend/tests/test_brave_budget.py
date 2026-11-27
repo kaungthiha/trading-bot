@@ -30,7 +30,7 @@ def mocked(brave: Brave):  # type: ignore[no-untyped-def]
 
 def test_defaults_and_upper_bounds() -> None:
     s = Settings(_env_file=None)
-    assert (s.research_brave_daily_request_cap, s.research_brave_monthly_request_cap) == (100, 800)
+    assert (s.research_brave_daily_request_cap, s.research_brave_monthly_request_cap) == (100, 2000)
     assert s.research_max_searches_per_investigation == 5
     assert s.research_max_sources_per_investigation == 7
     # Lower is fine; above the defaults (beyond the ~$4 of a $5 credit) is refused.
@@ -41,7 +41,7 @@ def test_defaults_and_upper_bounds() -> None:
         == 100
     )
     for field, value in (
-        ("research_brave_monthly_request_cap", 801),
+        ("research_brave_monthly_request_cap", 2001),
         ("research_brave_daily_request_cap", 101),
         ("research_max_searches_per_investigation", 6),
     ):
@@ -125,7 +125,7 @@ def test_headlines_here_is_post_only_capped_cached_and_reported(
         )
         assert brave.calls == 2
         u = c.get("/api/research/usage").json()
-    assert u["used_today"] == 2 and u["daily_cap"] == 2 and u["monthly_cap"] == 800
+    assert u["used_today"] == 2 and u["daily_cap"] == 2 and u["monthly_cap"] == 2000
     assert u["by_purpose"]["news"] == {"today": 2, "month": 2}
     assert u["by_purpose"]["research"] == {"today": 0, "month": 0}
 

@@ -563,14 +563,14 @@ Setup and spending caps:
   at the time of writing $5 per 1,000 requests with $5 free credit a month, so check the
   current price there).
 - **One app-wide Brave cap** (`.env.example`): `KRT_RESEARCH_BRAVE_DAILY_REQUEST_CAP` (100) and
-  `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (800) apply to the **total** of every Brave use:
+  `KRT_RESEARCH_BRAVE_MONTHLY_REQUEST_CAP` (2000) apply to the **total** of every Brave use:
   Investigate, "Headlines here", the AI reviews' headlines, tonight's combos and the day review. Also
   `KRT_RESEARCH_MAX_SEARCHES_PER_INVESTIGATION` (5), `KRT_RESEARCH_MAX_SOURCES_PER_INVESTIGATION`
-  (7), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6). The defaults are also the maximums: 800 a month
-  is about $4 at $5 per 1,000, below a $5 monthly credit. You can lower them; raising them
+  (7), `KRT_RESEARCH_SEARCH_CACHE_HOURS` (6). The defaults are also the maximums: 2000 a month
+  is about $10 at $5 per 1,000, so roughly $5 beyond a $5 monthly credit. You can lower them; raising them
   needs a code change. Every network attempt is written to a local ledger before it's sent, and
   the caps are enforced atomically across features. Cache hits are free. Retries are off,
-  because each attempt is billed. The drawer shows "Brave requests: N / 800 this month" with a
+  because each attempt is billed. The drawer shows "Brave requests: N / 2000 this month" with a
   per-feature breakdown; **your Brave balance isn't visible to the app**, so check the Brave
   dashboard. "Headlines here" is a click-only POST (a link on another site can't spend it).
 - **Data sources:** `app/investigate/sources.py` records each source's reviewed terms and the

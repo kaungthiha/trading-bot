@@ -155,7 +155,7 @@ def test_usage_reports_app_caps_without_claiming_a_brave_balance(api: TestClient
         "used_today": 0,
         "daily_cap": 100,
         "used_month": 0,
-        "monthly_cap": 800,
+        "monthly_cap": 2000,
         "by_purpose": {p: {"today": 0, "month": 0}
                        for p in ("research", "news", "headlines", "slate", "review")},
         "max_searches_per_investigation": 5,

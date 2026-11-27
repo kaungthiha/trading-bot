@@ -92,7 +92,7 @@ SOURCES: dict[str, DataSource] = {
             "Headline/link removed from stored investigations after the search cache window; "
             "snippets never stored",
             REVIEWED,
-            "Every request counts against the one app-wide cap (60/day, 800/month by default). "
+            "Every request counts against the one app-wide cap (100/day, 2000/month by default). "
             "Brave's terms allow only transient storage of results.",
         ),
         DataSource(
